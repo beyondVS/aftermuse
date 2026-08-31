@@ -1,0 +1,37 @@
+[project]
+name = "aftermuse"
+version = "0.1.0"
+description = "독서 경험을 깊이 있는 AI 인터뷰와 독서노트로 이어주는 리플렉션 서비스"
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "Django~=6.1.0",
+    "psycopg[binary]~=3.3.4",
+]
+
+[dependency-groups]
+dev = [
+    "pytest~=9.1.0",
+    "pytest-django~=4.14.0",
+    "ruff~=0.16.5",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = ["--strict-config", "--strict-markers"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+extend-exclude = [".agents", ".tmp"]
+
+[tool.ruff.lint]
+select = ["B", "C4", "C90", "DJ", "E", "F", "I", "UP"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10

@@ -80,7 +80,7 @@ def test_compose_uses_postgresql_18_volume_layout() -> None:
 Run:
 
 ```powershell
-uv run --with pytest pytest tests/test_repository_contract.py -q
+uv run --with pytest pytest -c NUL tests/test_repository_contract.py -q
 ```
 
 Expected: `.python-version`, `.env.example` 또는 `compose.yaml`을 찾지 못해 `FAILED`.
@@ -199,7 +199,7 @@ Run:
 ```powershell
 uv lock
 uv sync --locked
-uv run pytest tests/test_repository_contract.py -q
+uv run pytest -c NUL tests/test_repository_contract.py -q
 ```
 
 Expected: lockfile 생성, 환경 동기화 성공, `3 passed`.
