@@ -1,0 +1,89 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  line-height: 1.6;
+  color: #20211f;
+  background: #f6f5f1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+[x-cloak] {
+  display: none !important;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.site-header,
+.page-shell {
+  width: min(100% - 2rem, 52rem);
+  margin-inline: auto;
+}
+
+.site-header {
+  padding-block: 1.25rem;
+}
+
+.brand {
+  color: inherit;
+  font-weight: 700;
+}
+
+.page-shell {
+  padding-block: clamp(2rem, 7vw, 5rem);
+}
+
+.eyebrow {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  max-width: 18ch;
+  font-size: clamp(2rem, 8vw, 4rem);
+  line-height: 1.08;
+}
+
+.status {
+  margin-block: 2rem;
+  padding-block: 1rem;
+  border-block: 1px solid #b8b7b1;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+button {
+  min-height: 2.75rem;
+  padding-inline: 1rem;
+  border: 1px solid currentColor;
+  border-radius: 0.25rem;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 3px solid #315f78;
+  outline-offset: 3px;
+}
