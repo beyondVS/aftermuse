@@ -112,7 +112,7 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 - [x] **IMP-001 — Django 프로젝트 Bootstrap**
   - **선행 작업:** 없음
-  - Django 프로젝트를 생성하고 `src/config` 및 주요 app 골격을 만든다.
+  - Django 프로젝트를 생성하고 `src/config` 최소 project 골격을 만든다.
   - 아직 사용하지 않는 기능의 모델을 미리 만들지 않는다.
   - **완료 조건:** 로컬에서 서버 실행과 Django system check가 통과한다.
 

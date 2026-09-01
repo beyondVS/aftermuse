@@ -23,6 +23,19 @@
 - 커밋은 diff와 검증 결과를 보고한 뒤 사용자 승인을 받아 수행한다.
 - `codex-downshift`는 실제 실행 중 확정된 명령 실행이나 기계적 문서 갱신처럼 bounded 작업에만 검토하며, 검증 해석·실패 원인 판단·완료 결정에는 사용하지 않는다.
 
+## Verification Evidence (2026-09-01)
+
+| 항목 | 실제 결과 |
+| --- | --- |
+| Runtime | Python 3.14.7, Django 6.1, Psycopg 3.3.4, uv 0.12.7 |
+| Container tools | Docker 29.7.2, Docker Compose v5.4.0 |
+| Repository contract | `3 passed` |
+| Full verification | Django system check 성공, Ruff format/lint 성공, pytest `12 passed` |
+| Empty database | 별도 `postgres:18.6-trixie` volume에서 migration table 부재 확인 후 기본 migration 및 `migrate --check` 성공 |
+| Vendor assets | HTMX SHA256 `71EA67185BFA8C98C39D31717C6FCE5D852370FCDFD129DB4543774D3145C0DE`, Alpine.js SHA256 `7A583C64748725ECB7EF8C08B7C6F1D26FBC5531F5355AD9C44FFE2AEA4E1D91` |
+| Browser | Desktop 1440×900, Mobile 390×844에서 overflow 없음; HTMX partial, Alpine 상태 전환, focus-visible, CSP와 console error 없음 확인 |
+| Cleanup | 검증용 `aftermuse-day01-verify` container, network와 volume 삭제; 기존 개발 DB는 변경하지 않음 |
+
 ---
 
 ### Task 1: 격리 상태와 Day 01 추적 범위 확정
@@ -125,9 +138,9 @@ uv run python -c "import django, psycopg; print(f'Django {django.get_version()}'
 
 Expected: Python은 `3.14.x`, Django는 `6.1.x`, Psycopg는 `3.3.x`이며 uv, Docker와 Compose version이 출력된다.
 
-- [x] **Step 2: lockfile과 동일한 dependency 환경 확인**
+- [x] **Step 2: 승인 후 lockfile과 동일한 dependency 환경 확인**
 
-Run:
+`uv sync --locked`는 누락된 package를 설치할 수 있으므로 현재 `uv.lock`과 예상 변경을 보고하고 사용자 승인을 요청한다. Run only after approval:
 
 ```powershell
 uv sync --locked
@@ -140,11 +153,14 @@ Expected: `uv.lock` 변경 없이 성공한다. 실행 후 `git status --short`�
 Run:
 
 ```powershell
-Copy-Item .env.example .env
+if (Test-Path .env) {
+    throw "기존 .env를 보존하기 위해 중단합니다. 내용을 검토한 뒤 계속 진행하십시오."
+}
+Copy-Item -LiteralPath .env.example -Destination .env
 git check-ignore -v .env
 ```
 
-Expected: `.env`가 `.env.example`의 local development 값으로 생성되고 `.gitignore`에 의해 제외된다. 실제 credential을 추가하지 않는다.
+Expected: 기존 `.env`가 있으면 파일을 변경하지 않고 중단한다. 파일이 없으면 `.env.example`의 local development 값으로 생성되고 `.gitignore`에 의해 제외된다. 실제 credential을 추가하지 않는다.
 
 - [x] **Step 4: 저장소 계약 테스트 실행**
 

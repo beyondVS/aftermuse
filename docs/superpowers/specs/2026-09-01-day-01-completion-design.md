@@ -98,8 +98,10 @@ diff를 만든다. 채택하지 않는다.
 
 ## 변경 범위
 
-검증이 모두 통과하는 경우 다음 문서만 수정한다.
+검증이 모두 통과하는 경우 다음 문서만 생성하거나 수정한다.
 
+- `docs/superpowers/specs/2026-09-01-day-01-completion-design.md`: Day 01 완료 검증 설계
+- `docs/superpowers/plans/2026-09-01-day-01-completion.md`: 실행 단계와 검증 증거
 - `docs/AfterMuse_MVP_Implementation_Plan_v5.md`: `IMP-001`~`IMP-004` 완료 표시
 - 필요할 경우 `README.md`: 실제 재현 절차와 다른 설명만 수정
 - 필요할 경우 `CHANGELOG.md`: Day 01 완료 상태를 별도 기록할 필요가 있을 때만 수정
