@@ -29,6 +29,7 @@ addopts = ["--strict-config", "--strict-markers"]
 line-length = 88
 target-version = "py314"
 extend-exclude = [".agents", ".tmp"]
+include = ["scripts/**/*.py", "src/**/*.py", "tests/**/*.py"]
 
 [tool.ruff.lint]
 select = ["B", "C4", "C90", "DJ", "E", "F", "I", "UP"]
