@@ -110,23 +110,23 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 ### Day 01 — 프로젝트가 실행된다
 
-- [ ] **IMP-001 — Django 프로젝트 Bootstrap**
+- [x] **IMP-001 — Django 프로젝트 Bootstrap**
   - **선행 작업:** 없음
   - Django 프로젝트를 생성하고 `src/config` 및 주요 app 골격을 만든다.
   - 아직 사용하지 않는 기능의 모델을 미리 만들지 않는다.
   - **완료 조건:** 로컬에서 서버 실행과 Django system check가 통과한다.
 
-- [ ] **IMP-002 — PostgreSQL 개발 환경 구성**
+- [x] **IMP-002 — PostgreSQL 개발 환경 구성**
   - **선행 작업:** IMP-001
   - PostgreSQL 연결, 개발 환경변수, 기본 migration 흐름을 구성한다.
   - **완료 조건:** 빈 DB에서 migrate가 재현 가능하다.
 
-- [ ] **IMP-003 — 테스트 / 품질 명령 구성**
+- [x] **IMP-003 — 테스트 / 품질 명령 구성**
   - **선행 작업:** IMP-001
   - formatter/linter/test 명령을 확정하고 최소 smoke test를 추가한다.
   - **완료 조건:** 한 번의 명확한 명령으로 기본 검증이 가능하다.
 
-- [ ] **IMP-004 — 공통 Layout + HTMX/Alpine 토대**
+- [x] **IMP-004 — 공통 Layout + HTMX/Alpine 토대**
   - **선행 작업:** IMP-001
   - Django Template + HTMX + Alpine.js 기반 공통 Layout을 만든다.
   - Mobile/Desktop 기본 반응형 레이아웃을 잡는다.
