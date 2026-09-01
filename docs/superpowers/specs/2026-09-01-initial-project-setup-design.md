@@ -95,7 +95,7 @@ Django 앱까지 컨테이너에 넣지 않는다. 이 구성은 Windows의 bind
 - `POSTGRES_HOST`
 - `POSTGRES_PORT`
 
-`.env.example`에는 로컬 개발용 비밀이 아닌 예시값만 기록한다. 실제 `.env`는 Git에서 제외한다. 별도 dotenv 패키지를 추가하지 않고 `uv run --env-file .env ...`로 환경을 주입한다.
+`.env.example`에는 로컬 개발용 비밀이 아닌 예시값만 기록한다. 실제 `.env`는 Git에서 제외한다. `django-environ`이 저장소 루트의 `.env`를 자동으로 읽되, 배포 환경에서 주입한 OS 환경변수를 우선한다.
 
 기본 설정 원칙은 다음과 같다.
 
@@ -175,7 +175,7 @@ Browser
 - 필수 환경변수가 없으면 시작 시 어떤 변수가 누락됐는지 명확하게 실패한다.
 - PostgreSQL 연결 실패를 SQLite로 숨기지 않는다.
 - Docker healthcheck로 PostgreSQL 준비 상태를 확인한다.
-- 잘못된 `DJANGO_DEBUG` 값은 조용히 truthy 문자열로 처리하지 않고 허용된 boolean 문자열만 파싱한다.
+- `DJANGO_DEBUG`는 `django-environ`의 boolean 타입 변환을 사용한다.
 - HTMX가 비활성화되거나 JavaScript가 실패해도 초기 페이지의 핵심 콘텐츠는 서버 렌더링으로 보인다.
 - 초기 setup endpoint는 외부 API나 LLM을 호출하지 않는다.
 
@@ -197,23 +197,23 @@ Ruff는 Python format과 lint를 담당한다. pytest-django는 Django integrati
 ```powershell
 docker compose up -d db
 uv sync --locked
-uv run --env-file .env python src/manage.py migrate --noinput
-uv run --env-file .env python src/manage.py check
-uv run --env-file .env ruff format --check .
-uv run --env-file .env ruff check .
-uv run --env-file .env pytest
+uv run python src/manage.py migrate --noinput
+uv run python src/manage.py check
+uv run ruff format --check .
+uv run ruff check .
+uv run pytest
 ```
 
 `scripts/verify.py`는 Django system check, Ruff format check, Ruff lint와 pytest를 순서대로 실행하고 첫 실패의 종료 코드를 그대로 반환한다. PostgreSQL이 실행 중인 상태에서 다음 단일 명령으로 기본 검증 전체를 수행한다.
 
 ```powershell
-uv run --env-file .env python scripts/verify.py
+uv run python scripts/verify.py
 ```
 
 개발 서버 실행:
 
 ```powershell
-uv run --env-file .env python src/manage.py runserver
+uv run python src/manage.py runserver
 ```
 
 ## README 갱신

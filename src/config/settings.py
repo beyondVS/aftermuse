@@ -1,39 +1,27 @@
-import os
 from pathlib import Path
 
-from django.core.exceptions import ImproperlyConfigured
+import environ
 from django.utils.csp import CSP
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+ENV_FILE = BASE_DIR.parent / ".env"
+env = environ.Env(
+    DJANGO_SECRET_KEY=str,
+    DJANGO_DEBUG=bool,
+    DJANGO_ALLOWED_HOSTS=list,
+    POSTGRES_DB=str,
+    POSTGRES_USER=str,
+    POSTGRES_PASSWORD=str,
+    POSTGRES_HOST=str,
+    POSTGRES_PORT=int,
+)
 
+if ENV_FILE.is_file():
+    env.read_env(ENV_FILE, overwrite=False)
 
-def required_environment(name: str) -> str:
-    """필수 환경변수를 공백이 아닌 값으로 반환한다."""
-    value = os.environ.get(name, "").strip()
-    if not value:
-        raise ImproperlyConfigured(f"필수 환경변수가 없습니다: {name}")
-    return value
-
-
-def boolean_environment(name: str) -> bool:
-    """명시적으로 허용한 문자열만 boolean으로 변환한다."""
-    value = required_environment(name).lower()
-    mapping = {"0": False, "1": True, "false": False, "true": True}
-    try:
-        return mapping[value]
-    except KeyError as error:
-        raise ImproperlyConfigured(
-            f"{name}은 true, false, 1, 0 중 하나여야 합니다."
-        ) from error
-
-
-SECRET_KEY = required_environment("DJANGO_SECRET_KEY")
-DEBUG = boolean_environment("DJANGO_DEBUG")
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in required_environment("DJANGO_ALLOWED_HOSTS").split(",")
-    if host.strip()
-]
+SECRET_KEY = env("DJANGO_SECRET_KEY")
+DEBUG = env("DJANGO_DEBUG")
+ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -76,11 +64,11 @@ ASGI_APPLICATION = "config.asgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": required_environment("POSTGRES_DB"),
-        "USER": required_environment("POSTGRES_USER"),
-        "PASSWORD": required_environment("POSTGRES_PASSWORD"),
-        "HOST": required_environment("POSTGRES_HOST"),
-        "PORT": required_environment("POSTGRES_PORT"),
+        "NAME": env("POSTGRES_DB"),
+        "USER": env("POSTGRES_USER"),
+        "PASSWORD": env("POSTGRES_PASSWORD"),
+        "HOST": env("POSTGRES_HOST"),
+        "PORT": env("POSTGRES_PORT"),
     }
 }
 
