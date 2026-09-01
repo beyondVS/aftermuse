@@ -80,7 +80,7 @@ def test_compose_uses_postgresql_18_volume_layout() -> None:
 Run:
 
 ```powershell
-uv run --with pytest pytest tests/test_repository_contract.py -q
+uv run --with pytest pytest -c NUL tests/test_repository_contract.py -q
 ```
 
 Expected: `.python-version`, `.env.example` 또는 `compose.yaml`을 찾지 못해 `FAILED`.
@@ -199,7 +199,7 @@ Run:
 ```powershell
 uv lock
 uv sync --locked
-uv run pytest tests/test_repository_contract.py -q
+uv run pytest -c NUL tests/test_repository_contract.py -q
 ```
 
 Expected: lockfile 생성, 환경 동기화 성공, `3 passed`.
@@ -391,7 +391,9 @@ DATABASES = {
 }
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -798,7 +800,9 @@ git commit -m "feat: 공통 Template과 점진적 향상 기반 추가"
 
 ```python
 import importlib.util
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -815,15 +819,22 @@ def load_verify_module():
     return module
 
 
-def test_verify_commands_are_stable() -> None:
+def test_main_stops_and_returns_the_first_failure(monkeypatch) -> None:
     verify = load_verify_module()
+    results = iter((0, 7, 0))
+    executed_commands = []
 
-    assert verify.COMMANDS == (
-        ("Django system check", ("src/manage.py", "check")),
-        ("Ruff format check", ("-m", "ruff", "format", "--check", ".")),
-        ("Ruff lint", ("-m", "ruff", "check", ".")),
-        ("pytest", ("-m", "pytest")),
-    )
+    def fake_run(command, check):
+        executed_commands.append((command, check))
+        return SimpleNamespace(returncode=next(results))
+
+    monkeypatch.setattr(verify.subprocess, "run", fake_run)
+
+    assert verify.main() == 7
+    assert executed_commands == [
+        ((sys.executable, "src/manage.py", "check"), False),
+        ((sys.executable, "-m", "ruff", "format", "--check", "."), False),
+    ]
 ```
 
 - [ ] **Step 2: script 부재로 실패 확인**

@@ -219,3 +219,6 @@ __marimo__/
 
 # Agent worktrees
 .worktrees/
+
+# Project-local temporary artifacts
+.tmp/

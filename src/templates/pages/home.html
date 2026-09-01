@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}개발 환경 확인 · AfterMuse{% endblock %}
+
+{% block content %}
+  <section class="intro" aria-labelledby="page-title">
+    <p class="eyebrow">Core MVP 기반</p>
+    <h1 id="page-title">AfterMuse 개발 환경이 준비되었습니다.</h1>
+    <p>도메인 앱은 각 구현 계획에 진입할 때 책임과 함께 추가합니다.</p>
+  </section>
+
+  {% partialdef setup-status inline %}
+    <section id="setup-status" class="status" aria-live="polite">
+      <h2>서버 렌더링 상태</h2>
+      <p>Django Template Partial 응답이 정상입니다.</p>
+    </section>
+  {% endpartialdef setup-status %}
+
+  <div class="actions" x-data="{ detailsOpen: false }">
+    <button
+      type="button"
+      hx-get="{% url 'setup-status' %}"
+      hx-target="#setup-status"
+      hx-swap="outerHTML"
+    >
+      HTMX partial 다시 확인
+    </button>
+    <button
+      type="button"
+      x-on:click="detailsOpen = !detailsOpen"
+      x-bind:aria-expanded="detailsOpen"
+      aria-controls="alpine-status"
+    >
+      Alpine.js 상태 확인
+    </button>
+    <p id="alpine-status" x-cloak x-show="detailsOpen">
+      Alpine.js CSP build가 동작합니다.
+    </p>
+  </div>
+{% endblock %}
