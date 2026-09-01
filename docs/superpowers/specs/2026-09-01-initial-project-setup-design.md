@@ -97,6 +97,8 @@ Django 앱까지 컨테이너에 넣지 않는다. 이 구성은 Windows의 bind
 
 `.env.example`에는 로컬 개발용 비밀이 아닌 예시값만 기록한다. 실제 `.env`는 Git에서 제외한다. `django-environ`이 저장소 루트의 `.env`를 자동으로 읽되, 배포 환경에서 주입한 OS 환경변수를 우선한다.
 
+OS 및 IDE가 생성하는 파일과 민감하거나 사용자별인 JetBrains 설정은 Git에서 제외하고, `codeStyles`와 `runConfigurations` 같은 공유 가능한 IDE 설정은 추적한다.
+
 기본 설정 원칙은 다음과 같다.
 
 - `LANGUAGE_CODE = "ko-kr"`

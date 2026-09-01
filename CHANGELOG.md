@@ -21,6 +21,7 @@
 
 ### Changed
 
+- OS 및 IDE가 생성하는 파일과 민감하거나 사용자별인 JetBrains 설정은 Git에서 제외하고, `codeStyles`와 `runConfigurations` 같은 공유 가능한 IDE 설정은 추적하도록 `.gitignore` 정책을 정리
 - `django-environ`으로 저장소 루트의 `.env`를 자동으로 읽고 OS 환경변수를 우선하도록
   Django 설정 로딩을 변경
 - 내부 모델의 기본 PK 정책을 `BigAutoField`로 확정하고 UUIDv7은 필요한 모델의
