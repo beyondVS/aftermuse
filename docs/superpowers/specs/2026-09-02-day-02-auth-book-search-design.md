@@ -130,6 +130,13 @@ ISBN 중복 방지는 form/service 검사에만 의존하지 않고 PostgreSQL u
 신규 빈 테이블을 만드는 초기 migration이므로 기존 행 backfill은 없다. 생성 SQL과
 reverse migration을 PostgreSQL에서 확인한다.
 
+Day 01에서 Django 기본 `auth/admin` migration이 적용된 개발 DB는 Custom User를
+나중에 추가할 때 migration dependency가 충돌할 수 있다. 아직 보존할 사용자 데이터가
+없는 초기 개발 단계이므로 `compose.yaml`의 유일한 named volume `postgres_data`를
+한 번 재생성하고 빈 DB에서 전체 migration을 다시 적용한다. 삭제 직전 Compose가
+가리키는 volume 이름과 범위를 읽기 전용으로 확인하며, 다른 Docker volume은 건드리지
+않는다. 사용자는 2026-09-02에 이 개발 DB 재생성을 승인했다.
+
 ## 7. Provider Adapter 계약
 
 Provider 중립 검색 항목은 immutable `ProviderBook` 값 객체로 표현한다.
@@ -257,5 +264,6 @@ test는 이용 승인이 확인되고 사용자가 별도로 요청한 경우에
 - 검색 API의 선택 필드 제공 범위는 key 등급에 따라 달라질 수 있다. 누락 필드는
   정규화하고 사실 데이터를 추측하지 않는다.
 - Custom User 초기 migration은 다른 도메인 FK가 생기기 전인 지금 적용해야 한다.
-  Day 02 이후 기본 auth user로 되돌리는 것은 파괴적 변경이므로 이번 구현에서 계약을
-  고정한다.
+  Day 01 기본 auth migration 이력과 충돌하지 않도록 승인된 개발 `postgres_data`
+  volume 재생성을 한 번 수행한다. Day 02 이후 기본 auth user로 되돌리는 것은 파괴적
+  변경이므로 이번 구현에서 계약을 고정한다.
