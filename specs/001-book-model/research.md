@@ -16,23 +16,22 @@ Book Knowledge가 안정적으로 동일 Book을 참조하려면 단일 식별 �
 
 ## 결정 2 — 모델 검증과 데이터베이스 제약을 분담
 
-**Decision**: ISBN13의 ASCII 숫자 13자리 형식은 `\A[0-9]{13}\Z` 패턴으로, 필수 필드는
-모델 검증으로 확인하고, ISBN13 유일성은 데이터베이스 unique constraint로 강제한다.
-ISBN 체크 디지트는 이번 범위에서 검증하지 않는다.
+**Decision**: ISBN13의 ASCII 숫자 13자리 형식과 빈 제목은 모델 검증으로 확인하면서,
+PostgreSQL CHECK 제약으로도 강제한다. ISBN13 유일성은 데이터베이스 unique constraint로
+강제하며 ISBN 체크 디지트는 이번 범위에서 검증하지 않는다.
 
 **Rationale**: ASCII 범위를 명시하면 Unicode 숫자를 잘못 허용하지 않는다. 모델 검증은
-사용 가능한 오류를 제공하고, 데이터베이스 제약은 우회 저장과 동시 요청에서도 최종 Book
-한 건을 보장한다. Django의 일반 저장 호출은 `full_clean()`을 자동 실행하지 않으므로 형식
-검증 테스트는 명시적으로 모델 검증 경로를 사용하고, 후속 저장 Service도 영속화 전에 같은
-검증을 호출해야 한다.
+사용 가능한 오류를 제공하고, 데이터베이스 제약은 `objects.create()` 같은 우회 저장과
+동시 요청에서도 형식·필수값·유일성을 보장한다. Django의 일반 저장 호출은 `full_clean()`을
+자동 실행하지 않으므로 형식 검증 테스트는 모델 검증 경로와 raw 저장 경로를 모두 확인하고,
+후속 저장 Service도 영속화 전에 같은 검증을 호출해야 한다.
 
 **Alternatives considered**:
 
 - Service 검사만 사용: 동시 요청과 우회 쓰기에서 중복이 생길 수 있어 제외.
 - `\d{13}` 사용: Unicode 숫자도 허용하고 검색 기반 validator의 경계를 덜 명확하게
   표현하므로 제외.
-- ISBN 형식까지 database check constraint로 강제: 현재 승인 설계와 완료 조건보다 범위를
-  넓히므로 제외.
+- 모델 validator만 사용: 일반 ORM 저장이 validator를 우회할 수 있어 제외.
 - `save()`를 재정의해 항상 `full_clean()` 호출: bulk 작업과 Django 관례를 바꾸는 전역
   side effect가 생기므로 제외.
 
@@ -71,13 +70,13 @@ Service를 만들면 사용 사례 없이 내부 구현을 고착시킨다.
 ## 결정 5 — 초기 migration은 단일 CreateModel로 생성
 
 **Decision**: Django가 생성하는 단일 `0001_initial` migration으로 빈 Book 테이블과
-ISBN13 unique constraint를 함께 만든다. concurrent index 분할과 `lock_timeout`은
-추가하지 않는다.
+ISBN13 unique constraint와 ISBN13·제목 CHECK 제약을 함께 만든다. concurrent index 분할과
+`lock_timeout`은 추가하지 않는다.
 
 **Rationale**: 기존 데이터나 Book 테이블이 없어 backfill과 table rewrite가 없다. Django의
 PostgreSQL backend가 unique 문자열의 LIKE 조회를 위해 별도 `varchar_pattern_ops` index를
 생성하더라도 새 빈 테이블 대상이므로 기존 쓰기를 차단하지 않는다. 실제 migration 생성 후
-`sqlmigrate`로 테이블, unique constraint, 보조 index와 reverse SQL을 확인한다.
+`sqlmigrate`로 테이블, unique constraint, CHECK 제약, 보조 index와 reverse SQL을 확인한다.
 
 **Alternatives considered**:
 

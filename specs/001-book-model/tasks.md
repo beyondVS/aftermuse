@@ -51,12 +51,12 @@ description: "Book 기본 모델 구현 작업 목록"
 
 ### 사용자 스토리 1 테스트
 
-- [ ] T006 [US1] `tests/books/test_models.py`에 전체 Metadata 저장·조회, ISBN13 exact lookup, 미존재 결과, ASCII ISBN13 형식 및 빈 제목의 `full_clean()` 거부 테스트를 먼저 작성하고 RED를 확인한다.
+- [ ] T006 [US1] `tests/books/test_models.py`에 전체 Metadata 저장·조회, ISBN13 exact lookup, 미존재 결과, ASCII ISBN13 형식 및 빈 제목의 `full_clean()`·raw ORM 저장 거부 테스트를 먼저 작성하고 RED를 확인한다.
 
 ### 사용자 스토리 1 구현
 
-- [ ] T007 [US1] `src/books/models.py`에 ISBN13 ASCII 13자리 validator, 필수 제목, 7개 서지정보 필드와 제목 기반 문자열 표현을 갖는 `Book` 모델을 구현한다.
-- [ ] T008 [US1] `src/books/migrations/0001_initial.py`를 `makemigrations books`로 생성해 Book 테이블, 기본 PK, 필드 nullability와 ISBN13 unique constraint를 기록한다.
+- [ ] T007 [US1] `src/books/models.py`에 ISBN13 ASCII 13자리 validator, 필수 제목, ISBN13·빈 제목 CHECK 제약, 7개 서지정보 필드와 제목 기반 문자열 표현을 갖는 `Book` 모델을 구현한다.
+- [ ] T008 [US1] `src/books/migrations/0001_initial.py`를 `makemigrations books`로 생성해 Book 테이블, 기본 PK, 필드 nullability, ISBN13 unique constraint와 CHECK 제약을 기록한다.
 - [ ] T009 [US1] `tests/books/test_models.py`의 US1 테스트와 `src/manage.py check`를 실행해 저장·조회·모델 검증이 GREEN인지 확인한다.
 
 **체크포인트**: 완전한 서지정보의 Book을 저장·정확 조회할 수 있고, 잘못된 ISBN13 또는 빈 제목은 모델 검증에서 거부된다.
@@ -75,7 +75,7 @@ description: "Book 기본 모델 구현 작업 목록"
 
 ### 사용자 스토리 2 구현 및 검증
 
-- [ ] T011 [US2] `src/books/models.py`와 `src/books/migrations/0001_initial.py`의 ISBN13 database-level unique constraint가 US2 테스트의 유일성 계약을 충족하는지 확인하고, 필요한 최소 수정만 적용한다.
+- [ ] T011 [US2] `src/books/models.py`와 `src/books/migrations/0001_initial.py`의 ISBN13 database-level unique constraint와 CHECK 제약을 US2 테스트와 대조하고, 수정이 필요하면 아직 적용되지 않은 initial migration을 재생성한 뒤 즉시 `makemigrations --check --dry-run books`를 실행한다.
 - [ ] T012 [US2] `tests/books/test_models.py`의 US1·US2 테스트를 실제 PostgreSQL test database에서 실행해 중복 Book 생성이 없음을 확인한다.
 
 **체크포인트**: 중복 요청은 기존 Book을 갱신하지 못하고, 경쟁 요청 후에도 ISBN13당 Book은 정확히 한 건이다.
@@ -90,12 +90,12 @@ description: "Book 기본 모델 구현 작업 목록"
 
 ### 사용자 스토리 3 테스트
 
-- [ ] T013 [US3] `tests/books/test_models.py`에 선택 문자열의 빈 문자열, 미상 출간일의 `None`, 누락 목차의 비추론, 서로 다른 ISBN13 100건의 정확 조회 및 단건 조회 시간 표본 테스트를 작성한다.
+- [ ] T013 [US3] `tests/books/test_models.py`에 선택 문자열의 빈 문자열, 미상 출간일의 `None`, 누락 목차의 비추론, 서로 다른 ISBN13 100건과 미존재 ISBN13 100건의 정확 조회·각 한 번의 query 검증을 작성한다.
 
 ### 사용자 스토리 3 구현 및 검증
 
 - [ ] T014 [US3] `src/books/models.py`의 선택 필드 기본값, `blank`/`null` 설정과 표지 URL 검증이 US3 테스트 계약을 충족하는지 확인하고 필요한 최소 수정만 적용한다.
-- [ ] T015 [US3] `tests/books/test_models.py` 전체를 실행해 누락 Metadata 보존과 100건 조회 계약이 통과하는지 확인한다.
+- [ ] T015 [US3] `tests/books/test_models.py` 전체를 실행해 누락 Metadata 보존과 query-count 계약이 통과하는지 확인하고, `specs/001-book-model/quickstart.md` 절차로 격리 PostgreSQL 환경에서 200개 lookup의 p95가 1초 이내인지 별도 측정한다.
 
 **체크포인트**: 누락된 선택 Metadata 때문에 저장이 실패하지 않으며, 시스템은 누락 값을 임의로 생성하지 않는다.
 
@@ -105,7 +105,7 @@ description: "Book 기본 모델 구현 작업 목록"
 
 **목적**: 실제 migration SQL, rollback 경계, 전체 품질 게이트와 구현 문서를 완료한다.
 
-- [ ] T016 `src/books/migrations/0001_initial.py`의 forward·backward SQL을 `sqlmigrate books 0001`과 `sqlmigrate books 0001 --backwards`로 검토해 신규 테이블·ISBN13 유일성·새 테이블용 보조 index·reverse의 테이블 삭제를 확인한다.
+- [ ] T016 `src/books/migrations/0001_initial.py`의 forward·backward SQL을 `sqlmigrate books 0001`과 `sqlmigrate books 0001 --backwards`로 검토해 신규 테이블·ISBN13 유일성·ISBN13/제목 CHECK 제약·새 테이블용 보조 index·reverse의 테이블 삭제를 확인한다.
 - [ ] T017 `src/books/migrations/0001_initial.py`을 데이터가 없는 격리 개발 또는 test database에서 forward → `books zero` reverse → forward로 왕복 적용하고, reverse가 운영 rollback 절차가 아님을 확인한다.
 - [ ] T018 `docs/AfterMuse_MVP_Implementation_Plan_v5.md`의 IMP-020 완료 상태와 `CHANGELOG.md`의 `[Unreleased]`를 구현·검증 결과에 맞게 갱신한다.
 - [ ] T019 `scripts/verify.py`를 실행하고 Django check, Ruff format, Ruff lint, 전체 pytest가 모두 통과하는지 확인한다.
@@ -165,8 +165,8 @@ Task: "tests/test_settings.py의 임시 프로젝트 fixture에 src/books 복사
 
 ## 참고 사항
 
-- `objects.create()`는 모델 validator를 자동 실행하지 않으므로 형식·필수값 테스트는
-  `full_clean()` 경로를 명시적으로 검증한다.
+- `objects.create()`는 모델 validator를 자동 실행하지 않으므로 형식·필수값은
+  `full_clean()`과 database CHECK 제약의 두 경로를 모두 검증한다.
 - ISBN13 unique constraint는 application-level 사전 검사만으로 대체하지 않는다.
 - initial migration은 새 빈 테이블만 만들므로 concurrent index, `NOT VALID`/`VALIDATE`,
   `lock_timeout` 또는 migration 분할이 필요하지 않다.

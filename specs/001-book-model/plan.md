@@ -8,8 +8,9 @@
 
 ISBN13으로 출판 판본을 구분하는 `books.Book` 도메인 모델과 초기 migration을 추가한다.
 Book은 제목과 ISBN13을 필수로, 저자 표시·출판사·출간일·표지 위치·소개·목차를
-선택값으로 저장한다. ISBN 형식은 모델 검증으로 확인하고 ISBN 유일성은 PostgreSQL
-제약으로 보장한다. 실제 Provider 연동, 검색 UI, 저장 Service 및 Work/Edition 분리는
+선택값으로 저장한다. ISBN 형식과 빈 제목은 모델 검증 및 PostgreSQL CHECK 제약으로,
+ISBN 유일성은 PostgreSQL unique constraint로 보장한다. 실제 Provider 연동, 검색 UI,
+저장 Service 및 Work/Edition 분리는
 후속 IMP 항목으로 남긴다.
 
 ## 기술적 맥락
@@ -43,8 +44,9 @@ ISBN13 100건의 저장·조회 및 순차/동시 중복 검증
 
 - **Books-first 및 범위 규율 — 통과**: Book 저장 기반은 핵심 제품 루프의 선행 조건이다.
   Provider, UI, Reading, Knowledge 및 API를 함께 구현하지 않는다.
-- **신뢰 경계와 데이터 통제 — 통과**: 외부 Metadata가 들어올 수 있는 ISBN 형식과 필드
-  길이를 모델 검증으로 제한하고, 유일성은 데이터베이스 제약으로 보장한다. 이번 범위에는
+- **신뢰 경계와 데이터 통제 — 통과**: 외부 Metadata가 들어올 수 있는 ISBN 형식과 빈
+  제목은 모델 검증 및 데이터베이스 CHECK 제약으로 제한하고, 유일성은 database-level
+  unique constraint로 보장한다. 이번 범위에는
   운영 쓰기 진입점이 없으며, 후속 IMP-024의 저장 Service가 영속화 전 검증을 담당한다.
 - **단순한 아키텍처 — 통과**: `books` 도메인 앱과 모델만 추가한다. 아직 필요하지 않은
   Repository, Selector, Service, API 또는 Provider 추상화를 만들지 않는다.
@@ -53,8 +55,8 @@ ISBN13 100건의 저장·조회 및 순차/동시 중복 검증
 - **증거 기반 품질 — 통과**: PostgreSQL 기반 모델 테스트, 생성 SQL, forward/reverse
   migration, Django check, Ruff, 전체 pytest로 완료를 입증한다.
 - **Migration 안전성 — 통과**: 기존 테이블을 변경하지 않고 비어 있는 신규 Book 테이블을
-  생성한다. table rewrite나 backfill이 없고 unique 및 LIKE 조회용 index도 새 빈 테이블에
-  만들어지므로 concurrent index 분할이나 `lock_timeout`이 필요하지 않다. 실제 SQL은
+  생성한다. table rewrite나 backfill이 없고 unique, CHECK 및 LIKE 조회용 index도 새 빈
+  테이블에 만들어지므로 concurrent index 분할이나 `lock_timeout`이 필요하지 않다. 실제 SQL은
   `sqlmigrate`로 확인한다.
 
 ### 설계 후 재검사

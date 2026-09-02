@@ -26,15 +26,16 @@ uv run pytest tests/books/test_models.py -v
 
 1. ISBN13과 7개 서지정보를 저장한 뒤 모든 값이 동일하게 조회된다.
 2. ISBN13과 제목만 저장하면 선택 문자열은 빈 문자열, 출간일은 `NULL`로 조회된다.
-3. 짧거나 문자가 섞였거나 Unicode 숫자를 포함한 ISBN13과 빈 제목은 `full_clean()`에서
-   거부된다.
+3. 짧거나 문자가 섞였거나 Unicode 숫자를 포함한 ISBN13과 빈 제목은 `full_clean()`과 raw
+   저장 경로 모두에서 거부된다.
 4. ISBN13 exact lookup은 일치하는 한 건만 반환하고 미존재를 구분한다.
 5. 순차 중복 저장은 무결성 오류가 발생하며 기존 Book 값은 바뀌지 않는다.
 6. 실제 PostgreSQL에서 같은 ISBN13의 동시 저장 경쟁 후 성공은 한 건이고 최종 행도
    한 건이다.
-7. 서로 다른 ISBN13 100건은 잘못된 반환이나 필드 손실 없이 각각 조회되고, 단건 조회의
-   95% 이상이 1초 이내에 완료된다.
-8. `tests/test_settings.py`의 격리된 관리 명령이 새 `books` 앱을 포함한 상태에서도
+7. 서로 다른 ISBN13 100건과 존재하지 않는 ISBN13 100건의 exact lookup은 각각 한 번의
+   query로 완료된다.
+8. 격리된 표준 검증 환경에서 위 200개 lookup의 p95가 1초 이내임을 별도 측정한다.
+9. `tests/test_settings.py`의 격리된 관리 명령이 새 `books` 앱을 포함한 상태에서도
    성공한다.
 
 ## 3. Migration SQL 검토
@@ -47,8 +48,8 @@ uv run python src/manage.py makemigrations --check --dry-run books
 
 기대 결과:
 
-- forward SQL은 신규 `books_book` 테이블, 기본 PK, ISBN13 unique constraint와 Django의
-  `varchar_pattern_ops` 보조 index를 생성한다.
+- forward SQL은 신규 `books_book` 테이블, 기본 PK, ISBN13 unique constraint, ISBN13·제목
+  CHECK 제약과 Django의 `varchar_pattern_ops` 보조 index를 생성한다.
 - reverse SQL은 `books_book` 테이블 삭제이며 데이터가 사라지는 동작임이 명확하다.
 - 기존 테이블 rewrite, data backfill, 외래키 또는 불필요한 추가 index가 없다.
 - model state와 migration 사이에 미생성 변경이 없다.
@@ -75,6 +76,10 @@ uv run python scripts/verify.py
 ```
 
 기대 결과: Django system check, Ruff format, Ruff lint와 전체 pytest가 모두 성공한다.
+
+성능 측정은 공유 CI의 변동을 피하기 위해 표준화된 격리 PostgreSQL 환경에서 별도로
+실행한다. 100개 존재 ISBN13과 100개 미존재 ISBN13 lookup의 개별 소요 시간을 기록하고,
+정렬한 표본의 95번째 백분위 값이 1초 이내인지 확인한다.
 
 ## 6. 범위 확인
 
