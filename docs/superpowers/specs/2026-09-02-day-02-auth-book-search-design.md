@@ -9,12 +9,21 @@
 
 ## 1. 목적과 성공 기준
 
-Day 02의 목적은 신규 사용자가 계정을 만들고 로그인한 뒤 알라딘 서지정보를
-이용해 책을 검색할 수 있는 첫 번째 실제 사용자 흐름을 완성하는 것이다.
+Day 02 전체의 목적은 신규 사용자가 계정을 만들고 로그인한 뒤 알라딘 서지정보를
+이용해 책을 검색할 수 있는 첫 번째 실제 사용자 흐름을 완성하는 것이다. 현재 실행은
+그중 IMP-010 최소 사용자 인증 구간만 완료한다.
 
-현재 축소된 실행의 완료 기준은 신규 사용자의 가입·로그인·POST 로그아웃,
-비인증/인증 navigation, Custom User용 fresh PostgreSQL migration, 관련 테스트·문서
-동기화다. 도서 검색 관련 성공 기준은 후속 실행까지 적용하지 않는다.
+### 현재 실행: IMP-010 완료 기준
+
+- 신규 사용자가 가입, 로그인, POST 로그아웃을 수행할 수 있다.
+- 비인증/인증 navigation이 로그인·회원가입 link와 POST 로그아웃 form을 올바르게
+  전환한다.
+- Custom User용 fresh PostgreSQL migration, 관련 인증 테스트와 문서 동기화가
+  완료된다.
+
+### 후속 실행: Day 02 전체 완료 기준
+
+아래 기준은 IMP-020, IMP-021, IMP-022, IMP-023 구현이 시작된 후에만 적용한다.
 
 다음 조건을 모두 만족하면 완료로 본다.
 
@@ -30,10 +39,15 @@ Day 02의 목적은 신규 사용자가 계정을 만들고 로그인한 뒤 알
 
 ## 2. 범위
 
-### 포함
+### 현재 실행 포함: IMP-010
 
-- Django session 기반 회원가입, 로그인, 로그아웃
-- `accounts.User`와 `books.Book`의 초기 모델 및 migration
+- `accounts.User` 초기 모델과 migration
+- Django session 기반 회원가입, 로그인, POST 로그아웃 및 인증 상태 navigation
+- 관련 인증 테스트와 설계 문서 동기화
+
+### 후속 설계 포함: IMP-020, IMP-021, IMP-022, IMP-023
+
+- `books.Book` 초기 모델 및 migration
 - 알라딘 ItemSearch Adapter와 외부 호출을 대체할 수 있는 transport 경계
 - 도서 검색 결과 정규화 Service
 - Django Template 및 HTMX 기반 도서 검색 화면

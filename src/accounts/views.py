@@ -11,7 +11,7 @@ def signup(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect(settings.LOGIN_REDIRECT_URL)
 
-    form = SignupForm(request.POST or None)
+    form = SignupForm(request.POST if request.method == "POST" else None)
     if request.method == "POST" and form.is_valid():
         user = form.save()
         login(request, user)

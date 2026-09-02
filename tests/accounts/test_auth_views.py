@@ -45,8 +45,19 @@ def test_signup_shows_a_username_error_when_username_is_taken(client) -> None:
 
 
 @pytest.mark.django_db
+def test_signup_shows_required_field_errors_for_an_empty_post(client) -> None:
+    response = client.post(reverse("accounts:signup"), {})
+
+    assert response.status_code == 200
+    assert response.context["form"].is_bound
+    assert {"username", "password1", "password2"} <= set(
+        response.context["form"].errors
+    )
+
+
+@pytest.mark.django_db
 def test_login_redirects_valid_credentials_to_home(client) -> None:
-    get_user_model().objects.create_user(username="reader", password=PASSWORD)
+    user = get_user_model().objects.create_user(username="reader", password=PASSWORD)
 
     response = client.post(
         reverse("accounts:login"),
@@ -55,6 +66,86 @@ def test_login_redirects_valid_credentials_to_home(client) -> None:
 
     assert response.status_code == 302
     assert response.url == reverse(settings.LOGIN_REDIRECT_URL)
+    assert client.session["_auth_user_id"] == str(user.pk)
+
+
+@pytest.mark.django_db
+def test_login_preserves_a_safe_local_next_url(client) -> None:
+    get_user_model().objects.create_user(username="reader", password=PASSWORD)
+
+    response = client.post(
+        reverse("accounts:login"),
+        {
+            "username": "reader",
+            "password": PASSWORD,
+            "next": reverse("setup-status"),
+        },
+    )
+
+    assert response.status_code == 302
+    assert response.url == reverse("setup-status")
+
+
+@pytest.mark.django_db
+def test_login_rejects_an_external_next_url(client) -> None:
+    get_user_model().objects.create_user(username="reader", password=PASSWORD)
+
+    response = client.post(
+        reverse("accounts:login"),
+        {
+            "username": "reader",
+            "password": PASSWORD,
+            "next": "https://untrusted.example/redirect",
+        },
+    )
+
+    assert response.status_code == 302
+    assert response.url == reverse(settings.LOGIN_REDIRECT_URL)
+
+
+@pytest.mark.django_db
+def test_login_with_invalid_credentials_does_not_create_a_session(client) -> None:
+    get_user_model().objects.create_user(username="reader", password=PASSWORD)
+
+    response = client.post(
+        reverse("accounts:login"),
+        {"username": "reader", "password": "incorrect-password"},
+    )
+
+    assert response.status_code == 200
+    assert settings.SESSION_COOKIE_NAME not in client.cookies
+
+
+@pytest.mark.django_db
+def test_home_navigation_changes_with_authentication(client) -> None:
+    anonymous_response = client.get(reverse("home"))
+
+    assert anonymous_response.status_code == 200
+    assert f'href="{reverse("accounts:login")}"' in anonymous_response.content.decode()
+    assert f'href="{reverse("accounts:signup")}"' in anonymous_response.content.decode()
+    assert (
+        f'action="{reverse("accounts:logout")}"'
+        not in anonymous_response.content.decode()
+    )
+
+    user = get_user_model().objects.create_user(username="reader", password=PASSWORD)
+    client.force_login(user)
+    authenticated_response = client.get(reverse("home"))
+
+    assert authenticated_response.status_code == 200
+    assert (
+        f'action="{reverse("accounts:logout")}"'
+        in authenticated_response.content.decode()
+    )
+    assert 'method="post"' in authenticated_response.content.decode()
+    assert (
+        f'href="{reverse("accounts:login")}"'
+        not in authenticated_response.content.decode()
+    )
+    assert (
+        f'href="{reverse("accounts:signup")}"'
+        not in authenticated_response.content.decode()
+    )
 
 
 @pytest.mark.django_db
