@@ -36,9 +36,10 @@ Credit, Reader Insight, Book Knowledge 자동 Research, Backoffice 및 기타 �
 
 ## 현재 구현 상태
 
-현재 저장소에는 2주 Core MVP 구현을 시작하기 위한 Django 개발 기반과 공통 웹 UI
-토대가 구성되어 있습니다. 도메인 앱과 모델은 각 구현 계획에서 책임과 경계를 확정한
-뒤 점진적으로 추가합니다.
+현재 저장소에는 Custom User 기반의 세션 인증 흐름이 구현되어 있습니다. 사용자는
+`/accounts/signup/`에서 가입하고, `/accounts/login/`에서 로그인하며, POST
+`/accounts/logout/`으로 로그아웃할 수 있습니다. 도메인 앱과 모델은 각 구현 계획에서
+책임과 경계를 확정한 뒤 점진적으로 추가합니다.
 
 ## 기술 스택
 
