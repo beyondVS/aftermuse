@@ -18,6 +18,40 @@ HTMX 2.0.10, Alpine.js CSP 3.17.1, pytest-django, Ruff, uv
 
 **Spec:** `docs/superpowers/specs/2026-09-02-day-02-auth-book-search-design.md`
 
+## 2026-09-02 Execution Scope Amendment
+
+사용자 지시에 따라 현재 실행 범위를 IMP-010 최소 사용자 인증으로 축소한다.
+
+- Task 1과 Task 2는 실행 대상이며 완료됐다.
+- 기존 Task 3부터 Task 7까지는 이번 실행에서 수행하지 않는다.
+- IMP-020, IMP-021, IMP-022, IMP-023은 미완료로 유지한다.
+- 인증 closeout으로 Custom User 개발 DB 재생성, fresh migration, 전체 verify,
+  README/CHANGELOG, IMP-010 완료 표시만 수행한다.
+- 이 amendment가 아래 기존 Task의 실행 지시보다 우선한다. 기존 Book/Provider/Search
+  Task 본문은 후속 계획 재사용과 결정 이력 보존을 위해 삭제하지 않는다.
+
+### Authentication Closeout
+
+**Files:**
+- Modify: `README.md`
+- Modify: `CHANGELOG.md`
+- Modify: `docs/AfterMuse_MVP_Implementation_Plan_v5.md`
+- Test: accounts/auth tests, generated accounts migration, full verification suite
+
+**Required actions:**
+
+1. `docker compose config --volumes`가 `postgres_data` 하나만 출력하는지 확인한다.
+2. 사용자가 승인한 `docker compose down --volumes`로 Day 01 기본 auth migration
+   history가 있는 개발 volume을 재생성한다. 다른 Docker volume은 삭제하지 않는다.
+3. `docker compose up -d --wait db`와 `uv run python src/manage.py migrate --noinput`으로
+   Custom User를 포함한 fresh migration을 적용한다.
+4. `uv run python scripts/verify.py`를 실행한다.
+5. README에 Custom User 기반 signup/login/logout URL과 현재 구현 상태를 반영한다.
+6. CHANGELOG `[Unreleased]`에 최소 인증을 기록한다.
+7. 구현 계획에서 IMP-010만 `[x]`로 바꾸고 IMP-020~023은 `[ ]`로 유지한다.
+8. 문서 변경 후 `uv run python scripts/verify.py`와 `git diff --check`를 재실행한다.
+9. `docs: 최소 사용자 인증 완료 상태 반영`으로 closeout 변경을 커밋한다.
+
 ## Global Constraints
 
 - Python은 `>=3.14,<3.15`, Django는 `~=6.1.0`을 유지한다.
