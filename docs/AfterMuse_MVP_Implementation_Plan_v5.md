@@ -145,7 +145,7 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 제목, 저자 표시, 출판사, 출간일, 표지, 소개, 목차를 저장할 수 있게 한다.
   - **완료 조건:** Book 저장/조회와 ISBN 중복 방지 테스트가 통과한다.
 
-- [ ] **IMP-021 — 도서 Metadata Provider Adapter 구현**
+- [x] **IMP-021 — 도서 Metadata Provider Adapter 구현**
   - **선행 작업:** IMP-003
   - 알라딘 검색 Adapter를 구현하되, 외부 호출은 테스트에서 대체 가능하게 한다.
   - **완료 조건:** 정상/실패/timeout 응답을 구분할 수 있다.
