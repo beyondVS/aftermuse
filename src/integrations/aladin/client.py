@@ -82,6 +82,7 @@ class AladinBookMetadataProvider:
 
     @staticmethod
     def _decode_payload(payload: bytes) -> dict[str, object]:
+        """응답을 JSON object로 해석하고 손상된 구조를 Provider 오류로 변환한다."""
         try:
             data = json.loads(payload)
         except (json.JSONDecodeError, UnicodeDecodeError) as error:
@@ -92,6 +93,12 @@ class AladinBookMetadataProvider:
 
     @staticmethod
     def _is_valid_item(item: object) -> bool:
+        """항목 구조를 검증하고 필수 서지정보의 유효 여부를 반환한다.
+
+        Raises:
+            ProviderResponseError: 항목이 JSON object가 아니어서 응답 구조가
+                손상된 경우.
+        """
         if not isinstance(item, dict):
             raise ProviderResponseError
 

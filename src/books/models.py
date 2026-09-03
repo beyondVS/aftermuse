@@ -8,6 +8,8 @@ isbn13_validator = RegexValidator(
 
 
 class Book(models.Model):
+    """ISBN13으로 식별되는 도서 서지정보를 나타낸다."""
+
     isbn13 = models.CharField(max_length=13, unique=True, validators=[isbn13_validator])
     title = models.CharField(max_length=500)
     authors = models.CharField(max_length=500, blank=True)
