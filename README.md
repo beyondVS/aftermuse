@@ -38,8 +38,13 @@ Credit, Reader Insight, Book Knowledge 자동 Research, Backoffice 및 기타 �
 
 현재 저장소에는 Custom User 기반의 세션 인증 흐름이 구현되어 있습니다. 사용자는
 `/accounts/signup/`에서 가입하고, `/accounts/login/`에서 로그인하며, POST
-`/accounts/logout/`으로 로그아웃할 수 있습니다. 도메인 앱과 모델은 각 구현 계획에서
-책임과 경계를 확정한 뒤 점진적으로 추가합니다.
+`/accounts/logout/`으로 로그아웃할 수 있습니다.
+
+Day 02 범위로 ISBN13 중심의 Book 모델, 외부 호출을 대체할 수 있는 Metadata Adapter,
+Provider 중립 검색 Service와 로그인 사용자용 `/books/search/` 화면이 구현되어 있습니다.
+검색 화면은 HTMX로 Loading·Empty·Error 상태와 판본 식별용 서지정보를 제공하지만, 검색
+결과의 Book 저장과 Reading 생성은 아직 구현되지 않았습니다. 알라딘 OpenAPI 종료에 따라
+live 검색은 현재 사용할 수 없으며, IMP-025에서 Kakao Provider로 교체할 예정입니다.
 
 ## 기술 스택
 
@@ -62,9 +67,12 @@ HTMX와 Alpine.js는 CDN 없이 저장소의 로컬 정적 자산을 사용합�
 ├─ docs/                 기획, 아키텍처 및 구현 계획
 ├─ scripts/              개발 검증 스크립트
 ├─ src/
+│  ├─ accounts/          Custom User와 인증 흐름
+│  ├─ books/             Book 모델, 검색 Service와 화면
 │  ├─ config/            Django 프로젝트 설정
+│  ├─ integrations/      외부 Metadata Provider Adapter
 │  ├─ static/            공통 CSS, JavaScript 및 vendor 자산
-│  ├─ templates/         공통 Template과 초기 화면
+│  ├─ templates/         공통·인증·도서 검색 Template
 │  └─ manage.py
 ├─ tests/                프로젝트 설정 및 통합 테스트
 ├─ .env.example          로컬 환경변수 예시
@@ -109,15 +117,17 @@ uv run python src/manage.py runserver
 | `POSTGRES_PASSWORD` | PostgreSQL 비밀번호 |
 | `POSTGRES_HOST` | PostgreSQL host |
 | `POSTGRES_PORT` | PostgreSQL port |
-| `ALADIN_TTB_KEY` | 알라딘 Metadata 검색용 TTB key (자동 테스트에서는 불필요) |
+| `ALADIN_TTB_KEY` | IMP-021 legacy 알라딘 Adapter용 TTB key (신규 발급 종료, 자동 테스트에서는 불필요) |
 
 필수 환경변수가 없으면 Django는 시작 단계에서 명시적으로 실패합니다. Django는 저장소
 루트의 `.env`를 자동으로 읽으며, 같은 이름의 OS 환경변수가 있으면 OS 값을 우선합니다.
 SQLite fallback은 제공하지 않습니다.
 
-알라딘 Adapter의 자동 테스트와 일반 개발 명령은 실제 key 없이 실행할 수 있습니다. 실제
-알라딘 검색에는 승인된 TTB key가 필요하며, key와 Provider 원본 오류 내용은 반환값이나
-오류 메시지에 포함하지 않습니다.
+알라딘 Adapter의 자동 테스트와 일반 개발 명령은 실제 key 없이 실행할 수 있습니다. 다만
+알라딘의 신규 key 발급과 OpenAPI 서비스 종료가 공지되어 현재 설정은 신규 개발 환경의 live
+검색 경로로 사용할 수 없습니다. IMP-025에서 기본 Metadata Provider를 Kakao로 교체하기
+전까지 `ALADIN_TTB_KEY`는 legacy Adapter 호환을 위해 유지합니다. key와 Provider 원본 오류
+내용은 반환값이나 오류 메시지에 포함하지 않습니다.
 
 ## 개발 명령
 

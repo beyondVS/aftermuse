@@ -41,12 +41,16 @@
 완료: IMP-021, IMP-022
 진행 중: IMP-030
 다음: IMP-031, IMP-032
-Blocker: Aladin API 응답에서 판본 구분 확인 필요
+Blocker: Kakao API 응답에서 ISBN13 판별 규칙 확인 필요
 ```
 
 ---
 
 ## 2. 2-Week Core MVP Critical Path
+
+> 2026-09-03 재기준화: 알라딘 OpenAPI 종료 대응을 Critical Path에 추가하면서 Core MVP는
+> 10개에서 11개의 Day 작업 묶음으로 조정한다. `Day`는 달력상의 고정 마감이 아니며,
+> Provider 교체 검증을 생략해 기존 10개 묶음에 억지로 압축하지 않는다.
 
 2주 Core MVP의 목표는 전체 Full MVP를 끝내는 것이 아니라 다음 핵심 제품 가설을 검증하는 것이다.
 
@@ -160,20 +164,22 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 표지 기반 도서 검색 UI를 구현한다.
   - Loading/Empty/Error 상태를 최소한으로 처리한다.
   - **완료 조건:** Desktop/Mobile에서 검색 결과를 확인할 수 있다.
-  - **검증 예외:** 알라딘 신규 API key 발급 중단으로 live 검색 검증은 폐기하고, 대체 Provider 검증을 IMP-023A로 이관한다.
+  - **검증 예외:** 알라딘 신규 API key 발급 중단으로 live 검색 검증은 폐기하고, 대체 Provider 검증을 IMP-025로 이관한다.
 
-### Day 03 — 도서 검색을 복구하고 책을 Reading으로 등록해 완독할 수 있다
+### Day 03 — 도서 검색을 복구하고 선택한 책을 등록할 수 있다
 
-- [ ] **IMP-023A — 도서 Metadata Provider 교체 및 검색 복구**
+- [ ] **IMP-025 — 도서 Metadata Provider 교체 및 검색 복구**
   - **선행 작업:** IMP-003, IMP-021, IMP-022, IMP-023
   - 알라딘 OpenAPI의 신규 key 발급 및 서비스 종료에 대응해 기본 Metadata Provider를 Kakao 도서 검색 API로 교체한다.
   - Provider 중립 계약·오류·factory를 알라딘 package 밖으로 이동하고 기존 검색 Service와 화면의 계약을 유지한다.
   - **완료 조건:** Kakao 정상/빈 결과/실패/timeout과 ISBN13 정규화 테스트, 기존 검색 Service·화면 회귀 테스트 및 실제 Kakao key smoke test가 통과한다.
 
 - [ ] **IMP-024 — 도서 선택 및 로컬 Book 등록**
-  - **선행 작업:** IMP-020, IMP-022, IMP-023, IMP-023A
+  - **선행 작업:** IMP-020, IMP-022, IMP-023, IMP-025
   - 검색 결과 선택 시 기존 Book을 재사용하거나 새 Book을 저장한다.
   - **완료 조건:** 같은 ISBN을 반복 선택해도 중복 Book이 생성되지 않는다.
+
+### Day 04 — Reading을 만들고 완독 상태를 관리할 수 있다
 
 - [ ] **IMP-030 — Reading 기본 도메인 구현**
   - **선행 작업:** IMP-010, IMP-020
@@ -197,7 +203,7 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 책 정보, Reading 상태, 다음 행동을 표시한다.
   - **완료 조건:** 완독한 Reading에서 AI Interview 시작 CTA를 볼 수 있다.
 
-### Day 04 — 최소 Book Knowledge와 Interview 시작 준비
+### Day 05 — 최소 Book Knowledge와 Interview 시작 준비
 
 - [ ] **IMP-040 — BookKnowledge 최소 저장 구조 구현**
   - **선행 작업:** IMP-020
@@ -227,7 +233,9 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 2주 Core MVP에서는 Credit 예약을 하지 않는다.
   - **완료 조건:** 완독 Reading에서 Interview를 시작할 수 있다.
 
-### Day 05 — 첫 질문과 답변 저장이 동작한다
+## Week 2
+
+### Day 06 — 첫 질문과 답변 저장이 동작한다
 
 - [ ] **IMP-060 — LLM Provider Adapter 최소 구현**
   - **선행 작업:** IMP-003
@@ -258,9 +266,7 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - LLM 실패가 답변 유실로 이어지지 않아야 한다.
   - **완료 조건:** 정상/실패 상황에서 답변이 보존된다.
 
-## Week 2
-
-### Day 06 — 답변에 따라 다음 질문이 이어진다
+### Day 07 — 답변에 따라 다음 질문이 이어진다
 
 - [ ] **IMP-070 — Coverage 기본 구조 구현**
   - **선행 작업:** IMP-064
@@ -284,7 +290,7 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 답변 저장 → 분석 → Coverage 갱신 → 다음 질문 저장 흐름을 연결한다.
   - **완료 조건:** 최소 3턴 이상 인터뷰가 이어진다.
 
-### Day 07 — Soft Stop과 Interview UX가 연결된다
+### Day 08 — Soft Stop과 Interview UX가 연결된다
 
 - [ ] **IMP-080 — 질문 Budget / Safety Cap 구현**
   - **선행 작업:** IMP-073
@@ -312,7 +318,7 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - LLM 실패, timeout, 잘못된 응답에서 답변이 보존되며 재시도할 수 있게 한다.
   - **완료 조건:** 다음 질문 생성 실패 후에도 사용자가 복구할 수 있다.
 
-### Day 08 — Reflection 초안이 생성되고 수정된다
+### Day 09 — Reflection 초안이 생성되고 수정된다
 
 - [ ] **IMP-090 — Reflection 기본 모델 구현**
   - **선행 작업:** IMP-050
@@ -340,7 +346,7 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 사용자가 생성된 Reflection을 직접 수정할 수 있게 한다.
   - **완료 조건:** 수정한 내용이 저장되고 다시 열어도 유지된다.
 
-### Day 09 — 실제 책으로 품질을 검증한다
+### Day 10 — 실제 책으로 품질을 검증한다
 
 - [ ] **IMP-100 — 2주 검증용 책 세트 구성**
   - **선행 작업:** IMP-041, IMP-094
@@ -367,7 +373,7 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 모바일 웹에서 책 검색, 인터뷰, Reflection 확인/수정이 가능한지 확인한다.
   - **완료 조건:** 모바일에서 핵심 루프를 수행할 수 있다.
 
-### Day 10 — Demo 가능한 Core MVP로 정리한다
+### Day 11 — Demo 가능한 Core MVP로 정리한다
 
 - [ ] **IMP-110 — 핵심 오류 정리 및 Smoke Test 보강**
   - **선행 작업:** IMP-101

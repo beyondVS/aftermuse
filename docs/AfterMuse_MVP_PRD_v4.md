@@ -170,7 +170,8 @@ MVP에서는 ISBN13을 기준으로 도서를 구분한다.
 - 책 소개
 - 목차
 
-한국 도서 Metadata Provider의 우선 후보는 알라딘 OpenAPI다.
+Core MVP의 한국 도서 Metadata Provider는 Kakao 도서 검색 API를 사용한다. 알라딘
+OpenAPI는 신규 key 발급과 서비스 종료가 공지되어 운영 후보에서 제외한다.
 
 Work / Edition 모델의 본격적인 분리는 MVP 이후로 미룬다.
 

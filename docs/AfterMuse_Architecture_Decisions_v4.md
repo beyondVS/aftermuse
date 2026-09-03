@@ -218,7 +218,7 @@ src/
 
 - Book
 - ISBN / Metadata
-- Aladin Metadata 연동
+- Provider 중립 Metadata 연동
 
 ### readings
 
@@ -267,7 +267,7 @@ src/
 예:
 
 - LLM
-- Aladin
+- Metadata Provider
 - Web Search
 - Prompt Security
 
@@ -333,12 +333,14 @@ HTTP/실행 인터페이스 역할만 한다.
 
 AI, 검색, Metadata Provider는 Django 도메인 코드에 직접 종속시키지 않는다.
 
-예:
+IMP-025 완료 후 목표 구조 예:
 
 ```text
 integrations/
 ├─ llm/
-├─ aladin/
+├─ metadata/
+├─ kakao/
+├─ aladin/          # IMP-021의 종료 예정 legacy Adapter
 ├─ search/
 └─ prompt_security/
 ```
@@ -347,7 +349,26 @@ integrations/
 
 이 구조의 주 목적은 Provider 교체보다 **테스트 가능성과 외부 실패 격리**다.
 
-테스트에서는 실제 LLM, Web Search, Aladin API 호출 없이 대체 구현을 사용할 수 있어야 한다.
+테스트에서는 실제 LLM, Web Search, Metadata Provider API 호출 없이 대체 구현을 사용할 수 있어야 한다.
+
+### 9.1 도서 Metadata Provider 교체 결정
+
+**상태:** 승인됨 (2026-09-03)
+
+**배경:** 알라딘은 2026-09-04 신규 OpenAPI key 발급을 종료하고 2026-10-30 기존
+OpenAPI 서비스도 종료한다고 공지했다. 따라서 신규 환경에서 재현할 수 없는 알라딘 연동은
+Core MVP의 도서 검색 기반으로 유지할 수 없다.
+
+**결정:** IMP-021의 알라딘 Adapter는 구현 이력과 회귀 참고용 legacy 코드로 보존하되 기본
+Provider에서 제외하기로 한다. IMP-025에서 Provider 중립 계약·오류·factory를 특정 Provider
+package 밖으로 이동하고 Kakao 도서 검색 API Adapter를 기본 구현으로 추가한다.
+
+**결과:** IMP-022 Service와 IMP-023 UI의 Provider 중립 공개 계약은 유지한다. IMP-024는
+IMP-025의 실제 검색 검증 이후 진행하며, Kakao 응답의 복합 ISBN 값에서 유효한 ISBN13을
+선택·정규화하는 책임은 새 Adapter가 가진다. 자동 테스트는 fake transport를 사용하고,
+실제 key smoke test는 별도의 명시적 검증으로 제한한다.
+
+**근거:** [알라딘 OpenAPI 서비스 종료 안내](https://blog.aladin.co.kr/cscenter/17483675)
 
 ---
 
