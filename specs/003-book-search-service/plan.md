@@ -27,8 +27,8 @@
 
 **프로젝트 유형**: 단일 Django Web application 내부의 도메인 Service
 
-**성능 목표**: 유효한 검색당 Provider 호출 1회, 최대 20개 결과의 순서와 Metadata를
-복사 없이 전달
+**성능 목표**: 유효한 검색당 Provider 호출 1회, Provider가 반환한 결과의 순서와
+Metadata를 변형하거나 누락하지 않고 전달
 
 **제약 조건**: 공백 검색 시 Provider 호출 0회, Provider 오류 상세 비노출, DB query와
 mutation 0건, 신규 runtime 의존성·retry·cache·Provider 병합 없음
