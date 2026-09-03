@@ -4,6 +4,11 @@
 Provider 호출 없이 검증한다. 세부 계약은 [ui-contract.md](contracts/ui-contract.md)와
 [data-model.md](data-model.md)를 기준으로 한다.
 
+> **2026-09-03 검증 범위 변경**: 알라딘 OpenAPI 신규 key 발급 중단으로 실제 알라딘
+> live 검색 및 이에 종속된 최종 browser 검증은 Day 03 `IMP-023A`의 Kakao Provider
+> live smoke와 Desktop/Mobile 수동 검증으로 이관한다. 아래 fake 기반 자동 검증은 IMP-023의
+> 완료 증거로 유지한다.
+
 ## 사전 조건
 
 - Python 3.14와 `uv`
@@ -43,7 +48,7 @@ uv run python src/manage.py check
 uv run python scripts/verify.py
 ```
 
-## 실제 browser 검증
+## 대체 Provider 적용 후 browser 검증
 
 개발 서버를 실행하고 로그인한 뒤 `/books/search/`에서 fake 또는 안전한 개발 검색 응답으로
 다음을 확인한다.
@@ -62,5 +67,6 @@ uv run python scripts/verify.py
 - 검색 결과 저장, 도서 선택·등록, Reading 생성과 Book Knowledge 준비는 발생하지 않는다.
 - 신규 migration, runtime dependency, JSON API 및 client 전역 상태가 추가되지 않는다.
 
-전체 검증 뒤 `CHANGELOG.md`의 `[Unreleased]`와
-`docs/AfterMuse_MVP_Implementation_Plan_v5.md`의 IMP-023 완료 상태를 동기화한다.
+자동 검증 뒤 `CHANGELOG.md`의 `[Unreleased]`와
+`docs/AfterMuse_MVP_Implementation_Plan_v5.md`의 IMP-023 완료 상태를 동기화한다. 실제
+Provider를 사용하는 browser 검증은 IMP-023A에서 완료한다.

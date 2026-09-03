@@ -35,7 +35,22 @@ body {
 }
 
 .site-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
   padding-block: 1.25rem;
+}
+
+.site-header nav {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.site-header nav form {
+  margin: 0;
 }
 
 .brand {
@@ -83,7 +98,119 @@ button {
 }
 
 a:focus-visible,
-button:focus-visible {
+button:focus-visible,
+input:focus-visible {
   outline: 3px solid #315f78;
   outline-offset: 3px;
+}
+
+.book-search-introduction {
+  max-width: 52ch;
+}
+
+.search-region {
+  margin-block-start: 2rem;
+}
+
+.search-form {
+  align-items: end;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.search-form label {
+  grid-column: 1 / -1;
+}
+
+.search-query-help {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.search-form input[type="search"] {
+  min-width: 0;
+}
+
+.search-loading {
+  display: none;
+  margin-block: 2rem;
+  padding-block: 1rem;
+}
+
+.search-loading.htmx-request {
+  display: block;
+}
+
+.search-form.htmx-request ~ .search-content {
+  display: none;
+}
+
+.search-state {
+  margin-block: 2rem;
+}
+
+.search-state h2 {
+  font-size: 1.4rem;
+}
+
+.search-results {
+  display: grid;
+  gap: 1rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.book-search-result {
+  border-block: 1px solid #b8b7b1;
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(5.5rem, 7rem) minmax(0, 1fr);
+  padding-block: 1rem;
+}
+
+.book-cover {
+  align-items: center;
+  aspect-ratio: 2 / 3;
+  background: #e7e5df;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.book-cover img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.book-cover-placeholder {
+  padding: 0.75rem;
+  text-align: center;
+}
+
+.book-search-result-details {
+  min-width: 0;
+}
+
+.book-search-result-details h3,
+.book-search-result-details p {
+  margin-block: 0;
+  overflow-wrap: anywhere;
+}
+
+.book-search-result-details p + p {
+  margin-block-start: 0.35rem;
+}
+
+@media (max-width: 30rem) {
+  .search-form {
+    grid-template-columns: 1fr;
+  }
+
+  .search-form button {
+    justify-self: start;
+  }
 }

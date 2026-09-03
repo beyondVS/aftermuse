@@ -23,6 +23,7 @@
 - 주입 가능한 transport와 정상·실패·timeout 구분을 지원하는 알라딘 Metadata Adapter
 - 실제 credential을 포함하지 않는 `ALADIN_TTB_KEY` 환경 예시
 - Provider 중립 계약으로 성공·빈 결과·안전한 오류 상태를 구분하는 도서 검색 Service
+- 로그인 사용자용 도서 검색 화면과 HTMX 기반 Loading·Empty·Error 상태
 
 ### Changed
 

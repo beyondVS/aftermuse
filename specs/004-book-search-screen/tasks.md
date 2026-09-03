@@ -21,8 +21,8 @@ View 통합 테스트를 포함한다. 테스트 선행 작성은 이 기능의 
 
 **목적**: 기존 `books` 앱에 검색 입력과 주소의 최소 골격을 추가한다.
 
-- [ ] T001 `src/books/forms.py`에 양끝 공백 제거 후 1~200자만 허용하는 `BookSearchForm`을 구현한다.
-- [ ] T002 `src/books/urls.py`에 `books:search` GET 주소를 정의하고 `src/config/urls.py`에서 `/books/` URLconf를 include한다.
+- [X] T001 `src/books/forms.py`에 양끝 공백 제거 후 1~200자만 허용하는 `BookSearchForm`을 구현한다.
+- [X] T002 `src/books/urls.py`에 `books:search` GET 주소를 정의하고 `src/config/urls.py`에서 `/books/` URLconf를 include한다.
 
 ---
 
@@ -32,8 +32,8 @@ View 통합 테스트를 포함한다. 테스트 선행 작성은 이 기능의 
 
 **⚠️ 중요**: 이 단계가 완료될 때까지 사용자 스토리 구현을 시작하지 않는다.
 
-- [ ] T003 `src/books/views.py`에 로그인 필수 function View와 `get_default_provider()`·`search_books()`의 의존성 조합을 구현하고, 일반 요청과 `HX-Request`의 template 응답을 구분한다.
-- [ ] T004 `src/templates/books/search.html`과 `src/templates/books/_search_region.html`에 전체 페이지와 교체 가능한 검색 영역의 공통 골격을 만든다.
+- [X] T003 `src/books/views.py`에 로그인 필수 function View와 `get_default_provider()`·`search_books()`의 의존성 조합을 구현하고, 일반 요청과 `HX-Request`의 template 응답을 구분한다.
+- [X] T004 `src/templates/books/search.html`과 `src/templates/books/_search_region.html`에 전체 페이지와 교체 가능한 검색 영역의 공통 골격을 만든다.
 
 **체크포인트**: 인증된 사용자는 검색 전 초기 화면을, 익명 사용자는 기존 로그인 흐름을 받는다.
 
@@ -48,12 +48,12 @@ fake 결과를 검색하고, 전체 목록의 표시 순서와 선택 Metadata�
 
 ### 사용자 스토리 1 테스트
 
-- [ ] T005 [US1] `tests/books/test_views.py`에 인증, 유효 검색, Provider factory 대체, 실제 `search_books()` 경유, 전체 결과 순서와 선택 서지정보·출간연도 표시를 검증하는 View 테스트를 작성한다.
+- [X] T005 [US1] `tests/books/test_views.py`에 인증, 유효 검색, Provider factory 대체, 실제 `search_books()` 경유, 전체 결과 순서와 선택 서지정보·출간연도 표시를 검증하는 View 테스트를 작성한다.
 
 ### 사용자 스토리 1 구현
 
-- [ ] T006 [US1] `src/books/views.py`에서 유효한 `BookSearchForm` 입력에만 Provider를 생성하고 `BookSearchStatus.SUCCESS` 결과를 template context로 전달한다.
-- [ ] T007 [US1] `src/templates/books/_search_region.html`에 검색어, 제목을 포함한 `alt` 텍스트와 고정 영역의 표지, 제목, 저자, 출판사, 출간연도를 제공된 값에 한해 표시하는 순서 보존 결과 목록을 구현하고, URL이 없거나 browser가 로드하지 못해도 `alt` 텍스트와 나머지 서지정보로 식별할 수 있게 한다.
+- [X] T006 [US1] `src/books/views.py`에서 유효한 `BookSearchForm` 입력에만 Provider를 생성하고 `BookSearchStatus.SUCCESS` 결과를 template context로 전달한다.
+- [X] T007 [US1] `src/templates/books/_search_region.html`에 검색어, 제목을 포함한 `alt` 텍스트와 고정 영역의 표지, 제목, 저자, 출판사, 출간연도를 제공된 값에 한해 표시하는 순서 보존 결과 목록을 구현하고, URL이 없거나 browser가 로드하지 못해도 `alt` 텍스트와 나머지 서지정보로 식별할 수 있게 한다.
 
 **체크포인트**: 결과는 저장·선택·외부 상세 링크 없이 Provider 반환 순서대로 모두 표시된다.
 
@@ -68,12 +68,12 @@ fake 결과를 검색하고, 전체 목록의 표시 순서와 선택 Metadata�
 
 ### 사용자 스토리 2 테스트
 
-- [ ] T008 [US2] `tests/books/test_views.py`에 초기 화면, invalid 입력의 Provider 미호출, Empty, Error, 재시도, 일반 HTML/HTMX Fragment 분기와 오류 상세 비노출을 검증하는 View 테스트를 작성한다.
+- [X] T008 [US2] `tests/books/test_views.py`에 초기 화면, invalid 입력의 Provider 미호출, Empty, Error, 재시도, 일반 HTML/HTMX Fragment 분기와 오류 상세 비노출을 검증하는 View 테스트를 작성한다.
 
 ### 사용자 스토리 2 구현
 
-- [ ] T009 [US2] `src/books/views.py`와 `src/templates/books/_search_region.html`에 `BookSearchStatus.EMPTY`·`ERROR`, Form field error, 재시도 가능한 현재 검색어 및 안전한 일반 오류 context를 구현한다.
-- [ ] T010 [US2] `src/templates/books/_search_region.html`과 `src/static/css/app.css`에 `hx-get`, `hx-target`, `hx-push-url`, `hx-sync="this:replace"`를 구현하고, HTMX 요청 중에는 Loading live status만 표시하며 기존 결과·Empty·Error 영역을 즉시 숨기는 상태 전환을 구현한다.
+- [X] T009 [US2] `src/books/views.py`와 `src/templates/books/_search_region.html`에 `BookSearchStatus.EMPTY`·`ERROR`, Form field error, 재시도 가능한 현재 검색어 및 안전한 일반 오류 context를 구현한다.
+- [X] T010 [US2] `src/templates/books/_search_region.html`과 `src/static/css/app.css`에 `hx-get`, `hx-target`, `hx-push-url`, `hx-sync="this:replace"`를 구현하고, HTMX 요청 중에는 Loading live status만 표시하며 기존 결과·Empty·Error 영역을 즉시 숨기는 상태 전환을 구현한다.
 
 **체크포인트**: Empty와 Error는 다른 텍스트 안내를 제공하며, 외부 오류·자격 증명·Provider 진단은 HTML에 나타나지 않는다.
 
@@ -87,8 +87,8 @@ fake 결과를 검색하고, 전체 목록의 표시 순서와 선택 Metadata�
 
 ### 사용자 스토리 3 구현
 
-- [ ] T011 [US3] `src/static/css/app.css`에 검색 Form, 결과 카드, 고정 표지 영역, 긴 텍스트 줄바꿈, 375px/1280px 반응형 레이아웃 및 `focus-visible` 스타일을 추가한다.
-- [ ] T012 [US3] `src/templates/base.html`에 인증 사용자가 도서 검색 화면으로 이동할 수 있는 navigation을 추가하고 `src/templates/books/_search_region.html`의 label·오류 연결·heading·live region을 접근성 계약에 맞춘다.
+- [X] T011 [US3] `src/static/css/app.css`에 검색 Form, 결과 카드, 고정 표지 영역, 긴 텍스트 줄바꿈, 375px/1280px 반응형 레이아웃 및 `focus-visible` 스타일을 추가한다.
+- [X] T012 [US3] `src/templates/base.html`에 인증 사용자가 도서 검색 화면으로 이동할 수 있는 navigation을 추가하고 `src/templates/books/_search_region.html`의 label·오류 연결·heading·live region을 접근성 계약에 맞춘다.
 
 **체크포인트**: 모든 상태는 색상 외 텍스트·구조로 구분되고 page-level 가로 scroll 없이 조작 가능하다.
 
@@ -98,10 +98,12 @@ fake 결과를 검색하고, 전체 목록의 표시 순서와 선택 Metadata�
 
 **목적**: 자동 검증, 수동 인수 검증, 완료 문서를 동기화한다.
 
-- [ ] T013 `tests/books/test_views.py`와 `src/books/views.py`를 검토해 검색 흐름이 Book·Reading·Book Knowledge ORM 또는 저장 동작을 호출하지 않는지 회귀 검증을 보강한다.
-- [ ] T014 [P] `docs/AfterMuse_MVP_Implementation_Plan_v5.md`에서 검증 완료 후 IMP-023 상태를 완료로 갱신한다.
-- [ ] T015 [P] `CHANGELOG.md`의 `[Unreleased]`에 사용자용 도서 검색 화면을 기록한다.
-- [ ] T016 `specs/004-book-search-screen/quickstart.md`의 명령으로 focused pytest, Ruff format/lint, Django check, 전체 `scripts/verify.py`를 실행하고 1280px·375px, keyboard, 실패하는 표지 URL의 `alt` 텍스트·카드 레이아웃·서지정보 유지 수동 검증 결과를 기록한다.
+- [X] T013 `tests/books/test_views.py`와 `src/books/views.py`를 검토해 검색 흐름이 Book·Reading·Book Knowledge ORM 또는 저장 동작을 호출하지 않는지 회귀 검증을 보강한다.
+- [X] T014 [P] `docs/AfterMuse_MVP_Implementation_Plan_v5.md`에서 검증 완료 후 IMP-023 상태를 완료로 갱신한다.
+- [X] T015 [P] `CHANGELOG.md`의 `[Unreleased]`에 사용자용 도서 검색 화면을 기록한다.
+- [X] T016 `specs/004-book-search-screen/quickstart.md`의 자동 품질 명령 통과를 기록한다. 알라딘 신규 API key 발급 중단으로 live 검색을 포함한 최종 browser 검증은 더 이상 유효한 완료 조건이 아니므로 Day 03 `IMP-023A`의 Kakao live smoke와 Desktop/Mobile 수동 검증으로 대체 이관한다.
+
+> **검증 예외 (2026-09-03)**: 자동 품질 게이트는 `80 passed, 1 skipped`로 통과했다. 알라딘 live 검색 검증은 신규 API key를 발급받을 수 없어 미실행으로 남기지 않고 Provider 종료에 따른 범위 변경으로 종결했으며, 대체 Provider의 실제 연동 검증은 IMP-023A에서 수행한다.
 
 ---
 

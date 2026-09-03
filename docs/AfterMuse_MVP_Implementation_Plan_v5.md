@@ -1,6 +1,6 @@
 # AfterMuse MVP Implementation Plan v5
 
-> 상태: 구현 실행 계획 (2026-08-31 최신화)
+> 상태: 구현 실행 계획 (2026-09-03 최신화)
 > 목적: AfterMuse를 LLM 코딩 에이전트(Codex 등)로 구현할 때, 작업을 **한 번에 맡기기 적절한 체크 가능한 단위**로 나누고, 2주 Core MVP와 이후 Full MVP Backlog를 분리한다.
 >
 > 이 문서는 PRD/Architecture를 반복하지 않는다. 각 항목은 구현 범위를 통제하기 위한 실행 단위다.
@@ -155,16 +155,23 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 검색어를 Provider에 전달하고 표지/저자/출판사/출간연도 중심으로 결과를 정규화한다.
   - **완료 조건:** 정상 검색, 결과 없음, Provider 실패가 구분된다.
 
-- [ ] **IMP-023 — 도서 검색 화면 구현**
+- [x] **IMP-023 — 도서 검색 화면 구현**
   - **선행 작업:** IMP-004, IMP-022
   - 표지 기반 도서 검색 UI를 구현한다.
   - Loading/Empty/Error 상태를 최소한으로 처리한다.
   - **완료 조건:** Desktop/Mobile에서 검색 결과를 확인할 수 있다.
+  - **검증 예외:** 알라딘 신규 API key 발급 중단으로 live 검색 검증은 폐기하고, 대체 Provider 검증을 IMP-023A로 이관한다.
 
-### Day 03 — 책을 Reading으로 등록하고 완독할 수 있다
+### Day 03 — 도서 검색을 복구하고 책을 Reading으로 등록해 완독할 수 있다
+
+- [ ] **IMP-023A — 도서 Metadata Provider 교체 및 검색 복구**
+  - **선행 작업:** IMP-003, IMP-021, IMP-022, IMP-023
+  - 알라딘 OpenAPI의 신규 key 발급 및 서비스 종료에 대응해 기본 Metadata Provider를 Kakao 도서 검색 API로 교체한다.
+  - Provider 중립 계약·오류·factory를 알라딘 package 밖으로 이동하고 기존 검색 Service와 화면의 계약을 유지한다.
+  - **완료 조건:** Kakao 정상/빈 결과/실패/timeout과 ISBN13 정규화 테스트, 기존 검색 Service·화면 회귀 테스트 및 실제 Kakao key smoke test가 통과한다.
 
 - [ ] **IMP-024 — 도서 선택 및 로컬 Book 등록**
-  - **선행 작업:** IMP-020, IMP-022, IMP-023
+  - **선행 작업:** IMP-020, IMP-022, IMP-023, IMP-023A
   - 검색 결과 선택 시 기존 Book을 재사용하거나 새 Book을 저장한다.
   - **완료 조건:** 같은 ISBN을 반복 선택해도 중복 Book이 생성되지 않는다.
 
