@@ -109,10 +109,15 @@ uv run python src/manage.py runserver
 | `POSTGRES_PASSWORD` | PostgreSQL 비밀번호 |
 | `POSTGRES_HOST` | PostgreSQL host |
 | `POSTGRES_PORT` | PostgreSQL port |
+| `ALADIN_TTB_KEY` | 알라딘 Metadata 검색용 TTB key (자동 테스트에서는 불필요) |
 
 필수 환경변수가 없으면 Django는 시작 단계에서 명시적으로 실패합니다. Django는 저장소
 루트의 `.env`를 자동으로 읽으며, 같은 이름의 OS 환경변수가 있으면 OS 값을 우선합니다.
 SQLite fallback은 제공하지 않습니다.
+
+알라딘 Adapter의 자동 테스트와 일반 개발 명령은 실제 key 없이 실행할 수 있습니다. 실제
+알라딘 검색에는 승인된 TTB key가 필요하며, key와 Provider 원본 오류 내용은 반환값이나
+오류 메시지에 포함하지 않습니다.
 
 ## 개발 명령
 

@@ -14,6 +14,7 @@ env = environ.Env(
     POSTGRES_PASSWORD=str,
     POSTGRES_HOST=str,
     POSTGRES_PORT=int,
+    ALADIN_TTB_KEY=str,
 )
 
 if ENV_FILE.is_file():
@@ -22,6 +23,7 @@ if ENV_FILE.is_file():
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env("DJANGO_DEBUG")
 ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
+ALADIN_TTB_KEY = env("ALADIN_TTB_KEY", default="")
 
 INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",

@@ -26,10 +26,10 @@ contracts/provider-contract.md, quickstart.md
 
 **목적**: Provider 전용 모듈 경로와 조건부 credential 설정을 준비한다.
 
-- [ ] T001 [P] `src/integrations/__init__.py` 및 `src/integrations/aladin/__init__.py`에 알라딘 Adapter 패키지 구조를 생성한다.
-- [ ] T002 [P] `src/config/settings.py`에 빈 문자열 기본값의 조건부 `ALADIN_TTB_KEY` 환경 설정을 추가한다.
-- [ ] T003 [P] `.env.example`을 Django, PostgreSQL, External metadata providers 섹션으로 재구성하고 실제 값 없는 `ALADIN_TTB_KEY=` 예시와 사용 조건 주석을 추가한다.
-- [ ] T004 [P] `README.md`에 `ALADIN_TTB_KEY`의 용도, 실제 key 없이 자동 테스트가 가능함, 운영 호출에 승인된 key가 필요함을 문서화한다.
+- [X] T001 [P] `src/integrations/__init__.py` 및 `src/integrations/aladin/__init__.py`에 알라딘 Adapter 패키지 구조를 생성한다.
+- [X] T002 [P] `src/config/settings.py`에 빈 문자열 기본값의 조건부 `ALADIN_TTB_KEY` 환경 설정을 추가한다.
+- [X] T003 [P] `.env.example`을 Django, PostgreSQL, External metadata providers 섹션으로 재구성하고 실제 값 없는 `ALADIN_TTB_KEY=` 예시와 사용 조건 주석을 추가한다.
+- [X] T004 [P] `README.md`에 `ALADIN_TTB_KEY`의 용도, 실제 key 없이 자동 테스트가 가능함, 운영 호출에 승인된 key가 필요함을 문서화한다.
 
 ---
 
@@ -39,9 +39,9 @@ contracts/provider-contract.md, quickstart.md
 
 **⚠️ 중요**: 이 단계가 완료될 때까지 사용자 스토리 Adapter 작업을 시작할 수 없다.
 
-- [ ] T005 [P] `src/integrations/aladin/contracts.py`에 불변 `ProviderBook`과 `BookMetadataProvider` Protocol을 provider-contract.md의 필드·반환 계약대로 구현한다.
-- [ ] T006 [P] `src/integrations/aladin/exceptions.py`에 `ProviderError` 및 configuration, timeout, unavailable, response 하위 예외를 구현한다.
-- [ ] T007 `tests/integrations/aladin/test_client.py`에 fake transport fixture와 공통 JSON payload helper를 추가하여 실제 외부 호출 없이 URL·timeout·예외를 검증할 기반을 만든다.
+- [X] T005 [P] `src/integrations/aladin/contracts.py`에 불변 `ProviderBook`과 `BookMetadataProvider` Protocol을 provider-contract.md의 필드·반환 계약대로 구현한다.
+- [X] T006 [P] `src/integrations/aladin/exceptions.py`에 `ProviderError` 및 configuration, timeout, unavailable, response 하위 예외를 구현한다.
+- [X] T007 `tests/integrations/aladin/test_client.py`에 fake transport fixture와 공통 JSON payload helper를 추가하여 실제 외부 호출 없이 URL·timeout·예외를 검증할 기반을 만든다.
 
 **체크포인트**: Provider 중립 계약과 테스트 대체 경계가 준비되어 모든 스토리를 구현할 수 있다.
 
@@ -55,10 +55,10 @@ contracts/provider-contract.md, quickstart.md
 **독립 테스트**: fake transport가 완전한 JSON, 빈 `item` 목록, 유효/무효 항목 혼합
 payload를 반환할 때 필수·선택 Metadata, 빈 tuple, 유효 항목 보존을 검증한다.
 
-- [ ] T008 [US1] `src/integrations/aladin/client.py`에 HTTPS ItemSearch URL 생성, 기본 `urllib` transport, 구성 가능한 timeout 및 `AladinBookMetadataProvider` 생성자 경계를 구현한다.
-- [ ] T009 [US1] `src/integrations/aladin/client.py`에 JSON object/item list 검증, ASCII 13자리 ISBN13·제목 검증, 선택 Metadata 및 날짜 정규화, 유효 항목 tuple 변환을 구현한다.
-- [ ] T010 [US1] `tests/integrations/aladin/test_client.py`에 요청 파라미터/percent encoding/timeout 전달, 전체 Metadata 매핑, 정상 빈 결과, 유효 항목 보존 및 선택값 정규화 테스트를 추가한다.
-- [ ] T011 [US1] `tests/integrations/aladin/test_client.py`의 사용자 스토리 1 테스트를 실행하여 기본 transport가 호출되지 않고 정상·빈·항목 필터 계약이 통과하는지 검증한다.
+- [X] T008 [US1] `src/integrations/aladin/client.py`에 HTTPS ItemSearch URL 생성, 기본 `urllib` transport, 구성 가능한 timeout 및 `AladinBookMetadataProvider` 생성자 경계를 구현한다.
+- [X] T009 [US1] `src/integrations/aladin/client.py`에 JSON object/item list 검증, ASCII 13자리 ISBN13·제목 검증, 선택 Metadata 및 날짜 정규화, 유효 항목 tuple 변환을 구현한다.
+- [X] T010 [US1] `tests/integrations/aladin/test_client.py`에 요청 파라미터/percent encoding/timeout 전달, 전체 Metadata 매핑, 정상 빈 결과, 유효 항목 보존 및 선택값 정규화 테스트를 추가한다.
+- [X] T011 [US1] `tests/integrations/aladin/test_client.py`의 사용자 스토리 1 테스트를 실행하여 기본 transport가 호출되지 않고 정상·빈·항목 필터 계약이 통과하는지 검증한다.
 
 **체크포인트**: 정상 검색 결과를 후속 Service가 소비할 수 있으며, 이 증분만으로
 독립 테스트 가능하다.
@@ -72,10 +72,10 @@ payload를 반환할 때 필수·선택 Metadata, 빈 tuple, 유효 항목 보�
 **독립 테스트**: 빈 key, Provider 오류 payload, I/O 실패, malformed JSON, 잘못된 최상위
 구조와 item 구조를 fake로 재현하여 약속된 예외 유형과 호출 여부를 검증한다.
 
-- [ ] T012 [US2] `src/integrations/aladin/client.py`에 key 누락 시 transport 호출 전 `ProviderConfigurationError`, Provider 오류·`OSError`·`URLError` 시 `ProviderUnavailableError`, JSON·구조 손상 시 `ProviderResponseError` 변환을 구현한다.
-- [ ] T013 [US2] `src/integrations/aladin/client.py`에 `get_default_provider()`를 추가하고 `src/config/settings.py`의 조건부 TTB key를 사용하도록 연결한다.
-- [ ] T014 [US2] `tests/integrations/aladin/test_client.py`에 configuration, Provider 오류 payload, I/O, malformed JSON, object가 아닌 최상위 값, list가 아닌 `item` 및 object가 아닌 item의 실패 분류 테스트를 추가한다.
-- [ ] T015 [US2] `tests/integrations/aladin/test_client.py`에 key·원본 오류 본문이 공개 예외 메시지에 노출되지 않고 설정 오류에서 transport 호출 횟수가 0인지 확인하는 회귀 테스트를 추가한다.
+- [X] T012 [US2] `src/integrations/aladin/client.py`에 key 누락 시 transport 호출 전 `ProviderConfigurationError`, Provider 오류·`OSError`·`URLError` 시 `ProviderUnavailableError`, JSON·구조 손상 시 `ProviderResponseError` 변환을 구현한다.
+- [X] T013 [US2] `src/integrations/aladin/client.py`에 `get_default_provider()`를 추가하고 `src/config/settings.py`의 조건부 TTB key를 사용하도록 연결한다.
+- [X] T014 [US2] `tests/integrations/aladin/test_client.py`에 configuration, Provider 오류 payload, I/O, malformed JSON, object가 아닌 최상위 값, list가 아닌 `item` 및 object가 아닌 item의 실패 분류 테스트를 추가한다.
+- [X] T015 [US2] `tests/integrations/aladin/test_client.py`에 key·원본 오류 본문이 공개 예외 메시지에 노출되지 않고 설정 오류에서 transport 호출 횟수가 0인지 확인하는 회귀 테스트를 추가한다.
 
 **체크포인트**: Provider 가용성과 응답 형식 실패가 정상·빈 결과와 혼동되지 않으며,
 실패 정보가 credential을 누출하지 않는다.
@@ -89,8 +89,8 @@ payload를 반환할 때 필수·선택 Metadata, 빈 tuple, 유효 항목 보�
 **독립 테스트**: fake transport가 `TimeoutError`와 `socket.timeout`을 각각 발생시키고,
 `OSError` 결과와 다른 `ProviderTimeoutError`가 발생하는지 검증한다.
 
-- [ ] T016 [US3] `src/integrations/aladin/client.py`에 `TimeoutError`와 `socket.timeout`을 `ProviderTimeoutError`로 우선 변환하는 예외 경계를 구현한다.
-- [ ] T017 [US3] `tests/integrations/aladin/test_client.py`에 두 timeout 원인과 일반 I/O 실패를 parameterize하여 timeout과 unavailable 예외가 구별되는지 테스트한다.
+- [X] T016 [US3] `src/integrations/aladin/client.py`에 `socket.timeout` 별칭을 포함하는 `TimeoutError`를 `ProviderTimeoutError`로 우선 변환하는 예외 경계를 구현한다.
+- [X] T017 [US3] `tests/integrations/aladin/test_client.py`에 `TimeoutError`와 일반 I/O 실패가 각각 timeout 및 unavailable 예외로 구별되는지 테스트한다.
 
 **체크포인트**: timeout이 일반 Provider 실패, 정상 결과 및 빈 결과와 혼동되지 않는다.
 
@@ -104,8 +104,8 @@ payload를 반환할 때 필수·선택 Metadata, 빈 tuple, 유효 항목 보�
 **독립 테스트**: fake transport의 기록으로 검색어·timeout 전달을 확인하고, 전체
 Adapter 테스트가 실제 endpoint 호출 없이 정상·실패·timeout을 재현하는지 확인한다.
 
-- [ ] T018 [US4] `tests/integrations/aladin/test_client.py`에 fake transport 기록을 이용한 실제 endpoint 호출 0건, 검색어·timeout 전달 및 모든 결과 범주의 외부 I/O 대체 계약 테스트를 완성한다.
-- [ ] T019 [US4] `tests/integrations/aladin/test_client.py`에 Adapter가 `books.models.Book`을 import하거나 ORM 저장을 호출하지 않고 DB fixture 없이 검색을 완료하는 구조적 비영속성 회귀 테스트를 추가한다.
+- [X] T018 [US4] `tests/integrations/aladin/test_client.py`에 fake transport 기록을 이용한 실제 endpoint 호출 0건, 검색어·timeout 전달 및 모든 결과 범주의 외부 I/O 대체 계약 테스트를 완성한다.
+- [X] T019 [US4] `tests/integrations/aladin/test_client.py`에 Adapter가 `books.models.Book`을 import하거나 ORM 저장을 호출하지 않고 DB fixture 없이 검색을 완료하는 구조적 비영속성 회귀 테스트를 추가한다.
 
 **체크포인트**: 실제 알라딘 호출과 Book 변경 없이 모든 완료 조건을 자동으로 검증할 수 있다.
 
@@ -115,10 +115,10 @@ Adapter 테스트가 실제 endpoint 호출 없이 정상·실패·timeout을 �
 
 **목적**: 전체 품질 게이트와 문서화된 검증 절차를 실행해 완료 증거를 남긴다.
 
-- [ ] T020 `specs/002-aladin-metadata-adapter/quickstart.md`의 집중 Adapter 테스트 명령을 실행하고 결과를 확인한다.
-- [ ] T021 `scripts/verify.py`를 실행하여 Django check, Ruff format, Ruff lint 및 전체 pytest 품질 게이트를 통과하는지 확인한다.
-- [ ] T022 `specs/002-aladin-metadata-adapter/quickstart.md`의 기대 결과와 구현·검증 범위가 일치하는지 검토하고 필요 시 문서만 수술적으로 동기화한다.
-- [ ] T023 `CHANGELOG.md`의 `[Unreleased]`에 알라딘 Metadata Adapter와 조건부 환경 설정 추가 사항을 기록한다.
+- [X] T020 `specs/002-aladin-metadata-adapter/quickstart.md`의 집중 Adapter 테스트 명령을 실행하고 결과를 확인한다.
+- [X] T021 `scripts/verify.py`를 실행하여 Django check, Ruff format, Ruff lint 및 전체 pytest 품질 게이트를 통과하는지 확인한다.
+- [X] T022 `specs/002-aladin-metadata-adapter/quickstart.md`의 기대 결과와 구현·검증 범위가 일치하는지 검토하고 필요 시 문서만 수술적으로 동기화한다.
+- [X] T023 `CHANGELOG.md`의 `[Unreleased]`에 알라딘 Metadata Adapter와 조건부 환경 설정 추가 사항을 기록한다.
 
 ---
 
