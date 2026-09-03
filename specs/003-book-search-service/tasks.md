@@ -27,7 +27,7 @@ MVP로 제공하고, 이후 빈 결과·Provider 실패·공백 검색어 처리
 **목적**: 실제 외부 호출 없이 모든 검색 상태를 재현할 공통 fake Provider와 도서 fixture를
 준비한다.
 
-- [ ] T001 [P] `tests/books/test_services.py`에 호출 기록, 준비된 결과·예외 주입이 가능한 fake Provider와 전체 출간일을 포함한 `ProviderBook` fixture를 추가한다.
+- [X] T001 [P] `tests/books/test_services.py`에 호출 기록, 준비된 결과·예외 주입이 가능한 fake Provider와 전체 출간일을 포함한 `ProviderBook` fixture를 추가한다.
 
 ---
 
@@ -38,7 +38,7 @@ MVP로 제공하고, 이후 빈 결과·Provider 실패·공백 검색어 처리
 
 **⚠️ 중요**: 이 단계가 완료될 때까지 사용자 스토리 검색 흐름을 시작할 수 없다.
 
-- [ ] T002 `src/books/services.py`에 `BookSearchStatus`, 불변 `BookSearchResult`, `search_books()` 공개 진입점과 Provider 계약 import를 `contracts/service-contract.md`대로 정의한다.
+- [X] T002 `src/books/services.py`에 `BookSearchStatus`, 불변 `BookSearchResult`, `search_books()` 공개 진입점과 Provider 계약 import를 `contracts/service-contract.md`대로 정의한다.
 
 **체크포인트**: 검색 결과의 세 상태와 `ProviderBook` 보존 계약이 후속 구현에서 사용할 수
 있게 준비된다.
@@ -53,8 +53,8 @@ MVP로 제공하고, 이후 빈 결과·Provider 실패·공백 검색어 처리
 **독립 테스트**: 공백이 있는 검색어와 여러 `ProviderBook`을 fake Provider에 준비해 trim,
 호출 1회, `SUCCESS`, 순서·ISBN13·표지·저자·출판사·전체 출간일 보존을 확인한다.
 
-- [ ] T003 [US1] `src/books/services.py`에 양끝 공백만 제거하고 유효한 query를 Provider에 정확히 한 번 전달해 비어 있지 않은 결과를 `SUCCESS`와 원래 tuple로 반환하는 경로를 구현한다. (FR-001, FR-002, FR-004, FR-005, FR-009~FR-011)
-- [ ] T004 [US1] `tests/books/test_services.py`에 정상 검색의 trim, 내부 공백 보존, 호출 1회, `SUCCESS`, 도서 순서 및 전체 출간일을 포함한 Metadata 보존 테스트를 추가·실행한다. (SC-001, SC-002)
+- [X] T003 [US1] `src/books/services.py`에 양끝 공백만 제거하고 유효한 query를 Provider에 정확히 한 번 전달해 비어 있지 않은 결과를 `SUCCESS`와 원래 tuple로 반환하는 경로를 구현한다. (FR-001, FR-002, FR-004, FR-005, FR-009~FR-011)
+- [X] T004 [US1] `tests/books/test_services.py`에 정상 검색의 trim, 내부 공백 보존, 호출 1회, `SUCCESS`, 도서 순서 및 전체 출간일을 포함한 Metadata 보존 테스트를 추가·실행한다. (SC-001, SC-002)
 
 **체크포인트**: 정상 검색 결과가 Provider 세부 형식 없이 후속 검색 흐름에 전달되며 독립
 검증 가능하다.
@@ -69,8 +69,8 @@ MVP로 제공하고, 이후 빈 결과·Provider 실패·공백 검색어 처리
 **독립 테스트**: fake Provider가 빈 tuple 또는 각 `ProviderError` 하위 예외를 반환·발생시킬
 때 각각 `EMPTY`와 빈 `books`의 `ERROR`로 구분되는지 확인한다.
 
-- [ ] T005 [US2] `src/books/services.py`에 정상 빈 Provider 결과를 `EMPTY`로, `ProviderError` 하위 예외를 빈 `books`의 `ERROR`로 변환하는 경로를 추가하고 오류 객체·메시지를 결과에 포함하지 않게 한다. (FR-006~FR-008, FR-012, FR-013)
-- [ ] T006 [US2] `tests/books/test_services.py`에 정상 빈 결과와 configuration, timeout, unavailable, response 오류를 각각 재현하여 상태·빈 tuple·오류 상세 비노출 계약을 검증한다. (SC-003, SC-004, SC-006, SC-007)
+- [X] T005 [US2] `src/books/services.py`에 정상 빈 Provider 결과를 `EMPTY`로, `ProviderError` 하위 예외를 빈 `books`의 `ERROR`로 변환하는 경로를 추가하고 오류 객체·메시지를 결과에 포함하지 않게 한다. (FR-006~FR-008, FR-012, FR-013)
+- [X] T006 [US2] `tests/books/test_services.py`에 정상 빈 결과와 configuration, timeout, unavailable, response 오류를 각각 재현하여 상태·빈 tuple·오류 상세 비노출 계약을 검증한다. (SC-003, SC-004, SC-006, SC-007)
 
 **체크포인트**: 빈 결과와 외부 Provider 실패가 혼동되지 않으며, 화면은 Provider별 오류에
 결합하지 않는다.
@@ -84,8 +84,8 @@ MVP로 제공하고, 이후 빈 결과·Provider 실패·공백 검색어 처리
 **독립 테스트**: 빈 문자열과 공백 문자열을 각각 전달해 fake Provider 호출 0회,
 `EMPTY`, 빈 `books`가 반환되는지 확인한다.
 
-- [ ] T007 [US3] `src/books/services.py`에 정규화 후 빈 query를 Provider 호출 없이 `EMPTY`와 빈 tuple로 반환하는 short-circuit 경로를 추가한다. (FR-003, FR-008)
-- [ ] T008 [US3] `tests/books/test_services.py`에 빈 문자열과 공백 검색어의 호출 0회 및 `EMPTY` 결과 테스트를 추가·실행한다. (SC-005, SC-006)
+- [X] T007 [US3] `src/books/services.py`에 정규화 후 빈 query를 Provider 호출 없이 `EMPTY`와 빈 tuple로 반환하는 short-circuit 경로를 추가한다. (FR-003, FR-008)
+- [X] T008 [US3] `tests/books/test_services.py`에 빈 문자열과 공백 검색어의 호출 0회 및 `EMPTY` 결과 테스트를 추가·실행한다. (SC-005, SC-006)
 
 **체크포인트**: 의미 없는 검색어가 외부 호출, cache 또는 오류 상태를 만들지 않는다.
 
@@ -95,10 +95,10 @@ MVP로 제공하고, 이후 빈 결과·Provider 실패·공백 검색어 처리
 
 **목적**: 안전한 오류 경계, 비영속성, 전체 품질 게이트 및 완료 문서를 확인한다.
 
-- [ ] T009 `tests/books/test_services.py`에 `ProviderError`가 아닌 예외가 숨겨지지 않는지와 Service가 `books.models.Book`·ORM을 import하거나 변경하지 않는지 검증하는 회귀 테스트를 추가한다. (FR-014~FR-016, quickstart)
-- [ ] T010 `specs/003-book-search-service/quickstart.md`의 집중 Service 테스트 명령을 실행하고 정상·빈·오류·공백 검색어 계약이 실제 외부 호출 없이 통과하는지 확인한다.
-- [ ] T011 `scripts/verify.py`를 실행해 Django check, Ruff format, Ruff lint 및 전체 pytest 품질 게이트를 통과하는지 확인한다.
-- [ ] T012 `CHANGELOG.md`와 `docs/AfterMuse_MVP_Implementation_Plan_v5.md`에 IMP-022 구현·검증 완료 사실과 완료 상태를 전체 검증 후 동기화한다.
+- [X] T009 `tests/books/test_services.py`에 `ProviderError`가 아닌 예외가 숨겨지지 않는지와 Service가 `books.models.Book`·ORM을 import하거나 변경하지 않는지 검증하는 회귀 테스트를 추가한다. (FR-014~FR-016, quickstart)
+- [X] T010 `specs/003-book-search-service/quickstart.md`의 집중 Service 테스트 명령을 실행하고 정상·빈·오류·공백 검색어 계약이 실제 외부 호출 없이 통과하는지 확인한다.
+- [X] T011 `scripts/verify.py`를 실행해 Django check, Ruff format, Ruff lint 및 전체 pytest 품질 게이트를 통과하는지 확인한다.
+- [X] T012 `CHANGELOG.md`와 `docs/AfterMuse_MVP_Implementation_Plan_v5.md`에 IMP-022 구현·검증 완료 사실과 완료 상태를 전체 검증 후 동기화한다.
 
 ---
 
