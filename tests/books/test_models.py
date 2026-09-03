@@ -1,3 +1,4 @@
+import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from threading import Barrier
@@ -9,6 +10,8 @@ from django.db import IntegrityError, close_old_connections, transaction
 from django.db.migrations.executor import MigrationExecutor
 
 from books.models import Book
+
+RUN_PERFORMANCE_TESTS = os.environ.get("AFTERMUSE_RUN_PERFORMANCE_TESTS") == "1"
 
 
 @pytest.mark.django_db
@@ -151,29 +154,51 @@ def test_book_preserves_missing_optional_metadata() -> None:
     assert saved_book.table_of_contents == ""
 
 
-@pytest.mark.django_db
-def test_exact_isbn13_lookups_use_one_query_and_meet_p95_target(
-    django_assert_num_queries,
-) -> None:
+def _create_lookup_books() -> list[Book]:
     books = [
         Book(isbn13=f"978000000{number:04d}", title=f"도서 {number}")
         for number in range(100)
     ]
     Book.objects.bulk_create(books)
+
+    return books
+
+
+@pytest.mark.django_db
+def test_exact_isbn13_lookups_use_one_query(django_assert_num_queries) -> None:
+    books = _create_lookup_books()
+
+    for book in books:
+        with django_assert_num_queries(1):
+            found_book = Book.objects.filter(isbn13=book.isbn13).first()
+        assert found_book is not None
+        assert found_book.isbn13 == book.isbn13
+
+    for number in range(100):
+        with django_assert_num_queries(1):
+            missing_book = Book.objects.filter(isbn13=f"979000000{number:04d}").first()
+        assert missing_book is None
+
+
+@pytest.mark.skipif(
+    not RUN_PERFORMANCE_TESTS,
+    reason="AFTERMUSE_RUN_PERFORMANCE_TESTS=1일 때만 p95를 측정합니다.",
+)
+@pytest.mark.django_db
+def test_exact_isbn13_lookups_meet_p95_target() -> None:
+    books = _create_lookup_books()
     durations = []
 
     for book in books:
         started_at = perf_counter()
-        with django_assert_num_queries(1):
-            found_book = Book.objects.filter(isbn13=book.isbn13).first()
+        found_book = Book.objects.filter(isbn13=book.isbn13).first()
         durations.append(perf_counter() - started_at)
         assert found_book is not None
         assert found_book.isbn13 == book.isbn13
 
     for number in range(100):
         started_at = perf_counter()
-        with django_assert_num_queries(1):
-            missing_book = Book.objects.filter(isbn13=f"979000000{number:04d}").first()
+        missing_book = Book.objects.filter(isbn13=f"979000000{number:04d}").first()
         durations.append(perf_counter() - started_at)
         assert missing_book is None
 

@@ -173,3 +173,7 @@ Task: "tests/test_settings.py의 임시 프로젝트 fixture에 src/books 복사
 - `books zero`는 Book 데이터를 삭제하므로 격리된 빈 database에서만 실행한다.
 - Provider 연동, 검색 UI, Book 저장 Service, Work/Edition 분리는 이 작업 목록에 포함하지
   않는다.
+
+## Phase 7: Convergence
+
+- [X] T020 일반 품질 게이트에서는 `tests/books/test_models.py`의 ISBN13 정확 조회·query-count만 결정적으로 검증하고, 200개 lookup p95 측정은 명시적 opt-in으로만 실행되도록 분리한 뒤 `specs/001-book-model/quickstart.md`의 별도 실행 절차를 동기화한다. per SC-005, T015, plan: 성능 검증 결정 (contradicts)

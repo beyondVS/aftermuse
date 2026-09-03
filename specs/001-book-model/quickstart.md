@@ -34,7 +34,7 @@ uv run pytest tests/books/test_models.py -v
    한 건이다.
 7. 서로 다른 ISBN13 100건과 존재하지 않는 ISBN13 100건의 exact lookup은 각각 한 번의
    query로 완료된다.
-8. 격리된 표준 검증 환경에서 위 200개 lookup의 p95가 1초 이내임을 별도 측정한다.
+8. 기본 테스트와 분리된 명시적 성능 측정에서 위 200개 lookup의 p95가 1초 이내인지 확인한다.
 9. `tests/test_settings.py`의 격리된 관리 명령이 새 `books` 앱을 포함한 상태에서도
    성공한다.
 
@@ -80,6 +80,14 @@ uv run python scripts/verify.py
 성능 측정은 공유 CI의 변동을 피하기 위해 표준화된 격리 PostgreSQL 환경에서 별도로
 실행한다. 100개 존재 ISBN13과 100개 미존재 ISBN13 lookup의 개별 소요 시간을 기록하고,
 정렬한 표본의 95번째 백분위 값이 1초 이내인지 확인한다.
+
+PowerShell에서 다음처럼 환경 변수를 명시한 프로세스에서만 성능 측정을 실행한다.
+일반 `pytest`와 `scripts/verify.py`는 이 테스트를 건너뛴다.
+
+```powershell
+$env:AFTERMUSE_RUN_PERFORMANCE_TESTS = "1"
+uv run pytest tests/books/test_models.py -k p95 -v
+```
 
 ## 6. 범위 확인
 
