@@ -1,0 +1,64 @@
+<section id="search-region" class="search-region" aria-live="polite">
+  <form
+    id="book-search-form"
+    class="search-form"
+    method="get"
+    action="{% url 'books:search' %}"
+    hx-get="{% url 'books:search' %}"
+    hx-target="#search-region"
+    hx-swap="outerHTML"
+    hx-push-url="true"
+    hx-sync="this:replace"
+    hx-indicator="#search-loading"
+  >
+    <label for="{{ form.q.id_for_label }}">{{ form.q.label }}</label>
+    {{ form.q }}
+    <p id="search-query-help" class="search-query-help">1자 이상 200자 이하로 입력해 주세요.</p>
+    <button type="submit">검색</button>
+  </form>
+
+  <p id="search-loading" class="search-loading" role="status">검색 중입니다.</p>
+
+  <div class="search-content">
+    {% if search_state == "input_error" %}
+      <section class="search-state" aria-labelledby="search-input-error-title">
+        <h2 id="search-input-error-title">검색어를 확인해 주세요</h2>
+        <div id="search-query-error" role="alert">{{ form.q.errors }}</div>
+      </section>
+    {% elif search_state == "success" %}
+      <section class="search-state" aria-labelledby="search-results-title">
+        <h2 id="search-results-title">“{{ search_query }}” 검색 결과</h2>
+        <ol class="search-results" aria-label="도서 검색 결과">
+          {% for book in search_result.books %}
+            <li class="book-search-result">
+              <div class="book-cover">
+                {% if book.cover_url %}
+                  <img src="{{ book.cover_url }}" alt="{{ book.title }} 표지" loading="lazy">
+                {% else %}
+                  <span class="book-cover-placeholder">표지 없음</span>
+                {% endif %}
+              </div>
+              <div class="book-search-result-details">
+                <h3>{{ book.title }}</h3>
+                {% if book.authors %}<p>저자 · {{ book.authors }}</p>{% endif %}
+                {% if book.publisher %}<p>출판사 · {{ book.publisher }}</p>{% endif %}
+                {% if book.published_date %}<p>출간 · {{ book.published_date.year }}</p>{% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ol>
+      </section>
+    {% elif search_state == "empty" %}
+      <section class="search-state" aria-labelledby="search-empty-title">
+        <h2 id="search-empty-title">검색 결과가 없습니다</h2>
+        <p>“{{ search_query }}”와 다른 검색어를 입력해 보세요.</p>
+      </section>
+    {% elif search_state == "error" %}
+      <section class="search-state" aria-labelledby="search-error-title">
+        <h2 id="search-error-title">도서를 검색하지 못했습니다</h2>
+        <p>잠시 후 같은 검색어로 다시 시도해 주세요.</p>
+        <button type="submit" form="book-search-form">다시 검색</button>
+      </section>
+    {% endif %}
+  </div>
+</section>

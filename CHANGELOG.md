@@ -18,6 +18,12 @@
 - 전체 품질 검사를 단일 명령으로 실행하는 `scripts/verify.py`
 - Core MVP 기획, 아키텍처, UI/UX 및 구현 계획 문서
 - 프로젝트 에이전트 거버넌스, 규칙과 로컬 스킬 구성
+- Custom User 모델과 세션 기반 회원가입, 로그인, 로그아웃 흐름
+- ISBN13 기반 Book 모델과 PostgreSQL unique/CHECK 제약, 초기 migration 및 저장·조회 테스트
+- 주입 가능한 transport와 정상·실패·timeout 구분을 지원하는 알라딘 Metadata Adapter
+- 실제 credential을 포함하지 않는 `ALADIN_TTB_KEY` 환경 예시
+- Provider 중립 계약으로 성공·빈 결과·안전한 오류 상태를 구분하는 도서 검색 Service
+- 로그인 사용자용 도서 검색 화면과 HTMX 기반 Loading·Empty·Error 상태
 
 ### Changed
 

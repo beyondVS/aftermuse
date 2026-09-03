@@ -18,6 +18,7 @@ def test_example_environment_has_required_names() -> None:
         "POSTGRES_PASSWORD",
         "POSTGRES_HOST",
         "POSTGRES_PORT",
+        "ALADIN_TTB_KEY",
     }
 
     configured_names = {

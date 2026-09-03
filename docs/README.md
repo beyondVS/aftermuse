@@ -1,4 +1,4 @@
-# AfterMuse Planning Latest v2026-08-31
+# AfterMuse Planning Latest v2026-09-03
 
 최신 기준 파일 묶음입니다.
 
@@ -14,4 +14,5 @@
 
 - AfterMuse_MVP_Implementation_Plan_v5.md
 - v5는 2주 Core MVP를 Week/Day 상위 섹션으로 구분하고, 이후 Full MVP Backlog를 별도 Part로 분리합니다.
+- 알라딘 OpenAPI 종료 대응을 위해 IMP-025를 Critical Path에 추가하고 전체 일정을 11개의 Day 작업 묶음으로 재기준화했습니다.
 - Day는 엄격한 마감일이 아니라 매일 무엇을 구현할지 보기 쉽게 하는 작업 묶음입니다.
