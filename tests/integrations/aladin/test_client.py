@@ -179,7 +179,13 @@ def test_search_maps_provider_error_payload_to_unavailable() -> None:
 
 @pytest.mark.parametrize(
     "payload",
-    [b"not-json", _payload([]), _payload({"item": {}}), _payload({"item": [1]})],
+    [
+        b"not-json",
+        _payload([]),
+        _payload({}),
+        _payload({"item": {}}),
+        _payload({"item": [1]}),
+    ],
 )
 def test_search_rejects_malformed_response(payload: bytes) -> None:
     provider = AladinBookMetadataProvider(
@@ -193,6 +199,16 @@ def test_search_rejects_malformed_response(payload: bytes) -> None:
 def test_search_maps_timeouts_separately() -> None:
     def transport(url: str, timeout: float) -> bytes:
         raise TimeoutError
+
+    provider = AladinBookMetadataProvider("test-key", transport=transport)
+
+    with pytest.raises(ProviderTimeoutError):
+        provider.search("책")
+
+
+def test_search_maps_url_error_wrapped_timeout_separately() -> None:
+    def transport(url: str, timeout: float) -> bytes:
+        raise URLError(TimeoutError())
 
     provider = AladinBookMetadataProvider("test-key", transport=transport)
 

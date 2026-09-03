@@ -48,14 +48,18 @@ class AladinBookMetadataProvider:
             payload = self._transport(self._build_url(query), self._timeout)
         except TimeoutError as error:
             raise ProviderTimeoutError from error
-        except (OSError, URLError) as error:
+        except URLError as error:
+            if isinstance(error.reason, TimeoutError):
+                raise ProviderTimeoutError from error
+            raise ProviderUnavailableError from error
+        except OSError as error:
             raise ProviderUnavailableError from error
 
         data = self._decode_payload(payload)
         if "errorCode" in data:
             raise ProviderUnavailableError
 
-        items = data.get("item", [])
+        items = data.get("item")
         if not isinstance(items, list):
             raise ProviderResponseError
 

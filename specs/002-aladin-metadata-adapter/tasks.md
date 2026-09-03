@@ -179,3 +179,12 @@ Task: "src/integrations/aladin/exceptions.py에 Provider 오류 계층 구현"
 - 사용자 스토리 레이블은 모든 스토리 작업에 포함했다.
 - 작업은 실제 알라딘 key, smoke test, retry, rate limit, cache, Service/UI, Book 저장을
   포함하지 않는다.
+
+---
+
+## Phase 8: Convergence
+
+**목적**: 구현과 명세를 다시 대조하여 발견된 응답 분류 공백을 해소한다.
+
+- [X] T024 `src/integrations/aladin/client.py`에서 응답 JSON에 `item` 키가 없으면 `ProviderResponseError`로 분류하고, `tests/integrations/aladin/test_client.py`에 빈 객체(`{}`) 회귀 테스트를 추가한다. (FR-008, US2/AC2)
+- [X] T025 `src/integrations/aladin/client.py`에서 `URLError.reason`이 `TimeoutError`인 경우 `ProviderTimeoutError`로 분류하되 일반 `URLError`는 `ProviderUnavailableError`로 유지하고, `tests/integrations/aladin/test_client.py`에 두 분류를 검증하는 회귀 테스트를 추가한다. (FR-009, SC-004)
