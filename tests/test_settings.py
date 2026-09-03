@@ -38,6 +38,7 @@ def test_project_root_dotenv_is_loaded_without_cli_injection(tmp_path) -> None:
     project_source = project_root / "src"
     shutil.copytree("src/config", project_source / "config")
     shutil.copytree("src/accounts", project_source / "accounts")
+    shutil.copytree("src/books", project_source / "books")
     shutil.copy2("src/manage.py", project_source / "manage.py")
     (project_source / "static").mkdir()
     (project_root / ".env").write_text(
@@ -76,6 +77,7 @@ def test_os_environment_takes_priority_over_project_dotenv(tmp_path) -> None:
     project_source = project_root / "src"
     shutil.copytree("src/config", project_source / "config")
     shutil.copytree("src/accounts", project_source / "accounts")
+    shutil.copytree("src/books", project_source / "books")
     shutil.copy2("src/manage.py", project_source / "manage.py")
     (project_source / "static").mkdir()
     (project_root / ".env").write_text(

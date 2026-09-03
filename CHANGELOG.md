@@ -19,6 +19,7 @@
 - Core MVP 기획, 아키텍처, UI/UX 및 구현 계획 문서
 - 프로젝트 에이전트 거버넌스, 규칙과 로컬 스킬 구성
 - Custom User 모델과 세션 기반 회원가입, 로그인, 로그아웃 흐름
+- ISBN13 기반 Book 모델과 PostgreSQL unique/CHECK 제약, 초기 migration 및 저장·조회 테스트
 
 ### Changed
 
