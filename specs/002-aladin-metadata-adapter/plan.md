@@ -70,6 +70,10 @@ tests/
 └── integrations/
     └── aladin/
         └── test_client.py
+
+.env.example                # 조건부 Aladin credential의 안전한 빈 예시
+README.md                   # credential 사용 조건과 운영 호출 전제
+CHANGELOG.md                # 구현 완료 시 Unreleased 변경 기록
 ```
 
 **구조 결정**: Provider 고유 코드는 `books`에 넣지 않고 승인된
