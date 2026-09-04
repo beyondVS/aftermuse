@@ -39,7 +39,7 @@ Google Python Style Guide 및 현대 파이썬 코딩 베스트 프랙티스 기
   - 첫 줄에 간결한 요약을 작성하고, 필요한 경우 빈 줄 뒤에 상세 설명을 이어서 작성합니다.
   - `Args:`, `Returns:`, `Raises:`, `Yields:` 구획은 실제로 설명할 내용이 있을 때만 작성하며 빈 구획을 만들지 않습니다.
   - 타입 힌트와 식별자 이름을 그대로 반복하는 설명을 작성하지 않습니다.
-  - Python에서 public 이름의 기본 범위는 선행 밑줄이 없는 모듈·클래스·함수·메서드이지만, 실제 범위는 package export, framework 규칙 및 소비 프로젝트 설정으로 확정합니다.
+  - Python에서 선행 밑줄이 없는 모듈·클래스·함수·메서드는 public, `_name`은 internal/private이라는 명명 관례를 따릅니다. 이 visibility 관례는 Docstring 필요성을 결정하지 않으며, 실제 범위는 package export, framework 규칙 및 소비 프로젝트 설정으로 확정합니다. 예를 들어 `_build_url`이 URL 정책을 조합하거나 외부 요청 형식을 결정하면 문서화하고, `_parse_item`이 입력을 변환·매핑하거나 `_parse_date`가 허용 형식·오류 정책을 적용하면 문서화합니다. 반면 `_get_name`처럼 이름과 타입만으로 동작과 계약이 자명한 단순 getter는 생략할 수 있습니다.
 - **Docstring 및 주석 언어**:
   - Core의 사용자 소통 및 문서화 언어 규칙을 따릅니다.
   - `Args`, `Returns`, `Raises`와 같은 표준 섹션명 및 기술 고유명사는 영어를 사용할 수 있습니다.
