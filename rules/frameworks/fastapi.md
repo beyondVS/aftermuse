@@ -7,12 +7,12 @@ FastAPI (Python 비동기 백엔드 프레임워크) 기반 프로젝트에 적�
 ## 🏛️ 1. 프로젝트 구조 및 계층 분리 (Project Architecture)
 
 - **`APIRouter` 기반 모듈화**:
-  - `main.py`에 모든 엔드포인트를 모아두지 말고 `app/api/v1/endpoints/[domain].py` 형태로 라우터를 도메인별로 명확히 분리하십시오.
-- **계층형 구조 (Router - Service - Repository - Schema)**:
+  - endpoint 수, domain 경계 또는 소유권이 분리를 필요로 할 때 라우터를 모듈화합니다. 기존 프로젝트의 구조를 우선합니다.
+- **책임 기반 구조 (Router - Service - Repository - Schema)**:
   - **Router**: 요청 수신, Response Model 지정, HTTP 상태 코드 제어
   - **Schema (Pydantic)**: Request/Response 데이터 직렬화 및 유효성 검증
   - **Service**: 순수 비즈니스 로직 처리
-  - **Repository/DB**: ORM (SQLAlchemy, SQLModel 등) DB 쿼리 실행
+  - **Repository/DB**: ORM (SQLAlchemy, SQLModel 등) DB 쿼리 실행. 이 분리는 endpoint·domain·transaction 복잡성이 책임 분리를 요구할 때 적용합니다.
 
 ---
 
@@ -37,7 +37,7 @@ FastAPI (Python 비동기 백엔드 프레임워크) 기반 프로젝트에 적�
 
 ## 🔒 4. 예외 처리 & API 문서화 (Exception Handling & OpenAPI)
 
-- **`HTTPException` 표준화**:
-  - 예외 발생 시 구체적인 `status_code`와 통일된 JSON 에러 메시지 구조(`detail={"code": "...", "message": "..."}`)를 반환하십시오.
+- **`HTTPException` 및 오류 계약**:
+  - 구체적인 `status_code`와 프로젝트·클라이언트 계약에 맞는 일관된 오류 응답을 사용합니다. FastAPI 기본 처리와 custom exception handler 중 적합한 방식을 선택합니다.
 - **OpenAPI / Swagger 정보 내실화**:
   - 외부 소비자가 의존하는 endpoint 계약은 Core 기준에 따라 문서화하고, 자동 생성 OpenAPI에 필요한 `summary`, `description`, `responses`를 실제 계약과 동기화하십시오. Docstring과 metadata의 중복 범위는 소비 프로젝트 설정으로 정합니다.

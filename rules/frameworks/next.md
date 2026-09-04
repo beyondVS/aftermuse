@@ -30,7 +30,7 @@ Next.js (App Router, Fullstack/SSR) 기반 프로젝트에 적용되는 아키�
 ## 🔒 3. Server Actions & API Routes
 
 - **Server Actions 안전성**:
-  - Server Actions 함수 내에서는 클라이언트 전달 입력값을 반드시 Pydantic/Zod 등의 스키마 검증기로 재검증하십시오.
+  - Server Actions 함수 내에서는 클라이언트 전달 입력값을 프로젝트가 채택한 schema validator로 재검증하십시오.
   - 인증(Authentication) 및 권한(Authorization)을 Server Actions 내부 최상단에서 명시적으로 확인하십시오.
 - **API Routes (`app/api/`)**:
   - 외부 Webhook이나 RESTful 엔드포인트를 구축할 때 활용하며, 표준 `NextResponse.json()` 응답 구조를 지키십시오.
@@ -42,5 +42,5 @@ Next.js (App Router, Fullstack/SSR) 기반 프로젝트에 적용되는 아키�
 - **Standard Routing Conventions**:
   - 동적 라우팅(`[id]`), 병렬 라우팅(`@slot`), 인터셉팅 라우팅(`(.)`) 규칙을 준수하고 라우터 이동 시 `<Link>` 컴포넌트를 우선 활용하십시오.
 - **Built-in Optimization Component**:
-  - 이미지 렌더링 시 외부 URL/로컬 이미지를 가리지 않고 `next/image` (`<Image />`) 컴포넌트를 사용하여 Layout Shift(CLS)를 방지하고 자동 WebP/AVIF 변환을 적용하십시오.
+  - 이미지 source·크기·loader·최적화 요구가 지원할 때 `next/image` (`<Image />`)를 사용해 CLS와 전송량을 줄입니다. 지원하지 않는 source나 요구사항에는 프로젝트에 맞는 대안을 사용합니다.
   - 외부 폰트는 `next/font`를 통해 빌드 타임에 자체 호스팅 처리하십시오.

@@ -6,10 +6,10 @@ Nuxt 3 (Fullstack / Universal SSR Framework) 기반 프로젝트에 적용되는
 
 ## 🌐 1. 데이터 페칭 및 SSR 렌더링 규약 (Data Fetching & Universal SSR)
 
-- **`useFetch` & `useAsyncData` 전용 훅 필수**:
-  - Client-only 비동기 호출(`axios`, `fetch`)을 템플릿 최상단에서 직접 실행하지 마십시오. SSR 중복 호출 및 하이드레이션 불일치(Hydration Mismatch)를 방지하기 위해 `useFetch()` 또는 `useAsyncData()`를 사용하십시오.
+- **`useFetch` & `useAsyncData` 활용**:
+  - SSR에서 공유되는 fetch 또는 hydration이 필요한 데이터에는 `useFetch()` 또는 `useAsyncData()` 등 SSR 친화적 방식을 사용하여 중복 호출과 불일치를 방지합니다. client-only 흐름은 프로젝트 관례에 맞는 방식을 사용할 수 있습니다.
 - **`useState` 반응형 SSR 상태 보존**:
-  - SSR 렌더링 간 서버에서 생성된 상태를 클라이언트로 안전하게 전달하기 위해 `ref()` 대신 `useState('key', initFn)`를 활용하십시오.
+  - SSR 렌더링 간 서버 상태를 클라이언트로 전달해야 할 때 `useState('key', initFn)`를 사용합니다. client-only 또는 지역 상태에는 적절한 프로젝트 관례를 따릅니다.
 
 ---
 

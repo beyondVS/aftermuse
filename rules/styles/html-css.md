@@ -18,7 +18,7 @@ Google HTML/CSS Style Guide 및 modern web 베스트 프랙티스 기반의 스�
 - **문서 타입 (Doctype)**: 최상단에 `<!doctype html>`을 명시하십시오.
 - **시맨틱 태그 (Semantics)**: HTML5 시맨틱 요소(`<article>`, `<section>`, `<nav>`, `<header>`, `<footer>` 등)를 목적에 맞게 적극 활용하십시오.
 - **대체 텍스트 (Accessibility)**: 모든 `<img>` 태그에는 `alt` 속성을 필수 지정하십시오.
-- **관심사 분리 (Separation of Concerns)**: Structure(HTML), Presentation(CSS), Behavior(JS)를 엄격히 분리하고, 외부 스타일시트 및 스크립트 파일 링크 형태를 지양합니다.
+- **관심사 분리 (Separation of Concerns)**: HTML 구조, CSS 표현 및 JS 동작을 적절히 분리하고 불필요한 인라인 style/script를 피하십시오. 스타일시트와 스크립트의 배치는 프로젝트의 bundler·component architecture 및 기존 관례에 따르십시오.
 - **불필요한 type 속성 생략**: `<link rel="stylesheet">` 및 `<script>` 태그에서 `type="text/css"`, `type="text/javascript"` 속성을 생략하십시오.
 - **속성값 감싸기**: 모든 HTML 속성값은 큰따옴표(`""`)로 감싸하십시오.
 

@@ -17,7 +17,7 @@ Google C# Style Guide 기반의 관용적 .NET 코딩 규격입니다. 기존 �
 ## 📐 2. 포맷팅 및 구조 (Formatting & Structure)
 
 - **들여쓰기**: 탭을 사용하지 않고 프로젝트 `.editorconfig`를 따르십시오. 신규 프로젝트의 기본값은 .NET 관례에 맞는 4공백입니다.
-- **한 줄 길이**: 100자 제한
+- **한 줄 길이**: `.editorconfig` 또는 formatter 설정, 기존 관례, 기본값 100자 순으로 적용합니다.
 - **선언 순서**:
   1. Static, Const, Readonly 필드
   2. 일반 필드 및 속성 (Properties)

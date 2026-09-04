@@ -31,6 +31,6 @@ Nginx를 Reverse Proxy, Web Server, TLS Termination 또는 ingress 계층으로 
 ## ⚡ 3. Static File Serving & Gzip/Brotli 압축
 
 - **정적 자원 캐싱 규칙**:
-  - Static 파일(`images`, `css`, `js`) 서빙 시 `expires 30d;` 및 `add_header Cache-Control "public, no-transform";`을 지정하십시오.
+  - Static 파일(`images`, `css`, `js`)에는 캐싱 정책과 `add_header Cache-Control "public, no-transform";`을 적용하십시오. 캐시 기간은 asset fingerprinting, CDN 및 invalidation 전략에 따라 정하며, 신규 프로젝트에서는 `expires 30d;`를 시작점 예시로 사용할 수 있습니다. 기존 운영 설정이 있으면 이를 우선합니다.
 - **Gzip/Brotli 압축 활성화**:
-  - 텍스트 기반 자원(`text/plain`, `text/css`, `application/json`, `application/javascript`)의 네트워크 전송량 절감을 위해 `gzip on;` 및 최소 크기(`gzip_min_length 1000;`)를 활성화하십시오.
+  - 텍스트 기반 자원(`text/plain`, `text/css`, `application/json`, `application/javascript`)의 네트워크 전송량 절감을 위해 `gzip on;`을 활성화하십시오. 압축 최소 크기는 payload, CPU 및 플랫폼 설정에 따라 정하며, 신규 프로젝트에서는 `gzip_min_length 1000;`을 시작점 예시로 사용할 수 있습니다. 기존 운영 설정이 있으면 이를 우선합니다.

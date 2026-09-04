@@ -18,17 +18,17 @@
 ## 🛠️ 2. 프론트엔드 아키텍처 및 상태 관리
 
 - **컴포넌트 단일 책임**: 컴포넌트는 단일 기능에 집중하고, UI 렌더링과 비즈니스 로직(API 호출, 상태 처리)을 가급적 커스텀 훅(Custom Hooks) 등으로 분리하십시오.
-- **CSS Grid 레이아웃 우선**: 복잡한 Flexbox 수식 계산 대신 CSS Grid 구조 및 중앙 정렬 컨테이너 바운더리(`max-width` 지정 및 중앙 정렬)를 활용하십시오.
-- **아이콘 시스템 일관성 및 SVG 패스 직접 그리기 금지 (No Hand-rolled SVG)**: 에이전트가 `<svg><path ...></svg>` 패스를 직접 임의로 작성하지 말고, 표준 아이콘 컴포넌트를 활용하며 `strokeWidth` 등 선 두께를 통일하십시오.
+- **레이아웃 선택**: 2차원 배치·명시적 영역에는 Grid, 한 축 정렬·분배에는 Flex를 사용하며 디자인 시스템과 실제 레이아웃 요구에 맞춰 선택합니다.
+- **아이콘 시스템 일관성**: 디자인 시스템이 제공하는 아이콘·컴포넌트·asset 규칙을 우선합니다. 직접 SVG를 작성해야 할 때도 접근성, viewBox, 색상·선 두께 등 시스템 일관성을 검증합니다.
 - **지역 상태 우선 (Local State First)**: 전역 상태(Redux, Zustand 등)는 앱 전체에서 공유해야 하는 최소한의 데이터에만 사용하고, 컴포넌트 내부 렌더링 상태는 React State 등 지역 상태로 격리하십시오.
-- **Form 및 유효성 검사**: 폼 입력 요소에는 적절한 validation 지침 및 ARIA 접근성 속성을 명시하십시오.
+- **Form 및 유효성 검사**: 실제 입력·오류·제출 동작에 맞는 validation, label, 오류 안내 및 키보드 접근성을 제공합니다.
 
 ---
 
 ## ♿ 3. 접근성 (A11y) 및 SEO 표준
 
 - **시맨틱 HTML5**: `<div>` 남용을 지양하고 `<header>`, `<main>`, `<nav>`, `<article>`, `<section>`, `<footer>` 등 적절한 시맨틱 태그를 활용하십시오.
-- **접근성 (Accessibility)**: 이미지에는 `alt` 속성, 버튼에는 `aria-label`을 명시하고 키보드 포커스 링(Focus state)을 유지하십시오.
+- **접근성 (Accessibility)**: 의미 있는 이미지에는 적절한 `alt`를 제공하고, 이름이 보이지 않는 제어에는 접근 가능한 이름을 제공합니다. 실제 interactive control의 키보드 조작과 focus state를 유지하십시오.
 - **자동화 브라우저 검증 및 접근성 트리 (Accessibility Tree & Automation)**: 브라우저 통합 도구(Playwright 등)로 웹 UI를 탐색하고 요소 클릭 등 자동 검증을 수행할 때 오작동이 많은 단순 시각적 좌표(Coordinates) 대신 Accessibility Tree (Ref) 구조를 우선 지정하여 타겟팅하십시오.
 - **SEO 기본 적용**: 페이지별 Title 태그, Meta Description, OpenGraph 태그 및 단일 `<h1>` 구조를 준수하십시오.
 

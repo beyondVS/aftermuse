@@ -42,7 +42,7 @@ Google C++ Style Guide 및 C++20 베스트 프랙티스 기반의 스타일 규�
 
 ## 🛠️ 4. 포맷팅 및 예외 처리 (Formatting & Safety)
 
-- **들여쓰기 및 한 줄 길이**: 들여쓰기 2공백, 한 줄 최대 80자 제한.
+- **들여쓰기 및 한 줄 길이**: 들여쓰기는 프로젝트 formatter 설정과 관례를 따르며, 별도 설정이 없으면 2공백을 사용합니다. 줄 길이는 formatter/linter 설정, 기존 관례, 기본값 80자 순으로 적용합니다.
 - **예외 처리 (Exceptions)**: C++ 구문 내 예외(Exceptions) 발생 기능을 지양하고 에러 코드 또는 `std::optional` / `absl::Status` 기반 처리를 권장합니다.
 
 ---

@@ -16,7 +16,7 @@ Google JavaScript Style Guide 및 ES6+ 베스트 프랙티스 기반의 스타�
 
 - **중괄호 (Braces)**: `if`, `for`, `while` 등 모든 제어문은 1줄짜리 블록이라도 중괄호를 필수 사용하며 K&R 스타일("Egyptian brackets")을 적용합니다.
 - **세미콜론 (Semicolons)**: Automatic Semicolon Insertion(ASI)에 의존하지 말고 모든 문장 끝에 세미콜론(`;`)을 명시하십시오.
-- **라인 길이**: 80자를 기준으로 작성하되, 연장 라인은 4공백 이상 들여쓰기를 적용합니다.
+- **라인 길이**: formatter/linter 설정, 기존 관례, 기본값 80자 순으로 적용하며, 연장 라인은 프로젝트 formatter가 정한 들여쓰기를 따릅니다.
 
 ---
 
