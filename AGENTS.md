@@ -1,3 +1,5 @@
+<!-- agent-rules-template:managed:start -->
+
 # AGENTS.md - Unified Agent Execution Rules & Governance
 
 본 문서는 `agents-template`에서 `scripts/build_dist.py` 스크립트를 통해 자동으로 조립 생성된 **최상위 AI 에이전트 통합 실행 지침 및 거버넌스(Governance) 문서**입니다.
@@ -316,3 +318,21 @@ AI 에이전트는 코드 및 문서를 작성할 때 원본 의미를 보호하
 - [javascript.md](rules/styles/javascript.md): JavaScript Coding Style Guide (JavaScript 스타일 및 컨벤션 지침)
 - [python.md](rules/styles/python.md): Python Coding Style Guide (Python 스타일 및 컨벤션 지침)
 - [typescript.md](rules/styles/typescript.md): TypeScript Coding Style Guide (TypeScript 스타일 및 컨벤션 지침)
+
+
+---
+
+## Template Managed Content
+
+- 이 Managed Block은 직접 수정하지 마십시오.
+- Template이 managed로 설치한 파일을 직접 수정하거나 formatter, fixer, code action으로 자동 변경하지 마십시오.
+- 프로젝트별 규칙·예외는 Managed Block 밖의 `Project Rules` 또는 Project-owned rule 파일에 작성하십시오.
+- Template과 다른 동작은 managed 규칙을 바꾸지 말고 더 구체적인 Project Rule로 override하십시오.
+- 실제 managed 파일 ownership은 이 문서의 목록이 아니라 설치 metadata를 기준으로 합니다.
+
+<!-- agent-rules-template:managed:end -->
+
+# Project Rules
+
+이 섹션의 규칙은 이 프로젝트에만 적용합니다.
+같은 적용 범위에서 위 Template Managed Content의 일반 규칙과 충돌하면 이 섹션의 더 구체적인 규칙을 우선합니다.
