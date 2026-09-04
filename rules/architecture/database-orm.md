@@ -22,14 +22,16 @@
 - **복합 인덱스(Composite Index) 순서 지침**:
   - 복합 인덱스의 선행 컬럼은 카디널리티만으로 정하지 말고, 대표 쿼리의 필터·정렬·조인 순서와 실행 계획을 기준으로 결정하십시오.
 - **N+1 쿼리 대응**:
-  - 반복적으로 접근하는 관계가 있으며 query count, profiler 또는 실행 동작에서 추가 쿼리가 관찰될 때 적합한 eager loading 또는 조회 구조를 선택합니다. 사용하지 않는 관계의 일괄 eager loading은 피하십시오.
+  - 반복적으로 접근하는 관계가 있으며 query count, profiler 또는 실행 동작에서 추가 쿼리가 관찰될 때 적합한 eager loading 또는 조회 구조를 선택합니다.
+    사용하지 않는 관계의 일괄 eager loading은 피하십시오.
 
 ---
 
 ## 🔒 3. 데이터 무결성 및 트랜잭션 수칙
 
 - **DB 수준의 제약 조건 (Constraints)**:
-  - DB가 invariant를 신뢰성 있게 표현할 수 있으면 `NOT NULL`, `UNIQUE`, `CHECK`, `FOREIGN KEY` 등 DB 제약 조건을 사용합니다. DB가 표현할 수 없는 정책은 애플리케이션 검증과 함께 관리합니다.
+  - DB가 invariant를 신뢰성 있게 표현할 수 있으면 `NOT NULL`, `UNIQUE`, `CHECK`, `FOREIGN KEY` 등 DB 제약 조건을 사용합니다.
+    DB가 표현할 수 없는 정책은 애플리케이션 검증과 함께 관리합니다.
 - **트랜잭션 바운더리 최소화**:
   - `@transaction` 블록 또는 DB 트랜잭션 범위 내에서 외부 API 호출, 파일 I/O 등 느린 작업을 수행하지 마십시오. DB 커넥션 풀 고갈을 초래합니다.
 - **Rollback 및 복구 검증**:

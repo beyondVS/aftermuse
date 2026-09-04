@@ -1,6 +1,8 @@
 # Python Application Server Rules (Python 웹 서버 운영 규칙)
 
-Python 웹 애플리케이션(FastAPI, Litestar, Django, Flask 등)의 애플리케이션 서버를 직접 운영할 때 적용되는 규칙입니다. Gunicorn과 Uvicorn 조합을 사용할 때는 아래 Gunicorn 프로필을 적용하십시오. PaaS·서버리스·컨테이너 플랫폼이 런타임과 프로세스 관리를 제공하는 경우에는 해당 플랫폼의 공식 운영 가이드를 우선합니다.
+Python 웹 애플리케이션(FastAPI, Litestar, Django, Flask 등)의 애플리케이션 서버를 직접 운영할 때 적용되는 규칙입니다.
+Gunicorn과 Uvicorn 조합을 사용할 때는 아래 Gunicorn 프로필을 적용하십시오.
+PaaS·서버리스·컨테이너 플랫폼이 런타임과 프로세스 관리를 제공하는 경우에는 해당 플랫폼의 공식 운영 가이드를 우선합니다.
 
 ---
 
@@ -26,4 +28,5 @@ Python 웹 애플리케이션(FastAPI, Litestar, Django, Flask 등)의 애플리
 - **Graceful Timeout 설정**:
   - 서버 중지 시 진행 중인 요청을 정상 처리하고 종료할 수 있도록 `graceful_timeout 30` 옵션을 지정하십시오.
 - **재로딩 방식**:
-  - Gunicorn을 직접 운영할 때는 HUP 기반 graceful reload를 사용할 수 있습니다. 오케스트레이터·PaaS 환경에서는 플랫폼이 제공하는 rollout 또는 restart 절차를 우선하십시오.
+  - Gunicorn을 직접 운영할 때는 HUP 기반 graceful reload를 사용할 수 있습니다.
+    오케스트레이터·PaaS 환경에서는 플랫폼이 제공하는 rollout 또는 restart 절차를 우선하십시오.

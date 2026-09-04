@@ -1,6 +1,7 @@
 # TypeScript Coding Style Guide (TypeScript 스타일 및 컨벤션 지침)
 
-Google TypeScript Style Guide 및 현대 TypeScript 코딩 베스트 프랙티스 기반의 스타일 규격입니다. 기존 프로젝트에서는 설정 파일과 관례를 우선하며, 신규 프로젝트에서는 이 문서를 기본 프로필로 사용하고 formatter·linter 설정으로 기계적으로 확정하십시오.
+Google TypeScript Style Guide 및 현대 TypeScript 코딩 베스트 프랙티스 기반의 스타일 규격입니다.
+기존 프로젝트에서는 설정 파일과 관례를 우선하며, 신규 프로젝트에서는 이 문서를 기본 프로필로 사용하고 formatter·linter 설정으로 기계적으로 확정하십시오.
 
 ---
 
@@ -22,7 +23,8 @@ Google TypeScript Style Guide 및 현대 TypeScript 코딩 베스트 프랙티�
 ## 🚫 2. 금지 패턴 (Disallowed Features)
 
 - **`any` 타입 금지**: `any` 타입 사용을 엄격히 제한하고, 알 수 없는 타입에는 `unknown` 또는 구체적인 유니온 타입을 명시하십시오.
-- **원시 타입 래퍼 객체 금지**: `String`, `Boolean`, `Number` 등 래퍼 클래스를 직접 인스턴스화하지 마십시오. (원시 타입 `string`, `boolean`, `number` 사용)
+- **원시 타입 래퍼 객체 금지**: `String`, `Boolean`, `Number` 등 래퍼 클래스를 직접 인스턴스화하지 마십시오.
+  (원시 타입 `string`, `boolean`, `number` 사용)
 - **세미콜론 정책**: 세미콜론 사용 여부는 프로젝트 formatter·linter 설정으로 일관되게 강제하십시오. 신규 프로젝트의 기본값은 명시적 세미콜론 사용입니다.
 - **`const enum` 금지**: 일반 `enum` 또는 const 객체 맵(`as const`)을 활용하십시오.
 - **동적 코드 실행 금지**: `eval()` 및 `Function(...string)` 사용을 엄격히 금지합니다.
@@ -51,4 +53,5 @@ Google TypeScript Style Guide 및 현대 TypeScript 코딩 베스트 프랙티�
 
 - 문서화 대상과 설명 내용은 Core의 코드 문서화 및 주석 기준을 따릅니다.
 - **TSDoc/JSDoc 형식**: public 계약을 문서화할 때 프로젝트가 채택한 TSDoc 또는 JSDoc의 `/** ... */` 형태를 사용합니다.
-- **중복 타입 지정 금지**: TypeScript 타입 시스템이 이미 표현한 타입을 `@param {string}`처럼 documentation comment에 반복하지 않습니다. 프로젝트 도구가 요구하는 tag와 형식은 해당 설정을 따릅니다.
+- **중복 타입 지정 금지**: TypeScript 타입 시스템이 이미 표현한 타입을 `@param {string}`처럼 documentation comment에 반복하지 않습니다.
+  프로젝트 도구가 요구하는 tag와 형식은 해당 설정을 따릅니다.

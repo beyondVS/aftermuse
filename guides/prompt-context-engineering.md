@@ -2,7 +2,9 @@
 
 ## Purpose
 
-이 문서는 AI 에이전트에게 줄 규칙, 프롬프트, Task Contract, 실행 하네스를 설계·검토하는 사람이 선택적으로 참고하는 범용 가이드다. 특정 도구, 모델, 조직의 작업 방식에 종속되지 않는다. 설명과 예시는 판단을 돕기 위한 것이며, 현재 작업에 자동 적용되는 규칙이 아니다.
+이 문서는 AI 에이전트에게 줄 규칙, 프롬프트, Task Contract, 실행 하네스를 설계·검토하는 사람이 선택적으로 참고하는 범용 가이드다.
+특정 도구, 모델, 조직의 작업 방식에 종속되지 않는다.
+설명과 예시는 판단을 돕기 위한 것이며, 현재 작업에 자동 적용되는 규칙이 아니다.
 
 좋은 설계의 목표는 에이전트가 충분한 근거와 적절한 권한 안에서 결과를 만들고, 성공·실패·추가 판단 필요 상태를 외부에서 확인할 수 있게 하는 것이다.
 
@@ -30,13 +32,14 @@ Verification
 Terminal state
 ```
 
-프롬프트가 원하는 결과를 분명히 해도 필요한 context가 빠지면 판단이 흔들린다. context와 지시가 충분해도 권한·검증 경계가 없으면 작업이 과도하게 확대되거나 검증되지 않은 완료로 끝날 수 있다.
+프롬프트가 원하는 결과를 분명히 해도 필요한 context가 빠지면 판단이 흔들린다.
+context와 지시가 충분해도 권한·검증 경계가 없으면 작업이 과도하게 확대되거나 검증되지 않은 완료로 끝날 수 있다.
 
 ## Core Design Principles
 
 ### Define the desired result before restrictions
 
-금지 목록을 늘리기 전에 원하는 결과의 구조를 정의한다. 특히 output shape가 문제라면 다음 순서가 유용하다.
+금지 목록을 늘리기 전에 원하는 결과의 구조를 정의한다. 특히 출력 형태가 문제라면 다음 순서가 유용하다.
 
 ```text
 Desired result → Required structure → Constraints → Prohibitions
@@ -46,7 +49,8 @@ Desired result → Required structure → Constraints → Prohibitions
 
 ### Prefer observable conditions
 
-`필요하면`, `적절히`, `상황에 따라`, `충분히`, `합리적으로`, `의미 있는`, `실질적으로`, `대규모`, `고위험`, `복잡한` 같은 단어가 언제나 잘못된 것은 아니다. 다만 문맥상 여러 합리적 해석이 가능하여 실행 결과가 달라질 때는 다음 구조로 바꿀 수 있다.
+`필요하면`, `적절히`, `상황에 따라`, `충분히`, `합리적으로`, `의미 있는`, `실질적으로`, `대규모`, `고위험`, `복잡한` 같은 단어가 언제나 잘못된 것은 아니다.
+다만 문맥상 여러 합리적 해석이 가능하여 실행 결과가 달라질 때는 다음 구조로 바꿀 수 있다.
 
 ```text
 기본 동작
@@ -54,7 +58,7 @@ Desired result → Required structure → Constraints → Prohibitions
 + 조건이 성립했을 때의 동작
 ```
 
-근거 없는 숫자 proxy로 모호성을 숨기지 않는다.
+근거 없는 수치 대리 지표로 모호성을 숨기지 않는다.
 
 ```text
 Bad: 복잡한 작업이면 계획을 작성한다.
@@ -75,7 +79,9 @@ Better: 공개 API·schema·protocol 계약을 변경하거나,
 
 ### Calibrate statement strength
 
-문장의 강도가 오해될 수 있다면 Hard Rule, Default, Conditional Rule, Guideline의 차이를 드러낸다. 모든 문서에 이 레이블을 붙이는 것이 목적은 아니다. 반드시 지켜야 할 경계, 기본값, 관찰 가능한 조건의 분기, 참고 조언을 혼동하지 않게 하는 것이 목적이다.
+문장의 강도가 오해될 수 있다면 Hard Rule, Default, Conditional Rule, Guideline의 차이를 드러낸다.
+모든 문서에 이 레이블을 붙이는 것이 목적은 아니다.
+반드시 지켜야 할 경계, 기본값, 관찰 가능한 조건의 분기, 참고 조언을 혼동하지 않게 하는 것이 목적이다.
 
 ### Define outcomes before implementation
 
@@ -109,7 +115,9 @@ condition → desired outcome → implementation choice
 baseline → 실제 실패 또는 오해 관찰 → 그 실패를 막는 최소 규칙 추가 → 재검증
 ```
 
-가상의 loophole마다 prohibition을 더하면 읽기 비용과 상충 가능성만 커질 수 있다. 동일한 prompt를 여러 모델 또는 실행에서 사용했을 때 서로 다른 합리적 해석이 반복되는 variance도 wording이 충분히 binding하지 않다는 신호가 될 수 있다.
+가상의 허점마다 금지 조항을 더하면 읽기 비용과 상충 가능성만 커질 수 있다.
+같은 프롬프트를 여러 모델에서 사용하거나 반복 실행했을 때 서로 다른 합리적 해석이 반복된다면,
+문구가 해석의 범위를 충분히 제한하지 못한다는 신호일 수 있다.
 
 ## Scope and Authority
 
@@ -117,7 +125,8 @@ baseline → 실제 실패 또는 오해 관찰 → 그 실패를 막는 최소 
 
 두 극단을 피한다. 한 위치만 고쳐 같은 근본 원인의 반복 문제를 남기는 일과, 한 문제를 이유로 저장소 전체 리팩터링으로 확대하는 일이다. 기본적으로 사용자가 지정한 scope를 보호한다.
 
-다만 사용자가 특정 위치가 아니라 문제 유형을 고치도록 요청했고, 정의된 search scope 안에서 같은 근본 원인의 같은 유형 문제가 확인된다면 그 match를 함께 다루는 것이 의미적 scope에 맞을 수 있다. 사용자가 정확한 위치만 지시했다면 그 경계를 우선한다.
+다만 사용자가 특정 위치가 아니라 문제 유형을 고치도록 요청했고, 정의된 search scope 안에서 같은 근본 원인의 같은 유형 문제가 확인된다면 그 match를 함께 다루는 것이 의미적 scope에 맞을 수 있다.
+사용자가 정확한 위치만 지시했다면 그 경계를 우선한다.
 
 ### Decisions and authority boundaries
 
@@ -138,20 +147,74 @@ Must not decide:
 
 ### Apply semantics patterns
 
-적용 범위와 구현 재량은 별도의 판단 축이다. `Apply`는 scope 모호성을 줄이기 위한 재사용 가능한 패턴이며, `Delegated authority`는 고정된 외부 계약 안에서 에이전트가 선택할 수 있는 구현 범위를 설명한다. 모든 Task Contract에 강제되는 표준은 아니다.
+적용 범위와 구현 재량은 별도의 판단 축이다.
+`Apply`는 scope 모호성을 줄이기 위한 재사용 가능한 패턴이며, `Delegated authority`는 고정된 외부 계약 안에서 에이전트가 선택할 수 있는 구현 범위를 설명한다.
+모든 Task Contract에 강제되는 표준은 아니다.
 
 | 적용 범위 패턴 | 의미 |
 | --- | --- |
 | `Exact` | 지정한 target만 수정한다. |
 | `All matches within scope` | 정의한 search scope에서 같은 rule에 해당하는 모든 match를 검사하고 처리한다. |
 
-예를 들어 한 docstring만 바꾼다면 `Modify: foo.py::target_function`, `Apply: Exact`라고 쓸 수 있다. package 안의 문서화 언어 정책 위반 docstring 전체를 다룬다면 Python source를 search scope로 정하고 `All matches within scope`를 사용할 수 있다.
+예를 들어 한 docstring만 바꾼다면 `Modify: foo.py::target_function`, `Apply: Exact`라고 쓸 수 있다.
+package 안의 문서화 언어 정책 위반 docstring 전체를 다룬다면 Python source를 search scope로 정하고 `All matches within scope`를 사용할 수 있다.
 
-둘은 조합할 수 있다. 예를 들어 `Apply: All matches within scope`와 `Delegated authority: 기존 패턴과 최소 구현 원칙 안에서 내부 구현 선택 가능`은 같은 문제의 모든 match를 처리하면서 각 위치의 구현 수단은 기존 코드에 맞게 고를 수 있음을 뜻한다.
+적용 범위(`Apply`)와 위임된 구현 재량(`Delegated authority`)은 함께 지정할 수 있다.
+예를 들어 `Apply: All matches within scope`와 `Delegated authority: 기존 패턴과 최소 구현 원칙 안에서 내부 구현 선택 가능`은 같은 문제의 모든 match를 처리하면서 각 위치의 구현 수단은 기존 코드에 맞게 고를 수 있음을 뜻한다.
+
+### Completion sets for multi-output work
+
+여러 파일, 문서, 산출물 또는 독립 요구사항이 하나의 작업에 포함될 때는 완료 대상을 하나의 **completion set**(완료 여부를 확인할 대상들의 집합)으로 관리한다.
+이는 작성자가 이미 알고 있는 필수 대상을 일부 빠뜨리는 일과, 작업 중 발견되는 추가 영향을 놓치는 일을 함께 줄이기 위한 패턴이며 모든 작업에 강제되는 절차는 아니다.
+
+초기 completion set에는 사용자 요구사항, 프로젝트 계약, 현재 context에서 이미 알려진 완료 대상(`Known targets`)을 명시한다.
+사전에 모든 영향 대상을 알 수 없다면 파일 목록을 추측해서 고정하지 않는다.
+대신 재현 가능한 탐색 범위(`search scope`)와 검색 결과의 관련성을 판정할 기준(`match rule`)을 정의해 추가 대상(`Discovered targets`)을 찾는다.
+이처럼 정해진 범위 안에서 수행하는 탐색을 bounded search라고 하며, 새로 발견한 관련 대상은 completion set에 추가한다.
+
+```text
+Known targets
+  + Discovered targets from bounded search
+  → Final completion set
+  → Resolve every item
+  → Re-run discovery check when practical
+```
+
+completion set의 각 항목은 작업 완료 전에 수정함(`modified`) 또는 근거가 있는 수정하지 않음(`not modified`)으로 처리 결과를 확정한다.
+이 문서에서 항목을 닫는다는 것은 이처럼 처리 결과를 확정한다는 뜻이다.
+발견한 항목을 모두 처리했다는 사실만으로 discovery가 충분했다고 가정하지 않는다.
+가능하면 수정 후 같은 search scope와 match rule, 또는 동등한 검색을 다시 수행해 의도하지 않은 잔여 match와 누락 가능성을 확인한다.
+
+이 패턴은 두 층의 completeness를 구분한다.
+
+- **Discovery completeness**: 정의한 탐색으로 관련 대상을 충분히 발견했는가?
+- **Execution completeness**: 지정·발견한 각 대상을 모두 처리하거나 근거와 함께 처리하지 않기로 닫았는가?
+
+`Exact`는 Known targets가 곧 completion set의 경계인 경우에 적합하다.
+`All matches within scope`는 bounded search로 Discovered targets를 completion set에 추가하고 처리해야 하는 경우에 적합하다.
+두 패턴 모두 completion set의 모든 항목을 닫아야 완료로 판단한다.
+
+예를 들어 설명을 변경하는 작업은 다음처럼 표현할 수 있다. 이는 고정 문법이 아니라 개념을 보이는 예시다.
+
+```text
+Known targets:
+- SKILL.md
+- README.md
+
+Search:
+- 저장소 전체에서 변경되는 동작명, 옵션명 또는 기존 설명을 참조하는 위치
+
+Completion:
+- known targets와 검색으로 발견된 관련 대상 모두 처리
+- 각 항목은 modified 또는 not modified: <reason>
+- 재검색 결과 의도하지 않은 잔여 match 없음
+```
 
 ## Context Selection
 
-더 많은 context가 항상 더 좋은 것은 아니다. 좋은 context는 relevant, authoritative, current해야 한다. 보통 다음과 같이 점진적으로 구성한다.
+더 많은 context가 항상 더 좋은 것은 아니다.
+좋은 context는 작업과 관련성이 있고, 권위 있는 출처에 근거하며, 최신이어야 한다.
+보통 다음과 같이 점진적으로 구성한다.
 
 ```text
 Global invariant
@@ -160,11 +223,15 @@ Global invariant
 → validation evidence
 ```
 
-작업과 무관한 framework rule, 오래된 결정, 모든 설계 guide를 항상 주입하지 않는다. 필요한 파일, 설정, 계약, 기존 관례만 선택하면 지시 충돌과 주의 분산을 줄일 수 있다. 이것이 Minimum Sufficient Context다.
+작업과 무관한 framework rule, 오래된 결정, 모든 설계 guide를 항상 주입하지 않는다.
+필요한 파일, 설정, 계약, 기존 관례만 선택하면 지시 충돌과 주의 분산을 줄일 수 있다.
+이것이 Minimum Sufficient Context다.
 
 ## Completion and Verification
 
-모델의 자기평가 대신 외부 증거를 사용한다. Acceptance criteria는 무엇이 참이어야 하는지, Validation은 그것을 어떤 명령이나 관찰 가능한 검사로 확인하는지 각각 설명한다.
+모델의 자기평가 대신 외부 증거를 사용한다.
+여러 산출물이 있는 작업이라면 먼저 [completion set](#completion-sets-for-multi-output-work)으로 discovery와 execution의 완료 범위를 닫고,
+Acceptance criteria는 무엇이 참이어야 하는지, Validation은 그것을 어떤 명령이나 관찰 가능한 검사로 확인하는지 각각 설명한다.
 
 ```text
 Acceptance:
@@ -176,11 +243,14 @@ Validation:
 - ruff check app/orders/
 ```
 
-위 경로와 명령은 설명용이다. 실제 contract를 가장 직접적으로 확인하는 프로젝트의 테스트·검사 명령을 선택한다. 예를 들어 API response schema를 보존해야 한다면 해당 필드와 상태 코드를 검증하는 contract test가 acceptance의 증거가 된다.
+위 경로와 명령은 설명용이다.
+실제 contract를 가장 직접적으로 확인하는 프로젝트의 테스트·검사 명령을 선택한다.
+예를 들어 API response schema를 보존해야 한다면 해당 필드와 상태 코드를 검증하는 contract test가 acceptance의 증거가 된다.
 
 검증을 실행하지 못했거나 실패했다면 성공했다고 주장하지 않는다. 그 상태와 제한 요인을 명확히 반환한다.
 
-작업의 terminal state는 적어도 다음을 구분할 수 있으면 유용하다. 정확히 네 상태를 모든 시스템에 강제할 필요는 없다.
+작업이 끝났거나 더 진행할 수 없을 때의 상태(terminal state)는 적어도 다음을 구분할 수 있으면 유용하다.
+정확히 네 상태를 모든 시스템에 강제할 필요는 없다.
 
 | 상태 | 의미 |
 | --- | --- |
@@ -189,9 +259,17 @@ Validation:
 | Needs Decision | architecture, public contract, product policy, compatibility, security처럼 위임되지 않은 판단이 실행을 막는다. |
 | Needs External Action | push, deploy, credential, approval처럼 외부 권한 또는 side effect가 실행을 막는다. |
 
-위임되지 않은 판단이나 외부 조치가 필요한 경우에는 `Failed`보다 각각 `Needs Decision`, `Needs External Action`을 반환한다. 이 구분은 애매한 상태를 알아서 결정하거나 검증 실패를 완료로 포장하는 일을 막는다.
+위임되지 않은 판단이나 외부 조치가 필요한 경우에는 `Failed`보다 각각 `Needs Decision`, `Needs External Action`을 반환한다.
+이 구분은 애매한 상태를 알아서 결정하거나 검증 실패를 완료로 포장하는 일을 막는다.
 
-반환 형식도 terminal state에 맞춰 최소한의 증거를 담으면 검토와 재개가 쉬워진다. `Completed`에는 수정 대상, 실행한 validation과 결과, 충족한 acceptance를 기록한다. `Failed`에는 실패한 검사, 시도한 범위, 남은 blocker와 현재 변경 상태를 기록한다. `Needs Decision`에는 미해결 판단과 그것이 위임 범위를 넘는 이유를, `Needs External Action`에는 필요한 외부 작업과 그 전까지 완료한 로컬 작업을 기록한다. 형식은 작업 환경에 맞게 줄일 수 있다.
+반환 형식도 terminal state에 맞춰 최소한의 증거를 담으면 검토와 재개가 쉬워진다.
+
+- `Completed`에는 수정 대상, 실행한 validation과 결과, 충족한 acceptance를 기록한다.
+- `Failed`에는 실패한 검사, 시도한 범위, 남은 blocker와 현재 변경 상태를 기록한다.
+- `Needs Decision`에는 미해결 판단과 그것이 위임 범위를 넘는 이유를 기록한다.
+- `Needs External Action`에는 필요한 외부 작업과 그 전까지 완료한 로컬 작업을 기록한다.
+
+형식은 작업 환경에 맞게 줄일 수 있다.
 
 ## Harness and Delegation ROI
 
@@ -204,11 +282,15 @@ planning, TDD, auditor, subagent, skill, 반복 review를 모든 작업에 일�
 - 미해결 trade-off
 - 검증 난이도
 
-단순하고 가역적이며 기계적으로 검증 가능한 작업에는 최소 충분한 하네스가 적합하다. delegation도 독립적인 결과물, 명확한 authority, 확인 가능한 return state가 있을 때 특히 유용하다. coordination 비용이 작업 자체보다 크면 직접 처리하거나 더 작은 contract를 쓰는 편이 낫다.
+단순하고 가역적이며 기계적으로 검증 가능한 작업에는 최소 충분한 하네스가 적합하다.
+delegation도 독립적인 결과물, 명확한 authority, 확인 가능한 return state가 있을 때 특히 유용하다.
+협업 조율 비용이 작업 자체보다 크면 직접 처리하거나 더 작은 작업 계약을 쓰는 편이 낫다.
 
 ## Task Contract Template
 
-Task Contract는 복잡도·위험·모호성이 있는 작업에서 목표, scope, authority, 검증을 정렬하는 재사용 가능한 형식이다. 절차적 의무가 아니다. 단순한 작업에는 Goal, Scope, Acceptance, Validation만으로 충분할 수 있으며, contract 작성 비용이 직접 처리 비용보다 크다면 상세 형식은 과도한 하네스일 수 있다.
+Task Contract는 복잡도·위험·모호성이 있는 작업에서 목표, scope, authority, 검증을 정렬하는 재사용 가능한 형식이다.
+절차적 의무가 아니다.
+단순한 작업에는 Goal, Scope, Acceptance, Validation만으로 충분할 수 있으며, contract 작성 비용이 직접 처리 비용보다 크다면 상세 형식은 과도한 하네스일 수 있다.
 
 ```text
 TASK CONTRACT
@@ -236,6 +318,9 @@ Must not decide:
 Apply:
 [Exact | All matches within scope]
 
+Completion set:
+[optional; Known targets, bounded search의 scope와 match rule, 각 항목의 close 상태]
+
 Examples:
 [optional; exhaustive인지 illustrative인지 명시]
 
@@ -252,7 +337,9 @@ Failure / escalation:
 [자의적으로 결정하지 않고 중단 또는 상위 판단을 요청할 조건]
 ```
 
-필드를 기계적으로 채우지 않는다. 결과를 바꾸는 context, 이미 고정된 결정, 위임 범위가 없으면 생략한다. 반대로 public contract, 보안 정책, 외부 side effect처럼 의사결정 권한이 중요한 경우에는 명시하는 편이 안전하다.
+필드를 기계적으로 채우지 않는다.
+결과를 바꾸는 context, 이미 고정된 결정, 위임 범위가 없으면 생략한다.
+반대로 public contract, 보안 정책, 외부 side effect처럼 의사결정 권한이 중요한 경우에는 명시하는 편이 안전하다.
 
 ## Review Checklist
 
@@ -263,6 +350,7 @@ Failure / escalation:
 - 예외가 기본 동작을 무력화하지 않는가?
 - 프로젝트 설정과 기존 convention의 우선순위가 분명한가?
 - 수정 scope와 semantic scope가 구분되는가?
+- 여러 산출물이 있으면 Known targets와 bounded search 결과를 completion set으로 닫는가?
 - 이미 결정된 것과 에이전트가 결정할 수 있는 것이 구분되는가?
 - acceptance와 validation이 분리되어 있는가?
 - 검증 실패 시 완료를 주장할 여지가 없는가?

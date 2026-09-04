@@ -1,6 +1,7 @@
 # Docker Architecture & Packaging Rules (Docker 컨테이너화 수칙)
 
-Docker 및 Containerization 기반 배포 이미지를 직접 작성·운영할 때 적용되는 표준 규약 및 보안 지침입니다. PaaS, 서버리스 또는 조직의 관리형 빌드 시스템이 이미지 구조·보안 정책을 제공하는 경우에는 해당 플랫폼 규칙을 우선합니다.
+Docker 및 Containerization 기반 배포 이미지를 직접 작성·운영할 때 적용되는 표준 규약 및 보안 지침입니다.
+PaaS, 서버리스 또는 조직의 관리형 빌드 시스템이 이미지 구조·보안 정책을 제공하는 경우에는 해당 플랫폼 규칙을 우선합니다.
 
 ---
 

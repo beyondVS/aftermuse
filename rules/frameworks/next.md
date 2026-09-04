@@ -42,5 +42,6 @@ Next.js (App Router, Fullstack/SSR) 기반 프로젝트에 적용되는 아키�
 - **Standard Routing Conventions**:
   - 동적 라우팅(`[id]`), 병렬 라우팅(`@slot`), 인터셉팅 라우팅(`(.)`) 규칙을 준수하고 라우터 이동 시 `<Link>` 컴포넌트를 우선 활용하십시오.
 - **Built-in Optimization Component**:
-  - 이미지 source·크기·loader·최적화 요구가 지원할 때 `next/image` (`<Image />`)를 사용해 CLS와 전송량을 줄입니다. 지원하지 않는 source나 요구사항에는 프로젝트에 맞는 대안을 사용합니다.
+  - 이미지 source·크기·loader·최적화 요구가 지원할 때 `next/image` (`<Image />`)를 사용해 CLS와 전송량을 줄입니다.
+    지원하지 않는 source나 요구사항에는 프로젝트에 맞는 대안을 사용합니다.
   - 외부 폰트는 `next/font`를 통해 빌드 타임에 자체 호스팅 처리하십시오.
