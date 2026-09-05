@@ -4,7 +4,7 @@
 # ==============================================================================
 # - Supports Linux, macOS (BSD), and Git Bash (Windows).
 # - Uses mktemp + awk for atomic replacement (avoids sed -i incompatibilities).
-# - Guarantees UTF-8 encoding and POSIX LF line endings.
+# - Preserves the existing file's line endings; new files use UTF-8-compatible bytes and LF.
 # ==============================================================================
 
 set -euo pipefail
@@ -93,6 +93,11 @@ fi
 
 TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")
 
+EOL_STYLE="lf"
+if [ -f "$OUTPUT_FILE" ] && LC_ALL=C grep -q $'\r$' "$OUTPUT_FILE"; then
+    EOL_STYLE="crlf"
+fi
+
 # Create temporary file for managed block
 BLOCK_TMP=$(mktemp)
 trap 'rm -f "$BLOCK_TMP"' EXIT
@@ -104,6 +109,10 @@ trap 'rm -f "$BLOCK_TMP"' EXIT
     echo "$API_RESP"
     echo "$MARKER_END"
 } | tr -d '\r' > "$BLOCK_TMP"
+if [ "$EOL_STYLE" = "crlf" ]; then
+    awk '{ printf "%s\r\n", $0 }' "$BLOCK_TMP" > "${BLOCK_TMP}.crlf"
+    mv "${BLOCK_TMP}.crlf" "$BLOCK_TMP"
+fi
 
 # 5. Create backup
 if [ -f "$OUTPUT_FILE" ] && [ "$NO_BACKUP" -eq 0 ]; then
@@ -117,40 +126,41 @@ FINAL_TMP=$(mktemp)
 trap 'rm -f "$BLOCK_TMP" "$FINAL_TMP"' EXIT
 
 if [ -f "$OUTPUT_FILE" ]; then
-    # Standardize existing file to LF
-    EXISTING_TMP=$(mktemp)
-    trap 'rm -f "$BLOCK_TMP" "$FINAL_TMP" "$EXISTING_TMP"' EXIT
-    tr -d '\r' < "$OUTPUT_FILE" > "$EXISTING_TMP"
-
     HAS_START=0
     HAS_END=0
-    if grep -qF "$MARKER_START" "$EXISTING_TMP"; then HAS_START=1; fi
-    if grep -qF "$MARKER_END" "$EXISTING_TMP"; then HAS_END=1; fi
+    if grep -qF "$MARKER_START" "$OUTPUT_FILE"; then HAS_START=1; fi
+    if grep -qF "$MARKER_END" "$OUTPUT_FILE"; then HAS_END=1; fi
 
     if [ "$HAS_START" -eq 1 ] && [ "$HAS_END" -eq 1 ]; then
         echo "[INFO] Found existing managed section. Replacing block..."
-        awk -v block_file="$BLOCK_TMP" -v start_m="$MARKER_START" -v end_m="$MARKER_END" '
-            BEGIN { skip = 0 }
-            $0 ~ start_m {
+        awk -v block_file="$BLOCK_TMP" -v start_m="$MARKER_START" -v end_m="$MARKER_END" -v style="$EOL_STYLE" '
+            BEGIN { skip = 0; ORS = (style == "crlf" ? "\r\n" : "\n") }
+            {
+                sub(/\r$/, "")
+            }
+            index($0, start_m) {
                 skip = 1
-                while ((getline line < block_file) > 0) print line
+                while ((getline line < block_file) > 0) {
+                    sub(/\r$/, "", line)
+                    print line
+                }
                 close(block_file)
                 next
             }
-            $0 ~ end_m {
+            index($0, end_m) {
                 skip = 0
                 next
             }
             !skip { print }
-        ' "$EXISTING_TMP" > "$FINAL_TMP"
+        ' "$OUTPUT_FILE" > "$FINAL_TMP"
     else
         echo "[INFO] No complete managed block found. Appending to bottom..."
-        cp "$EXISTING_TMP" "$FINAL_TMP"
+        cp "$OUTPUT_FILE" "$FINAL_TMP"
         # Ensure trailing newline
         if [ -s "$FINAL_TMP" ] && [ "$(tail -c 1 "$FINAL_TMP" | wc -l)" -eq 0 ]; then
-            echo "" >> "$FINAL_TMP"
+            if [ "$EOL_STYLE" = "crlf" ]; then printf '\r\n' >> "$FINAL_TMP"; else printf '\n' >> "$FINAL_TMP"; fi
         fi
-        echo "" >> "$FINAL_TMP"
+        if [ "$EOL_STYLE" = "crlf" ]; then printf '\r\n' >> "$FINAL_TMP"; else printf '\n' >> "$FINAL_TMP"; fi
         cat "$BLOCK_TMP" >> "$FINAL_TMP"
     fi
 else

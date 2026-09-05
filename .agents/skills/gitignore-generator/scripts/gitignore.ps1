@@ -3,7 +3,7 @@
     gitignore.io API를 호출하여 .gitignore 파일을 생성 및 안전하게 병합하는 PowerShell 스크립트.
 
 .DESCRIPTION
-    - UTF-8 (BOM 없음) 및 POSIX LF (\n) 인코딩 보장.
+    - 기존 UTF-8 인코딩과 주 개행 형식을 보존하고 신규 파일은 UTF-8(BOM 없음), LF로 생성.
     - 마커(# >>> gitignore-generator managed section start >>>) 기반 원등성(Idempotency) 교체 지원.
     - 타임스탬프 기반 백업 생성.
 
@@ -101,7 +101,7 @@ if ($apiResponse -match "#!! ERROR:\s*(.+) is undefined") {
     exit 1
 }
 
-# 5. Managed Block 구성 (LF 개행)
+# 5. Managed Block 구성 (신규 파일 기본 LF 개행)
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 $managedBlock = @"
 $MARKER_START
@@ -122,11 +122,26 @@ if ((Test-Path $targetPath) -and (-not $NoBackup)) {
 }
 
 # 7. 마커 기반 원등성 병합/교체 로직
-$utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+$utf8StrictNoBom = New-Object System.Text.UTF8Encoding($false, $true)
+$writeBom = $false
+$newline = "`n"
 
 if (Test-Path $targetPath) {
-    $existingRaw = [System.IO.File]::ReadAllText($targetPath, [System.Text.Encoding]::UTF8)
-    $existingText = $existingRaw -replace "`r`n", "`n"
+    $existingBytes = [System.IO.File]::ReadAllBytes($targetPath)
+    $offset = 0
+    if ($existingBytes.Length -ge 3 -and $existingBytes[0] -eq 0xEF -and $existingBytes[1] -eq 0xBB -and $existingBytes[2] -eq 0xBF) {
+        $writeBom = $true
+        $offset = 3
+    }
+    try {
+        $existingText = $utf8StrictNoBom.GetString($existingBytes, $offset, $existingBytes.Length - $offset)
+    } catch {
+        throw "기존 파일의 인코딩을 안전하게 보존할 수 없습니다. UTF-8 파일만 지원합니다: $targetPath"
+    }
+    if ($existingText.Contains("`r`n")) {
+        $newline = "`r`n"
+    }
+    $managedBlockForFile = $managedBlock -replace "`n", $newline
 
     $startIndex = $existingText.IndexOf($MARKER_START)
     $endIndex   = $existingText.IndexOf($MARKER_END)
@@ -138,16 +153,16 @@ if (Test-Path $targetPath) {
         $before = $existingText.Substring(0, $startIndex)
         $after  = $existingText.Substring($endIndex + $MARKER_END.Length)
         
-        $finalContent = $before + $managedBlock + $after
+        $finalContent = $before + $managedBlockForFile + $after
     } else {
         # 마커가 없거나 손상된 경우 -> 하단에 Append
         Write-Host "[INFO] 기존 파일에 마커 구역이 없어 하단에 새 구역을 추가합니다." -ForegroundColor Green
         
         $prefix = ""
         if (-not $existingText.EndsWith("`n") -and $existingText.Length -gt 0) {
-            $prefix = "`n"
+            $prefix = $newline
         }
-        $finalContent = $existingText + $prefix + "`n" + $managedBlock
+        $finalContent = $existingText + $prefix + $newline + $managedBlockForFile
     }
 } else {
     # 신규 파일 생성
@@ -155,8 +170,16 @@ if (Test-Path $targetPath) {
     $finalContent = $managedBlock
 }
 
-# 8. BOM 없는 UTF-8 & POSIX LF로 최종 저장
-$lfFinalContent = $finalContent -replace "`r`n", "`n"
-[System.IO.File]::WriteAllText($targetPath, $lfFinalContent, $utf8NoBom)
+# 8. 기존 UTF-8 BOM 여부와 개행을 보존하여 저장
+$contentBytes = $utf8StrictNoBom.GetBytes($finalContent)
+if ($writeBom) {
+    $preamble = [System.Text.Encoding]::UTF8.GetPreamble()
+    $outputBytes = New-Object byte[] ($preamble.Length + $contentBytes.Length)
+    [System.Array]::Copy($preamble, 0, $outputBytes, 0, $preamble.Length)
+    [System.Array]::Copy($contentBytes, 0, $outputBytes, $preamble.Length, $contentBytes.Length)
+} else {
+    $outputBytes = $contentBytes
+}
+[System.IO.File]::WriteAllBytes($targetPath, $outputBytes)
 
 Write-Host "[SUCCESS] .gitignore 생성이 성공적으로 완료되었습니다!" -ForegroundColor Green

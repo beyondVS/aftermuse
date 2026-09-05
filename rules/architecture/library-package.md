@@ -7,7 +7,7 @@
 ## 📦 1. 인터페이스 설계 및 하위 호환성 (API Design & SemVer)
 
 - **명확한 Public API 분리**: 외부에 노출되는 공용 모듈(Public Interface)과 내부 구현 모듈(Internal Implementation)을 엄격히 구분하고, 명시적인 인터페이스를 통해서만 노출하십시오.
-- **Breaking Change 최소화**: 메서드 시그니처 수정이나 반환 타입 변경 시 기존 사용자에게 영향을 주지 않도록 Deprecation 경고 기간을 두고 시맨틱 버저닝(MAJOR.MINOR.PATCH) 규칙을 준수하십시오.
+- **Breaking Change 최소화**: 공개 API 변경이 기존 소비자에게 미치는 영향을 확인하고 프로젝트가 채택한 deprecation·version 정책에 따라 전환하십시오. SemVer를 채택한 프로젝트에서만 호환성 영향에 맞는 version 단계를 적용하십시오.
 - **Side-Effects 최소화**: 모듈 임포트 시 글로벌 상태를 직접 변경하거나 예기치 않은 부작용(Side Effect)이 발생하지 않도록 순수 함수(Pure Functions) 중심 설계를 지향하십시오.
 
 ---
