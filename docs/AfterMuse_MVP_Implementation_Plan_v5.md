@@ -175,16 +175,18 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 #### Bundle 03A — 도서 검색 복구 및 선택
 
-- [ ] **IMP-025 — 도서 Metadata Provider 교체 및 검색 복구**
+- [x] **IMP-025 — 도서 Metadata Provider 교체 및 검색 복구**
   - **선행 작업:** IMP-003, IMP-021, IMP-022, IMP-023
   - 알라딘 OpenAPI의 신규 key 발급 및 서비스 종료에 대응해 기본 Metadata Provider를 Kakao 도서 검색 API로 교체한다.
   - Provider 중립 계약·오류·factory를 알라딘 package 밖으로 이동하고 기존 검색 Service와 화면의 계약을 유지한다.
   - **완료 조건:** Kakao 정상/빈 결과/실패/timeout과 ISBN13 정규화 테스트, 기존 검색 Service·화면 회귀 테스트 및 실제 Kakao key smoke test가 통과한다.
+  - **검증 (2026-09-06):** Kakao Adapter·회귀 테스트, 기본 자동 검증과 실제 `KAKAO_REST_API_KEY`를 사용하는 명시적 `live` smoke를 통과했고, Desktop/Mobile에서 실제 검색 결과를 확인했다.
 
-- [ ] **IMP-024 — 도서 선택 및 로컬 Book 등록**
+- [x] **IMP-024 — 도서 선택 및 로컬 Book 등록**
   - **선행 작업:** IMP-020, IMP-022, IMP-023, IMP-025
   - 검색 결과 선택 시 기존 Book을 재사용하거나 새 Book을 저장한다.
   - **완료 조건:** 같은 ISBN을 반복 선택해도 중복 Book이 생성되지 않는다.
+  - **검증 (2026-09-06):** session 후보 ID·CSRF POST·기존 Book 재사용·동시 선택의 PostgreSQL 회귀 테스트를 통과했으며, 1280px Desktop과 375px Mobile에서 키보드만으로 검색·선택·등록 완료 흐름을 각각 2회 확인했다.
 
 ### Day 04 — Reading을 만들고 완독 상태를 관리할 수 있다
 

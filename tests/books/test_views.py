@@ -2,6 +2,8 @@ from datetime import date
 
 import pytest
 from django.contrib.auth import get_user_model
+from django.db import DatabaseError
+from django.test import Client
 from django.urls import reverse
 
 from books import views as book_views
@@ -202,3 +204,187 @@ def test_search_returns_fragment_for_htmx_request(
     assert 'hx-indicator="#search-loading"' in content
     assert 'role="status"' in content
     assert "검색 결과가 없습니다" in content
+
+
+def test_search_stores_server_candidates_and_renders_candidate_only_form(
+    authenticated_client, monkeypatch, provider_books
+) -> None:
+    provider = FakeProvider(books=provider_books)
+    monkeypatch.setattr(book_views, "get_default_provider", lambda: provider)
+
+    response = authenticated_client.get(reverse("books:search"), {"q": "같은 제목"})
+    content = response.content.decode()
+    candidates = authenticated_client.session["book_selection_candidates"]["candidates"]
+
+    assert len(candidates) == 2
+    assert content.count('name="candidate_id"') == 2
+    assert 'name="isbn13"' not in content
+    assert 'name="title"' not in content
+
+
+def test_search_pairs_each_result_with_its_own_candidate_when_isbn13_repeats(
+    authenticated_client, monkeypatch, provider_books
+) -> None:
+    first_book, second_book = provider_books
+    repeated_isbn_book = ProviderBook(
+        isbn13=first_book.isbn13,
+        title="동일 ISBN 재노출",
+        authors=second_book.authors,
+        publisher=second_book.publisher,
+        published_date=second_book.published_date,
+        cover_url=second_book.cover_url,
+        description=second_book.description,
+        table_of_contents=second_book.table_of_contents,
+        external_url=second_book.external_url,
+    )
+    provider = FakeProvider(books=(first_book, repeated_isbn_book))
+    monkeypatch.setattr(book_views, "get_default_provider", lambda: provider)
+
+    response = authenticated_client.get(reverse("books:search"), {"q": "같은 ISBN"})
+    content = response.content.decode()
+    candidates = authenticated_client.session["book_selection_candidates"]["candidates"]
+
+    assert content.count('name="candidate_id"') == 2
+    assert content.count(candidates[0]["candidate_id"]) == 1
+    assert content.count(candidates[1]["candidate_id"]) == 1
+    assert content.index(first_book.title) < content.index(
+        candidates[0]["candidate_id"]
+    )
+    assert content.index(repeated_isbn_book.title) < content.index(
+        candidates[1]["candidate_id"]
+    )
+
+
+@pytest.mark.parametrize(
+    "provider", [FakeProvider(), FakeProvider(error=ProviderUnavailableError())]
+)
+def test_empty_or_error_search_removes_previous_candidates(
+    authenticated_client, monkeypatch, provider
+) -> None:
+    initial_provider = FakeProvider(books=())
+    monkeypatch.setattr(book_views, "get_default_provider", lambda: initial_provider)
+    authenticated_client.get(reverse("books:search"), {"q": "첫 검색"})
+    assert "book_selection_candidates" not in authenticated_client.session
+
+    authenticated_client.session["book_selection_candidates"] = {"candidates": ["old"]}
+    authenticated_client.session.save()
+    monkeypatch.setattr(book_views, "get_default_provider", lambda: provider)
+
+    authenticated_client.get(reverse("books:search"), {"q": "다음 검색"})
+
+    assert "book_selection_candidates" not in authenticated_client.session
+
+
+def test_select_requires_authentication_and_post(client) -> None:
+    response = client.post(reverse("books:select"), {"candidate_id": "0"})
+
+    assert response.status_code == 302
+    assert response.url.startswith(f"{reverse('accounts:login')}?next=")
+
+
+def test_select_rejects_missing_csrf_token(db) -> None:
+    user = get_user_model().objects.create_user(
+        username="csrf-reader", password="strong-reader-password-123"
+    )
+    csrf_client = Client(enforce_csrf_checks=True)
+    csrf_client.force_login(user)
+
+    response = csrf_client.post(
+        reverse("books:select"),
+        {"candidate_id": "00000000-0000-0000-0000-000000000000"},
+    )
+
+    assert response.status_code == 403
+
+
+def test_select_creates_book_from_session_candidate_and_ignores_extra_post_data(
+    authenticated_client, monkeypatch, provider_books
+) -> None:
+    provider = FakeProvider(books=provider_books)
+    monkeypatch.setattr(book_views, "get_default_provider", lambda: provider)
+    authenticated_client.get(reverse("books:search"), {"q": "같은 제목"})
+    candidate_id = authenticated_client.session["book_selection_candidates"][
+        "candidates"
+    ][0]["candidate_id"]
+
+    response = authenticated_client.post(
+        reverse("books:select"),
+        {"candidate_id": candidate_id, "isbn13": "9999999999999", "title": "변조"},
+    )
+    retry_response = authenticated_client.post(
+        reverse("books:select"), {"candidate_id": candidate_id}
+    )
+
+    assert response.status_code == 200
+    assert retry_response.status_code == 200
+    assert "책 선택이 완료되었습니다" in response.content.decode()
+    assert provider.queries == ["같은 제목"]
+    assert Book.objects.count() == 1
+    book = Book.objects.get()
+    assert book.isbn13 == provider_books[0].isbn13
+    assert book.title == provider_books[0].title
+
+
+def test_select_rejects_missing_candidate_without_creating_book(
+    authenticated_client,
+) -> None:
+    response = authenticated_client.post(
+        reverse("books:select"),
+        {"candidate_id": "00000000-0000-0000-0000-000000000000"},
+    )
+
+    assert response.status_code == 200
+    assert "다시 검색해 주세요" in response.content.decode()
+    assert Book.objects.count() == 0
+
+
+def test_select_returns_safe_error_and_retries_same_candidate_after_storage_failure(
+    authenticated_client, monkeypatch, provider_books
+) -> None:
+    provider = FakeProvider(books=provider_books)
+    monkeypatch.setattr(book_views, "get_default_provider", lambda: provider)
+    authenticated_client.get(reverse("books:search"), {"q": "같은 제목"})
+    candidate_id = authenticated_client.session["book_selection_candidates"][
+        "candidates"
+    ][0]["candidate_id"]
+
+    original_select_book = book_views.select_book
+    attempts = 0
+
+    def fail_once_to_store_book(candidate):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise DatabaseError("internal database diagnostic")
+        return original_select_book(candidate)
+
+    monkeypatch.setattr(book_views, "select_book", fail_once_to_store_book)
+
+    failed_response = authenticated_client.post(
+        reverse("books:select"), {"candidate_id": candidate_id}
+    )
+    failed_content = failed_response.content.decode()
+    retry_response = authenticated_client.post(
+        reverse("books:select"), {"candidate_id": candidate_id}
+    )
+
+    assert failed_response.status_code == 200
+    assert "책을 선택하지 못했습니다" in failed_content
+    assert 'name="candidate_id"' in failed_content
+    assert failed_content.count(candidate_id) == 1
+    assert "internal database diagnostic" not in failed_content
+    assert retry_response.status_code == 200
+    assert "책 선택이 완료되었습니다" in retry_response.content.decode()
+    assert attempts == 2
+    assert Book.objects.count() == 1
+
+
+def test_select_returns_fragment_for_htmx_request(authenticated_client) -> None:
+    response = authenticated_client.post(
+        reverse("books:select"),
+        {"candidate_id": "00000000-0000-0000-0000-000000000000"},
+        HTTP_HX_REQUEST="true",
+    )
+
+    assert response.status_code == 200
+    assert 'id="search-region"' in response.content.decode()

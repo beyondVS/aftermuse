@@ -1,0 +1,11 @@
+<section class="selection-result" aria-labelledby="selection-result-title" tabindex="-1">
+  <h2 id="selection-result-title">책 선택이 완료되었습니다</h2>
+  <p>
+    {% if selection_result.created %}
+      {{ selection_result.book.title }}을(를) 새 도서로 등록했습니다.
+    {% else %}
+      {{ selection_result.book.title }}은(는) 이미 등록된 도서입니다.
+    {% endif %}
+  </p>
+  <a href="{% url 'books:search' %}">다른 책 선택</a>
+</section>

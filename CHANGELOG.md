@@ -24,9 +24,16 @@
 - 실제 credential을 포함하지 않는 `ALADIN_TTB_KEY` 환경 예시
 - Provider 중립 계약으로 성공·빈 결과·안전한 오류 상태를 구분하는 도서 검색 Service
 - 로그인 사용자용 도서 검색 화면과 HTMX 기반 Loading·Empty·Error 상태
+- Kakao 도서 검색 Adapter, Provider 중립 계약과 legacy Aladin 호환 re-export
+- 검색 결과 session 후보 ID 기반의 CSRF 보호 Book 선택·등록 및 중복 방지 흐름
+- Book 저장 실패 후 같은 검색 후보를 안전하게 다시 선택할 수 있는 복구 UI
+- Kakao 실제 credential을 명시적으로 사용하는 `live` smoke test
 
 ### Changed
 
+- 기본 도서 Metadata Provider를 Aladin에서 Kakao 도서 검색 API로 전환
+- 기본 pytest 실행에서 실제 외부 연결이 필요한 `live` marker 테스트를 제외하고, 명시적인
+  `-m live` 실행에서만 선택하도록 테스트 정책을 강화
 - OS 및 IDE가 생성하는 파일과 민감하거나 사용자별인 JetBrains 설정은 Git에서 제외하고, `codeStyles`와 `runConfigurations` 같은 공유 가능한 IDE 설정은 추적하도록 `.gitignore` 정책을 정리
 - `django-environ`으로 저장소 루트의 `.env`를 자동으로 읽고 OS 환경변수를 우선하도록
   Django 설정 로딩을 변경

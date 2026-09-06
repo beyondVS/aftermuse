@@ -1,12 +1,20 @@
 import inspect
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 import pytest
+from django.db import close_old_connections
 
 from books import services as book_services
-from books.services import BookSearchResult, BookSearchStatus, search_books
-from integrations.aladin.contracts import ProviderBook
-from integrations.aladin.exceptions import (
+from books.selection_candidates import BookSelectionCandidate
+from books.services import (
+    BookSearchResult,
+    BookSearchStatus,
+    search_books,
+    select_book,
+)
+from integrations.book_metadata.contracts import ProviderBook
+from integrations.book_metadata.exceptions import (
     ProviderConfigurationError,
     ProviderResponseError,
     ProviderTimeoutError,
@@ -158,9 +166,141 @@ def test_search_books_propagates_unexpected_error() -> None:
     assert provider.queries == ["도서"]
 
 
-def test_search_service_does_not_depend_on_book_model_or_orm() -> None:
-    source = inspect.getsource(book_services)
+def test_search_service_keeps_provider_io_outside_the_orm_boundary() -> None:
+    source = inspect.getsource(book_services.search_books)
 
-    assert "books.models" not in source
     assert "Book.objects" not in source
-    assert "django.db" not in source
+    assert "transaction.atomic" not in source
+
+
+@pytest.mark.django_db
+def test_select_book_creates_from_candidate_and_preserves_missing_metadata() -> None:
+    candidate = BookSelectionCandidate(
+        candidate_id="candidate",
+        owner_user_id="1",
+        created_at=0,
+        book=ProviderBook(
+            isbn13="9788937834790",
+            title="정의란 무엇인가",
+            authors="",
+            publisher="",
+            published_date=None,
+            cover_url="",
+            description="",
+            table_of_contents="",
+            external_url="",
+        ),
+    )
+
+    result = select_book(candidate)
+
+    assert result.created is True
+    assert result.book.isbn13 == "9788937834790"
+    assert result.book.authors == ""
+    assert result.book.published_date is None
+
+
+@pytest.mark.django_db
+def test_select_book_reuses_existing_book_without_overwriting_metadata() -> None:
+    from books.models import Book
+
+    existing = Book.objects.create(
+        isbn13="9788937834790",
+        title="기존 제목",
+        authors="기존 저자",
+    )
+    candidate = BookSelectionCandidate(
+        candidate_id="candidate",
+        owner_user_id="1",
+        created_at=0,
+        book=ProviderBook(
+            isbn13=existing.isbn13,
+            title="다른 제목",
+            authors="다른 저자",
+            publisher="",
+            published_date=None,
+            cover_url="",
+            description="",
+            table_of_contents="",
+            external_url="",
+        ),
+    )
+
+    first = select_book(candidate)
+    second = select_book(candidate)
+
+    existing.refresh_from_db()
+    assert first.book.pk == existing.pk == second.book.pk
+    assert first.created is False
+    assert second.created is False
+    assert existing.title == "기존 제목"
+    assert existing.authors == "기존 저자"
+
+
+@pytest.mark.django_db
+def test_select_book_rolls_back_when_candidate_breaks_book_constraint() -> None:
+    from books.models import Book
+
+    candidate = BookSelectionCandidate(
+        candidate_id="candidate",
+        owner_user_id="1",
+        created_at=0,
+        book=ProviderBook(
+            isbn13="9788937834790",
+            title="",
+            authors="",
+            publisher="",
+            published_date=None,
+            cover_url="",
+            description="",
+            table_of_contents="",
+            external_url="",
+        ),
+    )
+
+    with pytest.raises(Book.DoesNotExist):
+        select_book(candidate)
+
+    assert Book.objects.count() == 0
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_selection_of_same_isbn_leaves_one_book() -> None:
+    from threading import Barrier
+
+    from books.models import Book
+
+    candidate = BookSelectionCandidate(
+        candidate_id="candidate",
+        owner_user_id="1",
+        created_at=0,
+        book=ProviderBook(
+            isbn13="9788937834790",
+            title="정의란 무엇인가",
+            authors="",
+            publisher="",
+            published_date=None,
+            cover_url="",
+            description="",
+            table_of_contents="",
+            external_url="",
+        ),
+    )
+    barrier = Barrier(2)
+
+    def select_in_separate_connection() -> tuple[int, bool]:
+        close_old_connections()
+        try:
+            barrier.wait()
+            result = select_book(candidate)
+            return result.book.pk, result.created
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(
+            executor.map(lambda _: select_in_separate_connection(), range(2))
+        )
+
+    assert {book_id for book_id, _ in results} == {results[0][0]}
+    assert Book.objects.filter(isbn13=candidate.book.isbn13).count() == 1

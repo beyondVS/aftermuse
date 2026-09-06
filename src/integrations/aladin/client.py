@@ -7,8 +7,8 @@ from urllib.request import urlopen
 
 from django.conf import settings
 
-from integrations.aladin.contracts import ProviderBook
-from integrations.aladin.exceptions import (
+from integrations.book_metadata.contracts import ProviderBook
+from integrations.book_metadata.exceptions import (
     ProviderConfigurationError,
     ProviderResponseError,
     ProviderTimeoutError,

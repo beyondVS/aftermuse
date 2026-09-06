@@ -1,12 +1,19 @@
 from django.contrib.auth.decorators import login_required
+from django.db import DatabaseError
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.vary import vary_on_headers
 
-from books.forms import BookSearchForm
-from books.services import search_books
-from integrations.aladin.client import get_default_provider
+from books.forms import BookSearchForm, BookSelectionForm
+from books.selection_candidates import (
+    SelectionCandidateError,
+    clear_candidates,
+    get_candidate,
+    store_candidates,
+)
+from books.services import BookSearchStatus, search_books, select_book
+from integrations.book_metadata.factory import get_default_provider
 
 
 @require_GET
@@ -26,6 +33,7 @@ def search(request: HttpRequest) -> HttpResponse:
     if is_submitted:
         if form.is_valid():
             search_query = form.cleaned_data["q"]
+            clear_candidates(request.session)
             search_result = search_books(
                 search_query,
                 get_default_provider(),
@@ -33,11 +41,60 @@ def search(request: HttpRequest) -> HttpResponse:
             context["search_query"] = search_query
             context["search_result"] = search_result
             context["search_state"] = search_result.status.value
+            if search_result.status is BookSearchStatus.SUCCESS:
+                selection_candidates = store_candidates(
+                    request.session,
+                    str(request.user.pk),
+                    search_result.books,
+                )
+                context["search_result_candidates"] = tuple(
+                    zip(search_result.books, selection_candidates, strict=True)
+                )
         else:
             form.fields["q"].widget.attrs["aria-describedby"] = (
                 "search-query-help search-query-error"
             )
             context["search_state"] = "input_error"
+
+    template_name = (
+        "books/_search_region.html"
+        if request.headers.get("HX-Request") == "true"
+        else "books/search.html"
+    )
+    return render(request, template_name, context)
+
+
+@require_POST
+@login_required
+@vary_on_headers("HX-Request")
+def select(request: HttpRequest) -> HttpResponse:
+    """보관된 후보 ID만으로 Book 선택을 처리하고 안전한 결과를 반환한다."""
+    form = BookSelectionForm(request.POST)
+    context: dict[str, object] = {
+        "form": BookSearchForm(),
+        "search_result": None,
+        "search_state": "initial",
+        "search_query": "",
+        "selection_state": "invalid",
+    }
+    if form.is_valid():
+        try:
+            candidate = get_candidate(
+                request.session,
+                str(request.user.pk),
+                str(form.cleaned_data["candidate_id"]),
+            )
+        except SelectionCandidateError:
+            pass
+        else:
+            try:
+                selection_result = select_book(candidate)
+            except DatabaseError:
+                context["selection_state"] = "error"
+                context["retry_candidate_id"] = form.cleaned_data["candidate_id"]
+            else:
+                context["selection_state"] = "success"
+                context["selection_result"] = selection_result
 
     template_name = (
         "books/_search_region.html"

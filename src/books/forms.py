@@ -22,3 +22,9 @@ class BookSearchForm(forms.Form):
     def clean_q(self) -> str:
         """양끝 공백을 제거한 검색어를 반환한다."""
         return self.cleaned_data["q"].strip()
+
+
+class BookSelectionForm(forms.Form):
+    """서버 보관 후보의 식별자만 받는 선택 요청 Form이다."""
+
+    candidate_id = forms.UUIDField(widget=forms.HiddenInput)

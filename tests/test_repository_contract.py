@@ -19,6 +19,7 @@ def test_example_environment_has_required_names() -> None:
         "POSTGRES_HOST",
         "POSTGRES_PORT",
         "ALADIN_TTB_KEY",
+        "KAKAO_REST_API_KEY",
     }
 
     configured_names = {
@@ -28,6 +29,14 @@ def test_example_environment_has_required_names() -> None:
     }
 
     assert required_names == configured_names
+
+
+def test_pytest_excludes_live_tests_by_default() -> None:
+    content = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert '"-m"' in content
+    assert '"not live"' in content
+    assert '"live:' in content
 
 
 def test_compose_uses_postgresql_18_volume_layout() -> None:
