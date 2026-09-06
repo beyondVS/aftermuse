@@ -424,3 +424,11 @@ AI 에이전트는 코드 및 문서를 작성할 때 원본 의미를 보호하
 
 이 섹션의 규칙은 이 프로젝트에만 적용합니다.
 같은 적용 범위에서 위 Template Managed Content의 일반 규칙과 충돌하면 이 섹션의 더 구체적인 규칙을 우선합니다.
+
+## 외부 연결 테스트
+
+- 기본 자동 테스트는 network, 외부 서비스 상태 및 실제 credential에 의존하지 않아야 한다.
+- 외부 I/O 경계는 fake 또는 mock으로 대체하되 내부 business logic과 상태 전이는 실제로 검증한다.
+- 실제 외부 연결 자체를 검증해야 하는 테스트에는 `live` pytest marker를 지정한다.
+- 기본 pytest 실행은 `live` 테스트를 제외하며, 사용자가 `-m live`를 명시한 경우에만 실행한다.
+- `live` 테스트는 실제 credential, authorization header, 원본 응답 또는 민감정보를 출력하지 않아야 한다.

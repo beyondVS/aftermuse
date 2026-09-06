@@ -147,6 +147,12 @@ uv run ruff check .
 uv run pytest
 ```
 
+기본 pytest 실행은 network와 실제 credential이 필요한 `live` marker 테스트를 제외합니다.
+외부 I/O는 기본 테스트에서 fake 또는 mock으로 대체하고 내부 business logic은 실제로
+검증합니다. 실제 외부 연결을 확인할 때만 대상 테스트에 `live` marker를 지정하고
+`uv run pytest -m live <테스트 경로>`로 명시적으로 실행합니다. live 테스트는 credential,
+authorization header와 원본 응답을 출력하지 않아야 합니다.
+
 데이터베이스 컨테이너의 상태 확인과 종료에는 다음 명령을 사용합니다.
 
 ```powershell
