@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "installed_version": "2.7.1",
+  "installed_version": "2.8.1",
   "hash_policy": {
     "text": "text-v1",
     "binary": "binary-v1"
   },
   "managed_block": {
-    "sha256": "91d9b87ccf5dc71e4d2182b11d128acb618d2e7aca39a782850c9120ef3425a0"
+    "sha256": "e128b2db92afbed166dd0d97229887934a6da0c8b14e0563f2f79b08807e06cf"
   },
   "managed_files": {
     ".agents/agents/auditor.md": {
@@ -147,7 +147,7 @@
     },
     "rules/styles/python.md": {
       "type": "text",
-      "sha256": "38207ab6eca238edf82e3831aab9007848f8eafe53cfdf94e6116793ab2e3bdd"
+      "sha256": "2bcb7be37715f7e766ef6dcf7a6c7563f9ebd5e8da6af3646a4a14b62f0aa271"
     },
     "rules/styles/typescript.md": {
       "type": "text",
