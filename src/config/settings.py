@@ -15,6 +15,7 @@ env = environ.Env(
     POSTGRES_HOST=str,
     POSTGRES_PORT=int,
     ALADIN_TTB_KEY=str,
+    KAKAO_REST_API_KEY=str,
 )
 
 if ENV_FILE.is_file():
@@ -24,6 +25,7 @@ SECRET_KEY = env("DJANGO_SECRET_KEY")
 DEBUG = env("DJANGO_DEBUG")
 ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 ALADIN_TTB_KEY = env("ALADIN_TTB_KEY", default="")
+KAKAO_REST_API_KEY = env("KAKAO_REST_API_KEY", default="")
 
 INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",

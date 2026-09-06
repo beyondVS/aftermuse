@@ -205,6 +205,20 @@ input:focus-visible {
   margin-block-start: 0.35rem;
 }
 
+.book-selection-form {
+  margin-block-start: 0.85rem;
+}
+
+.selection-result {
+  margin-block: 2rem;
+  padding: 1rem;
+  border: 1px solid #4d7357;
+}
+
+.selection-result-error {
+  border-color: #a23b32;
+}
+
 @media (max-width: 30rem) {
   .search-form {
     grid-template-columns: 1fr;

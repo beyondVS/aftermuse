@@ -14,6 +14,10 @@ from integrations.aladin.exceptions import (
     ProviderTimeoutError,
     ProviderUnavailableError,
 )
+from integrations.book_metadata.contracts import ProviderBook as CanonicalProviderBook
+from integrations.book_metadata.exceptions import (
+    ProviderError as CanonicalProviderError,
+)
 
 
 @pytest.fixture
@@ -236,3 +240,11 @@ def test_adapter_does_not_depend_on_book_model() -> None:
 
     assert "books.models" not in source
     assert "Book.objects" not in source
+
+
+def test_legacy_contract_and_exception_imports_reexport_canonical_types() -> None:
+    from integrations.aladin.contracts import ProviderBook
+    from integrations.aladin.exceptions import ProviderError
+
+    assert ProviderBook is CanonicalProviderBook
+    assert ProviderError is CanonicalProviderError

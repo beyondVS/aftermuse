@@ -1,8 +1,12 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from integrations.aladin.contracts import BookMetadataProvider, ProviderBook
-from integrations.aladin.exceptions import ProviderError
+from django.db import IntegrityError, transaction
+
+from books.models import Book
+from books.selection_candidates import BookSelectionCandidate
+from integrations.book_metadata.contracts import BookMetadataProvider, ProviderBook
+from integrations.book_metadata.exceptions import ProviderError
 
 
 class BookSearchStatus(StrEnum):
@@ -47,3 +51,34 @@ def search_books(query: str, provider: BookMetadataProvider) -> BookSearchResult
     if not books:
         return BookSearchResult(BookSearchStatus.EMPTY, ())
     return BookSearchResult(BookSearchStatus.SUCCESS, books)
+
+
+@dataclass(frozen=True, slots=True)
+class BookSelectionResult:
+    """후보를 기존 또는 새 Book으로 확정한 불변 결과다."""
+
+    book: Book
+    created: bool
+
+
+def select_book(candidate: BookSelectionCandidate) -> BookSelectionResult:
+    """검증된 후보로 Book을 멱등적으로 생성하거나 기존 Book을 반환한다."""
+    defaults = {
+        "title": candidate.book.title,
+        "authors": candidate.book.authors,
+        "publisher": candidate.book.publisher,
+        "published_date": candidate.book.published_date,
+        "cover_url": candidate.book.cover_url,
+        "description": candidate.book.description,
+        "table_of_contents": candidate.book.table_of_contents,
+    }
+    try:
+        with transaction.atomic():
+            book, created = Book.objects.get_or_create(
+                isbn13=candidate.book.isbn13,
+                defaults=defaults,
+            )
+    except IntegrityError:
+        book = Book.objects.get(isbn13=candidate.book.isbn13)
+        created = False
+    return BookSelectionResult(book=book, created=created)

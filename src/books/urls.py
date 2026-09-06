@@ -6,4 +6,5 @@ app_name = "books"
 
 urlpatterns = [
     path("search/", views.search, name="search"),
+    path("select/", views.select, name="select"),
 ]

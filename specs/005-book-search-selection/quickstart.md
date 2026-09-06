@@ -51,3 +51,11 @@ uv run pytest tests/integrations/kakao/test_live_smoke.py -m live -v
 - 상태는 색상 외 제목·텍스트로 구분되며 CSP 오류가 없다.
 
 완료 후 `README.md`, `.env.example`, `CHANGELOG.md`와 구현 계획의 IMP-024/025를 동기화한다.
+
+## 검증 기록 (2026-09-06)
+
+- `uv run python scripts/verify.py`: 112 passed, 1 skipped, 1 deselected
+- `uv run pytest -m live tests/integrations/kakao/test_live_smoke.py -v`: 1 passed
+- Desktop browser에서 실제 Kakao 검색 결과의 표지·제목·저자·출판사·출간연도와 선택 버튼을 확인하고, `은하영웅전설 한정박스세트(완전판)`을 새 Book으로 선택·등록해 완료 화면을 확인했다.
+- Desktop에서 Tab으로 선택 버튼 간 이동하고 Enter로 Book 등록을 완료했으며, 375px Mobile에서도 검색·판본 선택·완료 화면을 확인했다.
+- 키보드 전용 흐름은 1280px Desktop과 375px Mobile에서 각각 2회 연속 완료했으며, 사용자 확인 기준 각 회차는 2분 이내였다.

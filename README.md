@@ -153,6 +153,9 @@ uv run pytest
 `uv run pytest -m live <테스트 경로>`로 명시적으로 실행합니다. live 테스트는 credential,
 authorization header와 원본 응답을 출력하지 않아야 합니다.
 
+Kakao 도서 검색을 실제로 확인할 때만 로컬 `.env`에 `KAKAO_REST_API_KEY`를 설정한 뒤
+`uv run pytest -m live tests/integrations/kakao/test_live_smoke.py -v`를 실행합니다.
+
 데이터베이스 컨테이너의 상태 확인과 종료에는 다음 명령을 사용합니다.
 
 ```powershell
