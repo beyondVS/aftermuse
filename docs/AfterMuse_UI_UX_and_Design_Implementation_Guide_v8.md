@@ -2378,3 +2378,45 @@ Reflection 결과가 사용자의 기록처럼 느껴지는가?
 수정 가능한 노트로 사용할 수 있는가?
 모바일에서도 인터뷰가 불편하지 않은가?
 ```
+
+---
+
+# 61. 2026-09-06 모던 에디토리얼 Bento Grid 디자인 시스템 (구현 기준)
+
+본 섹션은 초기 프로토타입 디자인 단계를 거쳐 `app.css` 및 템플릿에 확정 적용된 **모던 에디토리얼 Bento Grid (Apple/Linear 감성)** 디자인 시스템의 세부 구현 규격을 정의한다.
+
+## 61.1 타이포그래피 & 한글 조판 규칙
+- **웹폰트 스택**:
+  - 제목/헤드라인: `Noto Serif KR` (로컬 WOFF2 자체 호스팅, weights: 400, 700)
+  - 본문/UI/메타: `Noto Sans KR` (로컬 WOFF2 자체 호스팅, weights: 400, 700)
+  - 시스템 폰트(Batang 등)의 비트맵 왜곡 문제를 방지하고, strict CSP(`font-src 'self'`) 환경을 만족하기 위해 외부 CDN 없이 `src/static/fonts/` 로컬 서빙을 원칙으로 한다.
+- **한글 음절 분리 방지 규칙**:
+  - `body`, 모든 제목(`h1`~`h3`), 본문(`p`), 인용구(`blockquote`), 태그 캡슐에 `word-break: keep-all;` 및 `overflow-wrap: break-word;`를 기본 적용한다.
+  - 한글 문장이 단어 중간에 쪼개져 1개 음절("요?", "엄은", "해 보세요.")만 다음 줄로 떨어지는 현상을 방지한다.
+- **한글 세리프 인용문 표기**:
+  - 한글 폰트에 어색한 인위적 오블리크(`font-style: italic`)를 지양하고, 정자체(`font-style: normal`)와 따옴표/워터마크를 활용하여 격조 있는 에디토리얼 감성을 표현한다.
+
+## 61.2 컬러 시스템 & 앰비언트 광원
+- **배경 (Background)**:
+  - Base: Warm Paper (`#faf8f5`)
+  - Ambient Glow: 따뜻한 샌드(`rgba(226, 216, 198, 0.4)`), 세이지 그린(`rgba(204, 218, 208, 0.3)`), 피치 웜 톤의 다중 `radial-gradient` 고정 배경으로 아날로그 서재의 자연광을 연출한다.
+- **표면 & 카드 (Glassmorphism Surfaces)**:
+  - 카드 배경: `rgba(255, 255, 255, 0.84)` + `backdrop-filter: blur(20px)`
+  - 보더 & 라이팅: `1px solid rgba(255, 255, 255, 0.95)`, 상단 1px 인셋 하이라이트(`box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95)`), 소프트 앰비언트 드롭 섀도우.
+- **액센트 (Accents)**:
+  - Burnt Terracotta (`#c25936`, hover: `#a84828`): Primary CTA 버튼, 진행 바, 주요 인터랙션 포인트.
+  - Forest Sage (`#366048`, subtle bg: `#edf4f0`): 독서 완료 배지, 상태 표시, 안정적 메타 정보.
+
+## 61.3 컴포넌트 비주얼 규격
+- **3D 리얼리스틱 하드커버 도서 비주얼**:
+  - 플랫 박스를 지양하고 CSS 3D Transform(`rotateY(-9deg) rotateX(2deg)`), 책등 접힘선(Spine crease), 종이 속지 단면 레이어(`repeating-linear-gradient`), 앰비언트 북 섀도우를 조합하여 실제 양장본 책의 입체감을 부여한다.
+  - 마우스 호버 시 사용자를 향해 입체적으로 반응하는 마이크로 틸트(`scale(1.04)`, `rotateY(-3deg)`) 효과를 제공한다.
+- **Bento Hub Grid 레이아웃**:
+  - Home 상단: 좌측 '지금 읽고 있는 책' 카드와 우측 '사색을 기다리는 책' 카드를 2열 Bento Grid로 구성한다.
+  - Home 하단: 킨포크 스타일의 은은한 큰따옴표 워터마크(`“`)가 들어간 3열 사색 저널 인용 피드를 배치한다.
+- **내비게이션 & 헤더**:
+  - 스티키 글래스 바(`backdrop-filter: blur(16px); background: rgba(250, 248, 245, 0.85)`).
+  - 특정 OS에 종속되거나 실제 동작하지 않는 단축키 표시(예: 맥 전용 `⌘K`)를 배제하고, 직관적인 검색 캡슐 필(`.nav-search-btn`)과 고스트 버튼(`.btn-ghost`)을 사용한다.
+- **버튼 & 인터랙션**:
+  - Primary 버튼은 부드러운 테라코타 그라디언트와 호버 시 은은하게 빛나는 `.btn-glow` 효과 및 화살표 트랜스레이트(`.btn-arrow`)를 갖춘다.
+

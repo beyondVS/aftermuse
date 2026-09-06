@@ -1,40 +1,209 @@
 {% extends "base.html" %}
 
-{% block title %}개발 환경 확인 · AfterMuse{% endblock %}
+{% block title %}독서와 사색의 기록 · AfterMuse{% endblock %}
 
 {% block content %}
-  <section class="intro" aria-labelledby="page-title">
-    <p class="eyebrow">Core MVP 기반</p>
-    <h1 id="page-title">AfterMuse 개발 환경이 준비되었습니다.</h1>
-    <p>도메인 앱은 각 구현 계획에 진입할 때 책임과 함께 추가합니다.</p>
+  <!-- Welcome Hero -->
+  <section class="home-hero" aria-labelledby="page-title">
+    <div class="eyebrow-pill">
+      <span class="eyebrow-dot" aria-hidden="true"></span>
+      Reading &amp; Reflection Journal
+    </div>
+    <h1 id="page-title" class="home-hero-greeting">
+      <span class="greeting-line">책을 덮은 뒤,</span><br>
+      <span class="greeting-line">오늘 당신 곁에 머문 생각은 무엇인가요?</span>
+    </h1>
+    <p class="home-hero-subtitle">완독의 여운을 깊이 있는 질문과 나만의 독서 에세이로 기록해 보세요.</p>
+    <div class="hero-feature-tags">
+      <span class="hero-feature-pill">
+        <span class="pill-dot" aria-hidden="true"></span>
+        <span><strong>3분</strong> 심층 인터뷰</span>
+      </span>
+      <span class="hero-feature-pill">
+        <span class="pill-dot" aria-hidden="true"></span>
+        <span><strong>100%</strong> 개인화 에세이</span>
+      </span>
+      <span class="hero-feature-pill">
+        <span class="pill-dot" aria-hidden="true"></span>
+        <span><strong>선명한</strong> 사색 기록</span>
+      </span>
+    </div>
   </section>
 
-  {% partialdef setup-status inline %}
-    <section id="setup-status" class="status" aria-live="polite">
-      <h2>서버 렌더링 상태</h2>
-      <p>Django Template Partial 응답이 정상입니다.</p>
-    </section>
-  {% endpartialdef setup-status %}
+  <!-- 2-Column Bento Hub Grid -->
+  <section class="home-hub-grid" aria-label="독서 진행 및 사색 허브">
+    <!-- Left Card: Currently Reading -->
+    <article class="hub-card">
+      <div>
+        <div class="hub-card-header">
+          <div class="hub-card-tag-row">
+            <span class="hub-card-tag">Currently Reading</span>
+            <span class="reading-streak-badge" aria-label="5일 연속 독서 중">🔥 5일 연속 독서</span>
+          </div>
+          <h2 class="hub-card-title">지금 읽고 있는 책</h2>
+        </div>
+        <div class="reading-book-preview">
+          <div class="book-3d-wrapper">
+            <div class="book-spine-mockup book-cover-3d book-cover-blue" aria-hidden="true">
+              <div class="book-cover-spine"></div>
+              <div class="book-cover-frame">
+                <span class="mockup-category">THINKING</span>
+                <span class="mockup-title">생각에 관한<br>생각</span>
+                <span class="mockup-author">대니얼 카너먼</span>
+              </div>
+            </div>
+          </div>
+          <div class="reading-book-info">
+            <h4>생각에 관한 생각</h4>
+            <p class="reading-book-meta">대니얼 카너먼 · 김영사</p>
+            <div class="progress-track" role="progressbar" aria-valuenow="68" aria-valuemin="0" aria-valuemax="100" aria-label="독서 진행률 68%">
+              <div class="progress-bar" style="width: 68%;"></div>
+            </div>
+            <div class="progress-label">
+              <span>68% 완독 중</span>
+              <span>16 / 22 챕터</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="quick-thought-box">
+        <span class="quick-thought-quote-mark" aria-hidden="true">“</span>
+        <p>직관에 의존하는 시스템 1과 숙고하는 시스템 2의 긴장 관계가 흥미롭다.</p>
+      </div>
+    </article>
 
-  <div class="actions" x-data="{ detailsOpen: false }">
-    <button
-      type="button"
-      hx-get="{% url 'setup-status' %}"
-      hx-target="#setup-status"
-      hx-swap="outerHTML"
-    >
-      HTMX partial 다시 확인
-    </button>
-    <button
-      type="button"
-      x-on:click="detailsOpen = !detailsOpen"
-      x-bind:aria-expanded="detailsOpen"
-      aria-controls="alpine-status"
-    >
-      Alpine.js 상태 확인
-    </button>
-    <p id="alpine-status" x-cloak x-show="detailsOpen">
-      Alpine.js CSP build가 동작합니다.
-    </p>
-  </div>
+    <!-- Right Card: Ready for Reflection -->
+    <article class="hub-card reflection-highlight-card">
+      <div>
+        <div class="hub-card-header">
+          <div class="hub-card-tag-row">
+            <span class="hub-card-tag accent-tag">Ready for Reflection</span>
+            <span class="badge-completed">완독 완료</span>
+          </div>
+          <h2 class="hub-card-title">사색을 기다리는 책</h2>
+        </div>
+        <div class="reading-book-preview">
+          <div class="book-3d-wrapper">
+            <div class="book-spine-mockup book-cover-3d book-cover-warm" aria-hidden="true">
+              <div class="book-cover-spine"></div>
+              <div class="book-cover-frame">
+                <span class="mockup-category">PHILOSOPHY</span>
+                <span class="mockup-title">정의란<br>무엇인가</span>
+                <span class="mockup-author">마이클 샌델</span>
+              </div>
+            </div>
+          </div>
+          <div class="reading-book-info">
+            <h4>정의란 무엇인가</h4>
+            <p class="reading-book-meta">마이클 샌델 · 최근 완독</p>
+            <div class="reflection-topic-box">
+              <span class="topic-label">오늘의 사색 화두</span>
+              <p class="topic-question">“공동선을 추구하는 정의란 어떤 형태여야 하는가?”</p>
+            </div>
+          </div>
+        </div>
+        <div class="reflection-highlight-content">
+          <p>완독의 여운이 생생한 지금, 5가지 심층 질문을 통해 나만의 독서노트를 완성할 수 있습니다.</p>
+        </div>
+      </div>
+      <div>
+        <a href="{% url 'books:search' %}" class="btn btn-glow w-full">
+          <span>3분 사색 인터뷰 시작하기</span>
+          <span class="btn-arrow" aria-hidden="true">→</span>
+        </a>
+      </div>
+    </article>
+  </section>
+
+  <!-- Recent Muse Journal Feed (3-Column Bento Grid) -->
+  <section class="recent-muses-section" aria-labelledby="recent-muses-title">
+    <div class="recent-muses-header">
+      <div>
+        <span class="section-eyebrow">Recent Thoughts</span>
+        <h3 id="recent-muses-title">최근 남긴 사색 저널</h3>
+      </div>
+      <a href="{% url 'books:search' %}" class="link-more">
+        <span>전체 서재 보기</span>
+        <span aria-hidden="true">→</span>
+      </a>
+    </div>
+    <div class="muses-grid">
+      <article class="muse-note-card">
+        <div class="muse-card-watermark" aria-hidden="true">“</div>
+        <blockquote class="muse-note-quote">
+          “공리주의가 다수의 행복을 계산할 때, 수치로 환산할 수 없는 개인의 고유한 존엄은 어디에 위치해야 하는가?”
+        </blockquote>
+        <div class="muse-note-footer">
+          <div class="muse-note-meta">
+            <span class="muse-note-book">《정의란 무엇인가》</span>
+            <span class="muse-note-author">마이클 샌델</span>
+          </div>
+          <span class="muse-tag-pill">도덕철학</span>
+        </div>
+      </article>
+
+      <article class="muse-note-card">
+        <div class="muse-card-watermark" aria-hidden="true">“</div>
+        <blockquote class="muse-note-quote">
+          “우리가 세상을 실제보다 더 비관하는 이유는, 직관적 감정이 극단적인 자극에 반응하도록 진화했기 때문이다.”
+        </blockquote>
+        <div class="muse-note-footer">
+          <div class="muse-note-meta">
+            <span class="muse-note-book">《팩트풀니스》</span>
+            <span class="muse-note-author">한스 로슬링</span>
+          </div>
+          <span class="muse-tag-pill">인지심리</span>
+        </div>
+      </article>
+
+      <article class="muse-note-card">
+        <div class="muse-card-watermark" aria-hidden="true">“</div>
+        <blockquote class="muse-note-quote">
+          “진정한 고요란 아무런 소리가 없는 상태가 아니라, 내면의 소음이 잦아들어 생각의 결이 보이기 시작하는 순간이다.”
+        </blockquote>
+        <div class="muse-note-footer">
+          <div class="muse-note-meta">
+            <span class="muse-note-book">《사색의 시간》</span>
+            <span class="muse-note-author">조용한 독서가</span>
+          </div>
+          <span class="muse-tag-pill">에세이</span>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- Developer & Environment Status (Maintains test assertions for partial & Alpine) -->
+  <details class="dev-environment-card">
+    <summary>개발 환경 및 연동 상태 확인 (HTMX / Alpine.js)</summary>
+    <div class="dev-environment-content">
+      {% partialdef setup-status inline %}
+        <section id="setup-status" class="status" aria-live="polite">
+          <h2>서버 렌더링 상태</h2>
+          <p>Django Template Partial 응답이 정상입니다.</p>
+        </section>
+      {% endpartialdef setup-status %}
+
+      <div class="actions" x-data="{ detailsOpen: false }">
+        <button
+          type="button"
+          hx-get="{% url 'setup-status' %}"
+          hx-target="#setup-status"
+          hx-swap="outerHTML"
+        >
+          HTMX partial 다시 확인
+        </button>
+        <button
+          type="button"
+          x-on:click="detailsOpen = !detailsOpen"
+          x-bind:aria-expanded="detailsOpen"
+          aria-controls="alpine-status"
+        >
+          Alpine.js 상태 확인
+        </button>
+        <p id="alpine-status" x-cloak x-show="detailsOpen">
+          Alpine.js CSP build가 동작합니다.
+        </p>
+      </div>
+    </div>
+  </details>
 {% endblock %}

@@ -1,12 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}도서 검색 | AfterMuse{% endblock %}
+{% block title %}도서 검색 · AfterMuse{% endblock %}
 
 {% block content %}
   <section class="book-search-page" aria-labelledby="book-search-title">
-    <p class="eyebrow">Books</p>
-    <h1 id="book-search-title">찾고 있는 책을 검색하세요</h1>
-    <p class="book-search-introduction">제목, 저자, 출판사로 판본을 비교할 수 있습니다.</p>
+    <div class="book-search-header">
+      <div class="eyebrow-pill">
+        <span class="eyebrow-dot" aria-hidden="true"></span>
+        Book Discovery
+      </div>
+      <h1 id="book-search-title">찾고 있는 책을 검색하세요</h1>
+      <p class="book-search-introduction">제목, 저자, 출판사로 판본을 비교하고 사색을 시작할 도서를 선택하세요.</p>
+    </div>
     {% include "books/_search_region.html" %}
   </section>
 {% endblock %}
