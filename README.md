@@ -40,11 +40,12 @@ Credit, Reader Insight, Book Knowledge 자동 Research, Backoffice 및 기타 �
 `/accounts/signup/`에서 가입하고, `/accounts/login/`에서 로그인하며, POST
 `/accounts/logout/`으로 로그아웃할 수 있습니다.
 
-Day 02 범위로 ISBN13 중심의 Book 모델, 외부 호출을 대체할 수 있는 Metadata Adapter,
-Provider 중립 검색 Service와 로그인 사용자용 `/books/search/` 화면이 구현되어 있습니다.
-검색 화면은 HTMX로 Loading·Empty·Error 상태와 판본 식별용 서지정보를 제공하지만, 검색
-결과의 Book 저장과 Reading 생성은 아직 구현되지 않았습니다. 알라딘 OpenAPI 종료에 따라
-live 검색은 현재 사용할 수 없으며, IMP-025에서 Kakao Provider로 교체할 예정입니다.
+Day 03까지 ISBN13 중심의 Book 모델, Provider 중립 Metadata 계약과 검색 Service,
+Kakao 도서 검색 Adapter 및 로그인 사용자용 `/books/search/` 화면이 구현되어 있습니다.
+검색 화면은 HTMX로 Loading·Empty·Error 상태와 판본 식별용 서지정보를 제공하며, 사용자가
+선택한 검색 결과는 기존 Book을 재사용하거나 새 Book으로 안전하게 등록합니다. 후보 ID,
+CSRF 보호 POST와 ISBN13 unique 제약으로 화면 값 변조와 중복 등록을 방지하며, 저장 실패
+후에는 같은 후보를 다시 선택할 수 있습니다. Reading 생성은 Day 04 범위로 남아 있습니다.
 
 ## 기술 스택
 
@@ -68,7 +69,7 @@ HTMX와 Alpine.js는 CDN 없이 저장소의 로컬 정적 자산을 사용합�
 ├─ scripts/              개발 검증 스크립트
 ├─ src/
 │  ├─ accounts/          Custom User와 인증 흐름
-│  ├─ books/             Book 모델, 검색 Service와 화면
+│  ├─ books/             Book 모델, 검색·선택 Service와 화면
 │  ├─ config/            Django 프로젝트 설정
 │  ├─ integrations/      외부 Metadata Provider Adapter
 │  ├─ static/            공통 CSS, JavaScript 및 vendor 자산
@@ -117,17 +118,18 @@ uv run python src/manage.py runserver
 | `POSTGRES_PASSWORD` | PostgreSQL 비밀번호 |
 | `POSTGRES_HOST` | PostgreSQL host |
 | `POSTGRES_PORT` | PostgreSQL port |
+| `KAKAO_REST_API_KEY` | 기본 Kakao 도서 검색 Adapter용 REST API key (일반 자동 테스트에서는 불필요) |
 | `ALADIN_TTB_KEY` | IMP-021 legacy 알라딘 Adapter용 TTB key (신규 발급 종료, 자동 테스트에서는 불필요) |
 
 필수 환경변수가 없으면 Django는 시작 단계에서 명시적으로 실패합니다. Django는 저장소
 루트의 `.env`를 자동으로 읽으며, 같은 이름의 OS 환경변수가 있으면 OS 값을 우선합니다.
 SQLite fallback은 제공하지 않습니다.
 
-알라딘 Adapter의 자동 테스트와 일반 개발 명령은 실제 key 없이 실행할 수 있습니다. 다만
-알라딘의 신규 key 발급과 OpenAPI 서비스 종료가 공지되어 현재 설정은 신규 개발 환경의 live
-검색 경로로 사용할 수 없습니다. IMP-025에서 기본 Metadata Provider를 Kakao로 교체하기
-전까지 `ALADIN_TTB_KEY`는 legacy Adapter 호환을 위해 유지합니다. key와 Provider 원본 오류
-내용은 반환값이나 오류 메시지에 포함하지 않습니다.
+기본 Metadata Provider는 Kakao 도서 검색 API입니다. 일반 자동 테스트와 개발 검증은 실제
+key 없이 실행할 수 있고, 실제 검색이나 명시적 live smoke를 실행할 때만
+`KAKAO_REST_API_KEY`가 필요합니다. `ALADIN_TTB_KEY`는 기존 Adapter 호환을 위해 유지하며
+신규 검색 경로에서는 사용하지 않습니다. key와 Provider 원본 오류 내용은 반환값이나 오류
+메시지에 포함하지 않습니다.
 
 ## 개발 명령
 

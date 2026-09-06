@@ -26,6 +26,7 @@
 - 로그인 사용자용 도서 검색 화면과 HTMX 기반 Loading·Empty·Error 상태
 - Kakao 도서 검색 Adapter, Provider 중립 계약과 legacy Aladin 호환 re-export
 - 검색 결과 session 후보 ID 기반의 CSRF 보호 Book 선택·등록 및 중복 방지 흐름
+- Book 저장 실패 후 같은 검색 후보를 안전하게 다시 선택할 수 있는 복구 UI
 - Kakao 실제 credential을 명시적으로 사용하는 `live` smoke test
 
 ### Changed
