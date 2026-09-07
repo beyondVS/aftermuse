@@ -209,12 +209,18 @@ def test_exact_isbn13_lookups_meet_p95_target() -> None:
 @pytest.mark.django_db(transaction=True)
 def test_initial_book_migration_round_trips_on_an_empty_database() -> None:
     executor = MigrationExecutor(transaction.get_connection())
-    executor.migrate([("books", None)])
+    try:
+        executor.migrate([("books", None)])
 
-    assert "books_book" not in transaction.get_connection().introspection.table_names()
+        assert (
+            "books_book" not in transaction.get_connection().introspection.table_names()
+        )
 
-    executor = MigrationExecutor(transaction.get_connection())
-    executor.migrate([("books", "0001_initial")])
+        executor = MigrationExecutor(transaction.get_connection())
+        executor.migrate([("books", "0001_initial")])
 
-    assert "books_book" in transaction.get_connection().introspection.table_names()
-    assert Book.objects.count() == 0
+        assert "books_book" in transaction.get_connection().introspection.table_names()
+        assert Book.objects.count() == 0
+    finally:
+        executor = MigrationExecutor(transaction.get_connection())
+        executor.migrate(executor.loader.graph.leaf_nodes())

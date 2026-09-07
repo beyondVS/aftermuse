@@ -193,3 +193,11 @@ Task: "tests/books/test_views.py에 Book 선택 성공의 redirect/HX-Redirect �
 - 각 사용자 스토리 작업에는 추적 가능한 `[US#]` 라벨과 정확한 파일 경로가 있다.
 - T007과 T008은 같은 `tests/readings/test_services.py`를 편집하므로 한 작업자가 연속으로 처리한다.
 - 완료 후 Day 05는 `change_reading_state`의 Interview 잠금 확장 계약을 구현해야 한다.
+
+## Phase 7: Convergence
+
+- [X] T036 CRITICAL: `src/templates/readings/_reading_panel.html`과 `src/static/css/app.css`에 HTMX 상태·완독일 저장 중 접근 가능한 loading 표시와 `aria-busy` 상태를 추가하고 관련 View 테스트로 검증한다 per Constitution V (missing)
+- [ ] T037 CRITICAL: 1280px Desktop과 375px Mobile에서 JavaScript 활성·비활성 및 키보드 전용 Reading 흐름을 각각 2회 실행하고 시간, 가로 scroll, focus, 비색상 상태 표현 결과를 `specs/006-reading-completion-flow/quickstart.md`에 기록한다 per SC-009 (partial)
+- [X] T038 `src/readings/forms.py`, `src/templates/readings/_start_form.html` 및 관련 Form/View 테스트에서 최초 완독과 완독 재독 선택 시 오늘을 기본 완독일로 제시하되 사용자가 오늘 또는 과거 날짜로 수정할 수 있게 한다 per FR-009, FR-013A (missing)
+- [X] T039 `src/templates/readings/_reading_panel.html`에 `Book.cover_url`이 제공된 경우 접근 가능한 표지를 표시하고, 표지·저자·출판사 누락 시 제목만으로 식별되는 fallback을 `tests/readings/test_views.py`에서 검증한다 per FR-014, US3/AC1 (partial)
+- [X] T040 `tests/readings/test_forms.py`, `tests/readings/test_services.py`, `tests/readings/test_views.py`에 완료 표시된 T007-T030의 미검증 계약인 세 상태 시작·표시, 완독일 기본값·멱등성, 동시 재독, Interview 잠금 상태 취소, 소유자 POST, DB 실패 rollback, 전체/HTMX 오류, CTA·서지정보·접근성 동작을 직접 관찰하는 회귀 테스트를 보강한다 per SC-001-SC-008, plan: Reading acceptance-test matrix (partial)

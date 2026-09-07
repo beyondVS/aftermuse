@@ -82,8 +82,11 @@ uv run python scripts/verify.py
 
 ## 검증 결과 (2026-09-07)
 
-- PostgreSQL에서 Reading/Book 선택 회귀 테스트 31개(동시 생성 포함)를 통과했다.
-- 1280px 및 375px에서 Reading 생성, HTMX 완독 상태 전환, 비활성 CTA를 확인했고 두
-  뷰포트 모두 가로 스크롤이 없었다.
-- JavaScript 비활성 흐름은 서버 렌더링 Form과 Django test client로 검증한다. 실제
-  브라우저에서 JavaScript를 비활성화한 반복 수동 검증은 배포 전 확인 항목으로 남는다.
+- PostgreSQL에서 Reading/Book 선택 회귀 테스트 42개(동시 생성·재독·소유자 POST·DB
+  오류 rollback 포함)를 통과했다.
+- 실제 브라우저에서 1280px Desktop의 최초 완독 생성과 HTMX 상태 변경, 375px Mobile의
+  키보드 완독 처리와 재독 생성을 확인했다. 두 뷰포트에서 현재 상태·성공 결과·비활성 CTA는
+  텍스트로 구분됐고, Mobile 가로 스크롤은 수정 후 재확인했다.
+- JavaScript 비활성 흐름은 서버 렌더링 Form과 Django test client로 검증했다. 실제
+  브라우저에서 JavaScript를 비활성화한 2회 반복 검증은 현재 자동화 환경에서 실행 제어를
+  제공하지 않아 배포 전 수동 확인 항목(T034, T037)으로 남는다.

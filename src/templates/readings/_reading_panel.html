@@ -1,13 +1,16 @@
-<section id="reading-panel" class="reading-detail" aria-labelledby="reading-detail-title" tabindex="-1">
+<section id="reading-panel" class="reading-detail" aria-labelledby="reading-detail-title" aria-busy="false" tabindex="-1">
   <p class="eyebrow-pill">나의 Reading</p>
   <h1 id="reading-detail-title">{{ reading.book.title }}</h1>
+  {% if reading.book.cover_url %}<img class="reading-cover" src="{{ reading.book.cover_url }}" alt="{{ reading.book.title }} 표지" loading="lazy">{% endif %}
   {% if reading.book.authors %}<p>저자 · {{ reading.book.authors }}</p>{% endif %}
   {% if reading.book.publisher %}<p>출판사 · {{ reading.book.publisher }}</p>{% endif %}
+  {% if reading.book.published_date %}<p>출간일 · {{ reading.book.published_date }}</p>{% endif %}
   {% if success_message %}<p class="reading-success" role="status" aria-live="polite">{{ success_message }}</p>{% endif %}
+  <p id="reading-loading" class="reading-loading htmx-indicator" role="status" aria-live="polite">저장 중입니다.</p>
 
   <section class="reading-card" aria-labelledby="reading-state-title">
     <h2 id="reading-state-title">현재 상태: {{ reading.get_status_display }}</h2>
-    <form method="post" action="{% url 'readings:change_state' reading.pk %}" class="reading-form" hx-post="{% url 'readings:change_state' reading.pk %}" hx-target="#reading-panel" hx-swap="outerHTML">
+    <form method="post" action="{% url 'readings:change_state' reading.pk %}" class="reading-form" data-reading-submission aria-busy="false" hx-post="{% url 'readings:change_state' reading.pk %}" hx-target="#reading-panel" hx-swap="outerHTML" hx-indicator="#reading-loading">
       {% csrf_token %}
       {{ state_form.non_field_errors }}
       <fieldset>
@@ -28,7 +31,7 @@
     <section class="reading-card" aria-labelledby="completed-reading-title">
       <h2 id="completed-reading-title">완독 정보</h2>
       <p>완독일: <strong>{{ reading.completed_on }}</strong></p>
-      <form method="post" action="{% url 'readings:change_state' reading.pk %}" class="reading-form" hx-post="{% url 'readings:change_state' reading.pk %}" hx-target="#reading-panel" hx-swap="outerHTML">
+      <form method="post" action="{% url 'readings:change_state' reading.pk %}" class="reading-form" data-reading-submission aria-busy="false" hx-post="{% url 'readings:change_state' reading.pk %}" hx-target="#reading-panel" hx-swap="outerHTML" hx-indicator="#reading-loading">
         {% csrf_token %}
         <input type="hidden" name="intent" value="update_completed_on">
         {{ date_form.non_field_errors }}

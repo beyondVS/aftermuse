@@ -115,6 +115,47 @@ def test_completed_to_active_rejects_existing_active_and_interview_lock(
     assert completed.completed_on == date.today()
 
 
+def test_interview_lock_preserves_completed_reading_when_cancelling(
+    user, book, monkeypatch
+) -> None:
+    completed = Reading.objects.create(
+        user=user, book=book, status=Reading.Status.COMPLETED, completed_on=date.today()
+    )
+    monkeypatch.setattr("readings.services.has_started_interview", lambda reading: True)
+
+    with pytest.raises(ReadingLockedError):
+        change_reading_state(
+            user=user,
+            reading=completed,
+            status=Reading.Status.READING,
+            completed_on=None,
+        )
+
+    completed.refresh_from_db()
+    assert completed.status == Reading.Status.COMPLETED
+    assert completed.completed_on == date.today()
+
+
+def test_completed_state_resubmission_does_not_change_completion_date(
+    user, book
+) -> None:
+    completed = Reading.objects.create(
+        user=user,
+        book=book,
+        status=Reading.Status.COMPLETED,
+        completed_on=date.today() - timedelta(days=1),
+    )
+
+    unchanged = change_reading_state(
+        user=user,
+        reading=completed,
+        status=Reading.Status.COMPLETED,
+        completed_on=date.today(),
+    )
+
+    assert unchanged.completed_on == date.today() - timedelta(days=1)
+
+
 @pytest.mark.django_db(transaction=True)
 def test_concurrent_initial_creation_reuses_one_active_reading(user, book) -> None:
     barrier = Barrier(2)

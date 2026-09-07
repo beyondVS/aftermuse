@@ -21,6 +21,7 @@ class ReadingStartForm(forms.Form):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self.initial.setdefault("completed_on", date.today())
         self.fields["completed_on"].widget.attrs["max"] = date.today().isoformat()
 
     def clean(self) -> dict[str, object]:
@@ -61,6 +62,9 @@ def _validate_completion_date(
             form.add_error("completed_on", "완독 상태에는 완독일이 필요합니다.")
         elif isinstance(completed_on, date) and completed_on > date.today():
             form.add_error("completed_on", "완독일은 오늘 이후로 지정할 수 없습니다.")
+    elif completed_on == date.today():
+        # 모든 시작 Form에 제시한 오늘 기본값이 활성 상태 전이를 막지 않게 한다.
+        cleaned_data["completed_on"] = None
     elif completed_on is not None:
         form.add_error(
             "completed_on", "완독이 아닌 상태에는 완독일을 지정할 수 없습니다."
