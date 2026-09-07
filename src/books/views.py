@@ -1,7 +1,8 @@
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError
 from django.http import HttpRequest, HttpResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 from django.views.decorators.vary import vary_on_headers
 
@@ -93,8 +94,14 @@ def select(request: HttpRequest) -> HttpResponse:
                 context["selection_state"] = "error"
                 context["retry_candidate_id"] = form.cleaned_data["candidate_id"]
             else:
-                context["selection_state"] = "success"
-                context["selection_result"] = selection_result
+                entry_url = reverse(
+                    "readings:book_entry", args=[selection_result.book.pk]
+                )
+                if request.headers.get("HX-Request") == "true":
+                    response = HttpResponse()
+                    response["HX-Redirect"] = entry_url
+                    return response
+                return redirect(entry_url)
 
     template_name = (
         "books/_search_region.html"

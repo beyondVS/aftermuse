@@ -43,9 +43,10 @@ Credit, Reader Insight, Book Knowledge 자동 Research, Backoffice 및 기타 �
 Day 03까지 ISBN13 중심의 Book 모델, Provider 중립 Metadata 계약과 검색 Service,
 Kakao 도서 검색 Adapter 및 로그인 사용자용 `/books/search/` 화면이 구현되어 있습니다.
 검색 화면은 HTMX로 Loading·Empty·Error 상태와 판본 식별용 서지정보를 제공하며, 사용자가
-선택한 검색 결과는 기존 Book을 재사용하거나 새 Book으로 안전하게 등록합니다. 후보 ID,
-CSRF 보호 POST와 ISBN13 unique 제약으로 화면 값 변조와 중복 등록을 방지하며, 저장 실패
-후에는 같은 후보를 다시 선택할 수 있습니다. Reading 생성은 Day 04 범위로 남아 있습니다.
+선택한 검색 결과는 기존 Book을 재사용하거나 새 Book으로 안전하게 등록한 뒤 Reading
+진입 화면으로 이동합니다. 사용자는 상태를 명시적으로 선택해 Reading을 시작하며, 활성
+Reading 재사용·완독 이력 보존·재독, 상태/완독일 변경과 소유자 전용 상세 화면을 사용할 수
+있습니다. 완독 후 `AI 독서노트 만들기` CTA는 Day 05 Interview 구현 전까지 비활성입니다.
 
 ## 기술 스택
 

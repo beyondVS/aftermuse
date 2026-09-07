@@ -102,6 +102,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: clip;
   background-color: var(--bg-page);
   /* Luminous warm ambient background glow */
   background-image: 
@@ -1452,6 +1453,153 @@ button:active,
   padding: 0;
   color: var(--color-error);
   font-size: 0.85rem;
+}
+
+/* ==========================================================================
+   Reading lifecycle
+   ========================================================================== */
+
+.reading-entry,
+.reading-detail {
+  max-width: 52rem;
+  margin-inline: auto;
+}
+
+.reading-card {
+  margin-block: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.reading-form {
+  display: grid;
+  gap: 1rem;
+  margin-block-start: 1rem;
+}
+
+.reading-form fieldset {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 1rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.reading-form legend {
+  padding-inline: 0.35rem;
+  font-weight: 700;
+}
+
+.reading-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface-warm);
+}
+
+.reading-choice:has(input:checked) {
+  color: var(--color-accent-active);
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+.reading-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.reading-field input,
+.reading-form input[type="date"] {
+  width: min(100%, 17rem);
+  min-height: 2.75rem;
+  padding-inline: 0.65rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  background: var(--bg-surface);
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.field-help {
+  margin: 0;
+  color: var(--color-ink-muted);
+  font-size: 0.875rem;
+}
+
+.reading-success {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--color-success-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  font-weight: 700;
+}
+
+.reading-error {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--color-error-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.reading-detail [tabindex="-1"]:focus {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 0.25rem;
+}
+
+.reading-cover {
+  display: block;
+  width: min(100%, 12rem);
+  max-height: 18rem;
+  margin-block: 1rem;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  object-fit: cover;
+}
+
+.reading-loading {
+  display: none;
+  margin-block: 0.75rem;
+  font-weight: 700;
+}
+
+.reading-loading.htmx-request {
+  display: block;
+}
+
+.btn-disabled,
+.btn-disabled:hover {
+  cursor: not-allowed;
+  transform: none;
+  background: var(--bg-surface-warm);
+  border-color: var(--border-default);
+  box-shadow: none;
+  color: var(--color-ink-muted);
+}
+
+@media (max-width: 36rem) {
+  .site-header-inner {
+    gap: 0.75rem;
+  }
+
+  .brand-badge {
+    display: none;
+  }
+
+  .reading-card {
+    padding: 1.15rem;
+  }
+
+  .reading-form button,
+  .reading-form .btn {
+    width: 100%;
+  }
 }
 
 @media (max-width: 36rem) {

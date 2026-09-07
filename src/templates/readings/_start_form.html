@@ -1,0 +1,17 @@
+<form method="post" action="{% if source_reading %}{% url action_url source_reading.pk %}{% else %}{% url action_url book.pk %}{% endif %}" class="reading-form">
+  {% csrf_token %}
+  {{ start_form.non_field_errors }}
+  <fieldset>
+    <legend>{{ start_form.status.label }}</legend>
+    {% for choice in start_form.status %}
+      <label class="reading-choice">{{ choice.tag }} <span>{{ choice.choice_label }}</span></label>
+    {% endfor %}
+  </fieldset>
+  <div class="reading-field">
+    <label for="{{ start_form.completed_on.id_for_label }}">{{ start_form.completed_on.label }}</label>
+    {{ start_form.completed_on }}
+    {% if start_form.completed_on.errors %}<div id="{{ start_form.completed_on.id_for_label }}-error" role="alert">{{ start_form.completed_on.errors }}</div>{% endif %}
+    <p class="field-help">완독을 선택한 경우에만 오늘 또는 과거 날짜를 입력해 주세요.</p>
+  </div>
+  <button type="submit">{{ button_text }}</button>
+</form>

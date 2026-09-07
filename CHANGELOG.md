@@ -28,6 +28,9 @@
 - 검색 결과 session 후보 ID 기반의 CSRF 보호 Book 선택·등록 및 중복 방지 흐름
 - Book 저장 실패 후 같은 검색 후보를 안전하게 다시 선택할 수 있는 복구 UI
 - Kakao 실제 credential을 명시적으로 사용하는 `live` smoke test
+- 사용자·Book별 Reading 모델, 상태/완독일 CHECK와 활성 Reading 조건부 unique 제약
+- 명시적 Reading 시작·재독·상태/완독일 변경 Service와 소유자 전용 상세 화면
+- Book 선택 성공 시 Reading 진입으로 연결하는 일반 redirect와 HTMX `HX-Redirect`
 
 ### Changed
 
@@ -40,3 +43,5 @@
 - 내부 모델의 기본 PK 정책을 `BigAutoField`로 확정하고 UUIDv7은 필요한 모델의
   별도 공개 식별자로 검토하도록 제한
 - Ruff 검사 범위를 애플리케이션 코드, 테스트와 프로젝트 스크립트로 제한
+- Reading 상태 변경의 HTMX 오류 panel 교체와 결과 focus, 활성 Reading 충돌 복구 안내를
+  일반 Form POST와 동일한 의미 계약으로 강화

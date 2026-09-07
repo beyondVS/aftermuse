@@ -40,9 +40,9 @@
 
 ```text
 완료: IMP-021, IMP-022
-진행 중: IMP-030
-다음: IMP-031, IMP-032
-Blocker: Kakao API 응답에서 ISBN13 판별 규칙 확인 필요
+완료: IMP-030, IMP-031, IMP-032, IMP-033
+다음: IMP-040
+Blocker: 없음
 ```
 
 ---
@@ -192,24 +192,24 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 #### Bundle 04A — Reading 흐름
 
-- [ ] **IMP-030 — Reading 기본 도메인 구현**
+- [x] **IMP-030 — Reading 기본 도메인 구현**
   - **선행 작업:** IMP-010, IMP-020
   - Reading을 한 번의 독서 경험으로 구현한다.
   - 읽고 싶음 / 읽는 중 / 완독 상태를 지원한다.
   - **완료 조건:** Reading 생성과 상태 저장 테스트가 통과한다.
 
-- [ ] **IMP-031 — Book에서 Reading 생성 / 열기**
+- [x] **IMP-031 — Book에서 Reading 생성 / 열기**
   - **선행 작업:** IMP-024, IMP-030
   - Book Detail 또는 선택 결과에서 Reading을 생성하거나 기존 활성 Reading을 열 수 있게 한다.
   - **완료 조건:** 책 선택 → Reading 생성 → Reading 화면 진입이 가능하다.
 
-- [ ] **IMP-032 — 완독 처리 UX 구현**
+- [x] **IMP-032 — 완독 처리 UX 구현**
   - **선행 작업:** IMP-031
   - 사용자가 Reading을 완독 상태로 바꿀 수 있게 한다.
   - Interview 시작 전에는 실수로 완료한 상태를 되돌릴 수 있게 한다.
   - **완료 조건:** 완독일 기록과 상태 변경이 화면에 반영된다.
 
-- [ ] **IMP-033 — 최소 Reading Detail 화면 구현**
+- [x] **IMP-033 — 최소 Reading Detail 화면 구현**
   - **선행 작업:** IMP-031, IMP-032
   - 책 정보, Reading 상태, 다음 행동을 표시한다.
   - **완료 조건:** 완독한 Reading에서 AI Interview 시작 CTA를 볼 수 있다.
