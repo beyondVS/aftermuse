@@ -129,7 +129,7 @@ description: "Reading 생성 및 완독 관리 구현 작업 목록"
 - [X] T031 `src/manage.py`와 `src/readings/migrations/0001_initial.py`를 대상으로 `sqlmigrate readings 0001` 및 `makemigrations --check --dry-run readings`을 실행해 additive migration SQL과 migration drift가 없음을 확인한다.
 - [X] T032 자동·수동 검증 절차를 실제 구현 URL, 테스트 경로와 CTA 동작에 맞게 수술적으로 갱신한다: `specs/006-reading-completion-flow/quickstart.md`.
 - [X] T033 `README.md`, `CHANGELOG.md`, `docs/AfterMuse_MVP_Implementation_Plan_v5.md`에 Bundle 04A 구현 범위, 검증 근거 및 IMP-030~033 완료 상태를 수술적으로 동기화한다.
-- [ ] T034 1280px Desktop과 375px Mobile에서 JavaScript 활성/비활성 및 키보드 전용 흐름을 각각 2회 실행하고, 각 실행이 2분 이내이며 가로 scroll·focus 손실·색상 전용 상태 표현이 없음을 검증 결과로 기록한다: `specs/006-reading-completion-flow/quickstart.md`.
+- [X] T034 1280px Desktop과 375px Mobile에서 JavaScript 활성/비활성 및 키보드 전용 흐름을 각각 2회 실행하고, 각 실행이 2분 이내이며 가로 scroll·focus 손실·색상 전용 상태 표현이 없음을 검증 결과로 기록한다: `specs/006-reading-completion-flow/quickstart.md`.
 - [X] T035 `tests/readings/`, `tests/books/test_views.py`, `src/`에 `uv run ruff format --check src tests`, `uv run ruff check src tests`, `uv run python src/manage.py check`, `uv run pytest tests/readings tests/books/test_views.py -v`, `uv run python scripts/verify.py`를 실행하고 실패를 분류·해결한다.
 
 ---
@@ -197,7 +197,7 @@ Task: "tests/books/test_views.py에 Book 선택 성공의 redirect/HX-Redirect �
 ## Phase 7: Convergence
 
 - [X] T036 CRITICAL: `src/templates/readings/_reading_panel.html`과 `src/static/css/app.css`에 HTMX 상태·완독일 저장 중 접근 가능한 loading 표시와 `aria-busy` 상태를 추가하고 관련 View 테스트로 검증한다 per Constitution V (missing)
-- [ ] T037 CRITICAL: 1280px Desktop과 375px Mobile에서 JavaScript 활성·비활성 및 키보드 전용 Reading 흐름을 각각 2회 실행하고 시간, 가로 scroll, focus, 비색상 상태 표현 결과를 `specs/006-reading-completion-flow/quickstart.md`에 기록한다 per SC-009 (partial)
+- [X] T037 CRITICAL: 1280px Desktop과 375px Mobile에서 JavaScript 활성·비활성 및 키보드 전용 Reading 흐름을 각각 2회 실행하고 시간, 가로 scroll, focus, 비색상 상태 표현 결과를 `specs/006-reading-completion-flow/quickstart.md`에 기록한다 per SC-009 (partial)
 - [X] T038 `src/readings/forms.py`, `src/templates/readings/_start_form.html` 및 관련 Form/View 테스트에서 최초 완독과 완독 재독 선택 시 오늘을 기본 완독일로 제시하되 사용자가 오늘 또는 과거 날짜로 수정할 수 있게 한다 per FR-009, FR-013A (missing)
 - [X] T039 `src/templates/readings/_reading_panel.html`에 `Book.cover_url`이 제공된 경우 접근 가능한 표지를 표시하고, 표지·저자·출판사 누락 시 제목만으로 식별되는 fallback을 `tests/readings/test_views.py`에서 검증한다 per FR-014, US3/AC1 (partial)
 - [X] T040 `tests/readings/test_forms.py`, `tests/readings/test_services.py`, `tests/readings/test_views.py`에 완료 표시된 T007-T030의 미검증 계약인 세 상태 시작·표시, 완독일 기본값·멱등성, 동시 재독, Interview 잠금 상태 취소, 소유자 POST, DB 실패 rollback, 전체/HTMX 오류, CTA·서지정보·접근성 동작을 직접 관찰하는 회귀 테스트를 보강한다 per SC-001-SC-008, plan: Reading acceptance-test matrix (partial)
