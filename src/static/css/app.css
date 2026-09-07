@@ -1540,6 +1540,19 @@ button:active,
   font-weight: 700;
 }
 
+.reading-error {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--color-error-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.reading-detail [tabindex="-1"]:focus {
+  outline: 3px solid var(--color-accent);
+  outline-offset: 0.25rem;
+}
+
 .reading-cover {
   display: block;
   width: min(100%, 12rem);
@@ -1571,6 +1584,14 @@ button:active,
 }
 
 @media (max-width: 36rem) {
+  .site-header-inner {
+    gap: 0.75rem;
+  }
+
+  .brand-badge {
+    display: none;
+  }
+
   .reading-card {
     padding: 1.15rem;
   }

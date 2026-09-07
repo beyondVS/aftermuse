@@ -82,8 +82,9 @@ redirect, HTMX 요청은 `HX-Redirect`를 사용해 동일한 전체 페이지�
 활성 Reading이 있으면 상세로 안내하고, 이력이 없으면 초기 상태 선택, 완독 이력만 있으면
 최근 완독 상세와 명시적 재독 선택을 제공한다.
 
-**Rationale**: 기존 검색/선택 Fragment 안에 Reading 정책을 넣지 않고, JavaScript 유무와
-관계없이 동일 URL이 다음 흐름의 정본이 된다. View는 Form 검증과 Service 호출만 조합한다.
+**Rationale**: 기존 검색/선택 Fragment 안에 Reading 정책을 넣지 않고, 일반 redirect와
+HTMX 전환이 동일한 명명 URL을 다음 흐름의 정본으로 사용한다. View는 Form 검증과 Service
+호출만 조합한다.
 
 **Alternatives considered**:
 

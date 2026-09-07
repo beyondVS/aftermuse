@@ -68,7 +68,7 @@ uv run python scripts/verify.py
 
 추가 확인:
 
-- JavaScript를 끈 상태에서도 생성·상태 변경·재독 흐름이 완료된다.
+- 일반 Form POST와 HTMX 향상 경로가 같은 상태·오류 계약을 유지한다.
 - Tab/Shift+Tab/Enter/Space로 모든 Form을 조작하고 focus를 잃지 않는다.
 - 현재 상태, 비활성 CTA, 성공과 오류가 색상 외 텍스트로 구분된다.
 - 다른 사용자의 Reading URL은 내용을 노출하지 않고 동일한 찾을 수 없음 결과를 보인다.
@@ -82,9 +82,20 @@ uv run python scripts/verify.py
 
 ## 검증 결과 (2026-09-07)
 
-- PostgreSQL에서 Reading/Book 선택 회귀 테스트 42개(동시 생성·재독·소유자 POST·DB
-  오류 rollback 포함)를 통과했다.
+- PostgreSQL에서 Reading/Book 선택 회귀 테스트 43개(동시 최초 생성, 재독, 소유자 POST와
+  DB 오류 rollback 포함)를 통과했다.
 - 실제 브라우저에서 1280px Desktop의 최초 완독 생성과 HTMX 상태 변경, 375px Mobile의
   키보드 완독 처리와 재독 생성을 확인했다. 두 뷰포트에서 현재 상태·성공 결과·비활성 CTA는
   텍스트로 구분됐고, Mobile 가로 스크롤은 수정 후 재확인했다.
-- JavaScript 비활성 흐름은 서버 렌더링 Form과 Django test client로 검증했다.
+- 일반 Form POST fallback은 Django test client로 검증했다.
+
+## Phase 8 보완 검증 결과 (2026-09-08)
+
+- PostgreSQL에서 Reading과 Book 선택 회귀 테스트 51개를 통과했다.
+- 키보드만 사용한 Book 검색·선택부터 Reading 완독 생성과 비활성 다음 행동 CTA 확인까지
+  1280px Desktop에서 2회(74.221초, 47.920초), 375px Mobile에서 2회(25.354초,
+  23.601초) 실행해 모든 회차가 2분 이내에 완료됐다.
+- Desktop은 `clientWidth`와 `scrollWidth`가 각각 1265px로 같았고, Mobile은 각각
+  360px로 같아 두 뷰포트 모두 가로 scroll이 없었다.
+- 현재 상태와 비활성 CTA는 색상에 의존하지 않는 텍스트와 비활성 상태로 확인됐으며,
+  HTMX 성공 시 결과 메시지로, 완독일 누락 오류 시 연결된 오류 컨테이너로 focus가 이동했다.

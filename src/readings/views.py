@@ -180,16 +180,32 @@ def _policy_error_response(
     date_form: CompletionDateForm,
     error: ReadingPolicyError,
 ) -> HttpResponse:
+    conflict_reading = None
     if isinstance(error, ActiveReadingExistsError):
         state_form.add_error(
             None, "진행 중인 다른 Reading이 있어 상태를 바꿀 수 없습니다."
+        )
+        conflict_reading = (
+            Reading.objects.filter(
+                pk=error.reading.pk,
+                user=request.user,
+                book=reading.book,
+                status__in=(Reading.Status.WANT_TO_READ, Reading.Status.READING),
+            )
+            .select_related("book")
+            .first()
         )
     elif isinstance(error, ReadingLockedError):
         state_form.add_error(None, "인터뷰가 시작되어 완독 정보는 수정할 수 없습니다.")
     else:
         state_form.add_error(None, "요청한 상태로 바꿀 수 없습니다.")
     return _render_detail(
-        request, reading, state_form=state_form, date_form=date_form, status=400
+        request,
+        reading,
+        state_form=state_form,
+        date_form=date_form,
+        conflict_reading=conflict_reading,
+        status=400,
     )
 
 
@@ -200,6 +216,7 @@ def _render_detail(
     state_form: ReadingStateForm | None = None,
     date_form: CompletionDateForm | None = None,
     reread_form: ReadingStartForm | None = None,
+    conflict_reading: Reading | None = None,
     success_message: str | None = None,
     status: int = 200,
 ) -> HttpResponse:
@@ -211,14 +228,22 @@ def _render_detail(
             initial={"completed_on": reading.completed_on}, prefix="completion"
         ),
         "reread_form": reread_form or ReadingStartForm(prefix="reread"),
+        "conflict_reading": conflict_reading,
         "success_message": success_message,
     }
+    is_htmx = request.headers.get("HX-Request") == "true"
     template_name = (
-        "readings/_reading_panel.html"
-        if request.headers.get("HX-Request") == "true"
-        else "readings/detail.html"
+        "readings/_reading_panel.html" if is_htmx else "readings/detail.html"
     )
-    return render(request, template_name, context, status=status)
+    response = render(request, template_name, context, status=status)
+    if is_htmx:
+        response.headers["HX-Trigger-After-Settle"] = "readingPanelSettled"
+    if is_htmx and 400 <= status < 500:
+        # HTMX 2.x는 기본적으로 4xx body를 swap하지 않으므로, app.js가 이 제한된
+        # 표준 header 조합에만 응답해 Reading panel 교체를 허용한다.
+        response.headers["HX-Retarget"] = "#reading-panel"
+        response.headers["HX-Reswap"] = "outerHTML"
+    return response
 
 
 def _state_initial(reading: Reading) -> dict[str, object]:

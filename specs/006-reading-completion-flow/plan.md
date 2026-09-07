@@ -35,7 +35,8 @@ test, migration round-trip, Ruff 0.16, `scripts/verify.py`
 
 **제약 조건**: 로그인·CSRF 필수, 소유자 범위 조회, 상태와 완독일 원자적 변경, 사용자·
 Book별 활성 Reading 최대 1건, 미래 완독일 거부, Interview 시작 후 완독 상태·날짜 잠금
-계약, Credit/Knowledge/Interview side effect 없음, JavaScript 없이 핵심 흐름 동작
+계약, Credit/Knowledge/Interview side effect 없음, 일반 Form POST를 정본으로 유지하면서
+HTMX와 Alpine.js로 상호작용을 점진적으로 향상
 
 **규모/범위**: 신규 도메인 앱·table 각 1개, Book 진입·Reading 상세 화면, 생성/재독·상태
 변경 Service와 Form, 기존 Book 선택 성공 연결, 관련 모델·Service·View·migration 테스트

@@ -5,14 +5,15 @@
   {% if reading.book.authors %}<p>저자 · {{ reading.book.authors }}</p>{% endif %}
   {% if reading.book.publisher %}<p>출판사 · {{ reading.book.publisher }}</p>{% endif %}
   {% if reading.book.published_date %}<p>출간일 · {{ reading.book.published_date }}</p>{% endif %}
-  {% if success_message %}<p class="reading-success" role="status" aria-live="polite">{{ success_message }}</p>{% endif %}
+  {% if success_message %}<p class="reading-success" role="status" aria-live="polite" tabindex="-1" data-reading-result autofocus>{{ success_message }}</p>{% endif %}
   <p id="reading-loading" class="reading-loading htmx-indicator" role="status" aria-live="polite">저장 중입니다.</p>
 
   <section class="reading-card" aria-labelledby="reading-state-title">
-    <h2 id="reading-state-title">현재 상태: {{ reading.get_status_display }}</h2>
+    <h2 id="reading-state-title" tabindex="-1">현재 상태: {{ reading.get_status_display }}</h2>
     <form method="post" action="{% url 'readings:change_state' reading.pk %}" class="reading-form" data-reading-submission aria-busy="false" hx-post="{% url 'readings:change_state' reading.pk %}" hx-target="#reading-panel" hx-swap="outerHTML" hx-indicator="#reading-loading">
       {% csrf_token %}
-      {{ state_form.non_field_errors }}
+      {% if state_form.non_field_errors %}<div class="reading-error" role="alert" tabindex="-1" data-reading-result autofocus>{{ state_form.non_field_errors }}</div>{% endif %}
+      {% if conflict_reading %}<p class="reading-conflict-link"><a href="{% url 'readings:detail' conflict_reading.pk %}">진행 중인 Reading 보기</a></p>{% endif %}
       <fieldset>
         <legend>{{ state_form.status.label }}</legend>
         {% for choice in state_form.status %}<label class="reading-choice">{{ choice.tag }} <span>{{ choice.choice_label }}</span></label>{% endfor %}
@@ -20,7 +21,7 @@
       <div class="reading-field">
         <label for="{{ state_form.completed_on.id_for_label }}">{{ state_form.completed_on.label }}</label>
         {{ state_form.completed_on }}
-        {% if state_form.completed_on.errors %}<div id="{{ state_form.completed_on.id_for_label }}-error" role="alert">{{ state_form.completed_on.errors }}</div>{% endif %}
+        {% if state_form.completed_on.errors %}<div id="{{ state_form.completed_on.id_for_label }}-error" class="reading-error" role="alert" tabindex="-1" data-reading-result autofocus>{{ state_form.completed_on.errors }}</div>{% endif %}
         <p class="field-help">완독 상태에는 완독일이 필요합니다.</p>
       </div>
       <button type="submit">상태 저장</button>
@@ -34,10 +35,10 @@
       <form method="post" action="{% url 'readings:change_state' reading.pk %}" class="reading-form" data-reading-submission aria-busy="false" hx-post="{% url 'readings:change_state' reading.pk %}" hx-target="#reading-panel" hx-swap="outerHTML" hx-indicator="#reading-loading">
         {% csrf_token %}
         <input type="hidden" name="intent" value="update_completed_on">
-        {{ date_form.non_field_errors }}
+        {% if date_form.non_field_errors %}<div class="reading-error" role="alert" tabindex="-1" data-reading-result autofocus>{{ date_form.non_field_errors }}</div>{% endif %}
         <label for="{{ date_form.completed_on.id_for_label }}">{{ date_form.completed_on.label }} 수정</label>
         {{ date_form.completed_on }}
-        {% if date_form.completed_on.errors %}<div id="{{ date_form.completed_on.id_for_label }}-error" role="alert">{{ date_form.completed_on.errors }}</div>{% endif %}
+        {% if date_form.completed_on.errors %}<div id="{{ date_form.completed_on.id_for_label }}-error" class="reading-error" role="alert" tabindex="-1" data-reading-result autofocus>{{ date_form.completed_on.errors }}</div>{% endif %}
         <button type="submit" class="btn-secondary">완독일 수정</button>
       </form>
       <button type="button" class="btn-disabled" disabled aria-disabled="true">AI 독서노트 만들기</button>

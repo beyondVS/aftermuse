@@ -181,3 +181,43 @@ def test_concurrent_initial_creation_reuses_one_active_reading(user, book) -> No
 
     assert len(set(reading_ids)) == 1
     assert Reading.objects.filter(user=user, book=book).count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_rereading_reuses_one_active_reading(user, book) -> None:
+    completed = Reading.objects.create(
+        user=user, book=book, status=Reading.Status.COMPLETED, completed_on=date.today()
+    )
+    barrier = Barrier(2)
+
+    def create_from_separate_connection() -> tuple[int, bool]:
+        close_old_connections()
+        try:
+            barrier.wait()
+            result = create_rereading(
+                user=user,
+                source_reading=completed,
+                status=Reading.Status.READING,
+                completed_on=None,
+            )
+            return result.reading.pk, result.created
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(
+            executor.map(lambda _: create_from_separate_connection(), range(2))
+        )
+
+    reading_ids = {reading_id for reading_id, _created in results}
+    assert len(reading_ids) == 1
+    assert sorted(created for _reading_id, created in results) == [False, True]
+    assert (
+        Reading.objects.filter(
+            user=user,
+            book=book,
+            status__in=(Reading.Status.WANT_TO_READ, Reading.Status.READING),
+        ).count()
+        == 1
+    )
+    assert Reading.objects.filter(user=user, book=book).count() == 2

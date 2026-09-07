@@ -43,3 +43,5 @@
 - 내부 모델의 기본 PK 정책을 `BigAutoField`로 확정하고 UUIDv7은 필요한 모델의
   별도 공개 식별자로 검토하도록 제한
 - Ruff 검사 범위를 애플리케이션 코드, 테스트와 프로젝트 스크립트로 제한
+- Reading 상태 변경의 HTMX 오류 panel 교체와 결과 focus, 활성 Reading 충돌 복구 안내를
+  일반 Form POST와 동일한 의미 계약으로 강화

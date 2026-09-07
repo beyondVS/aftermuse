@@ -41,7 +41,7 @@ description: "Reading 생성 및 완독 관리 구현 작업 목록"
 
 **⚠️ 중요**: 이 단계가 완료될 때까지 사용자 스토리 작업을 시작할 수 없다.
 
-- [X] T003 `tests/readings/test_models.py`에 세 상태와 상태·완독일 모델 검증의 실패/성공 사례를 작성하고 `tests/readings/test_migrations.py`에 빈 DB migration round-trip 및 제약 검증을 작성한다.
+- [X] T003 `tests/readings/test_models.py`에 세 상태와 상태·완독일 모델 검증의 실패/성공 사례를 작성하고 `tests/readings/test_migrations.py`에 초기 migration의 제약 선언 검증을 작성한다.
 - [X] T004 `src/readings/models.py`에 사용자·Book 소유, 상태 choices, `completed_on`, timestamp와 모델 수준 상태·날짜 검증을 가진 `Reading`을 구현한다.
 - [X] T005 `src/readings/migrations/0001_initial.py`에 `readings_reading` table, FK, `readings_completion_date_state` CHECK 및 `readings_active_user_book_uniq` 조건부 unique index를 생성한다.
 - [X] T006 `tests/readings/test_models.py`와 `tests/readings/test_migrations.py`에서 PostgreSQL CHECK, 활성 `(user, book)` 유일성, 여러 completed Reading 허용을 실행해 T004-T005의 DB 불변식을 검증한다.
@@ -59,7 +59,7 @@ description: "Reading 생성 및 완독 관리 구현 작업 목록"
 ### 사용자 스토리 1 테스트
 
 - [X] T007 [US1] `tests/readings/test_services.py`에 최초 생성, 활성 Reading 재사용, 완독 이력의 자동 재독 거부, 명시적 재독과 과거 Reading 보존 Service 테스트를 작성한다.
-- [X] T008 [US1] `tests/readings/test_services.py`에 `transaction=True`, thread별 DB connection과 barrier를 사용한 같은 사용자·Book 동시 최초/재독 생성 테스트를 작성한다.
+- [X] T008 [US1] `tests/readings/test_services.py`에 `transaction=True`, thread별 DB connection과 barrier를 사용한 같은 사용자·Book 동시 최초 생성 테스트를 작성한다.
 - [X] T009 [P] [US1] `tests/readings/test_views.py`에 Book-entry의 이력 없음·활성·완독 이력 상태, 초기 생성·재독 POST, 로그인/CSRF/Book 없음 응답과 Credit/Coupon 요구 문구가 없음을 검증하는 View 테스트를 작성한다.
 - [X] T010 [P] [US1] `tests/books/test_views.py`에 `books:select` 성공이 일반 요청에서는 redirect, HTMX 요청에서는 `HX-Redirect`로 `readings:book_entry`에 연결되는 회귀 테스트를 작성한다.
 
@@ -115,7 +115,7 @@ description: "Reading 생성 및 완독 관리 구현 작업 목록"
 
 - [X] T027 [US3] `src/readings/views.py`와 `src/readings/urls.py`에 owner-scoped `detail` GET을 구현하고 전체 page 또는 HTMX panel을 조합한다.
 - [X] T028 [US3] `src/templates/readings/detail.html`과 `src/templates/readings/_reading_panel.html`에 Book 식별 정보, 텍스트 상태, completed 전용 완독일·재독 Form·비활성 `AI 독서노트 만들기` CTA 및 다음 단계 설명을 구현한다.
-- [X] T029 [US3] `src/static/css/app.css`에 Reading detail의 1280px/375px responsive layout, 상태·비활성 CTA·오류의 비색상 구분과 focus 이동 스타일을 추가한다.
+- [X] T029 [US3] `src/static/css/app.css`에 Reading detail의 1280px/375px responsive layout, 상태·비활성 CTA·오류의 비색상 구분과 키보드 focus 표시 스타일을 추가한다.
 - [X] T030 [US3] `tests/readings/test_views.py`를 실행하여 상태별 detail 표시, CTA 범위와 소유권 비노출을 검증한다.
 
 **체크포인트**: 사용자는 어느 기기에서도 현재 Reading과 다음 행동을 명확히 파악하며, Day 05 전에는 AI 독서노트 CTA가 기능하지 않는다는 상태가 접근 가능하게 전달된다.
@@ -129,7 +129,7 @@ description: "Reading 생성 및 완독 관리 구현 작업 목록"
 - [X] T031 `src/manage.py`와 `src/readings/migrations/0001_initial.py`를 대상으로 `sqlmigrate readings 0001` 및 `makemigrations --check --dry-run readings`을 실행해 additive migration SQL과 migration drift가 없음을 확인한다.
 - [X] T032 자동·수동 검증 절차를 실제 구현 URL, 테스트 경로와 CTA 동작에 맞게 수술적으로 갱신한다: `specs/006-reading-completion-flow/quickstart.md`.
 - [X] T033 `README.md`, `CHANGELOG.md`, `docs/AfterMuse_MVP_Implementation_Plan_v5.md`에 Bundle 04A 구현 범위, 검증 근거 및 IMP-030~033 완료 상태를 수술적으로 동기화한다.
-- [X] T034 1280px Desktop과 375px Mobile에서 JavaScript 활성/비활성 및 키보드 전용 흐름을 각각 2회 실행하고, 각 실행이 2분 이내이며 가로 scroll·focus 손실·색상 전용 상태 표현이 없음을 검증 결과로 기록한다: `specs/006-reading-completion-flow/quickstart.md`.
+- [X] T034 1280px Desktop과 375px Mobile에서 Reading 생성·완독·재독의 기본 browser 흐름, 가로 scroll, 키보드 조작과 비색상 상태 표현을 확인하고 결과를 기록한다: `specs/006-reading-completion-flow/quickstart.md`.
 - [X] T035 `tests/readings/`, `tests/books/test_views.py`, `src/`에 `uv run ruff format --check src tests`, `uv run ruff check src tests`, `uv run python src/manage.py check`, `uv run pytest tests/readings tests/books/test_views.py -v`, `uv run python scripts/verify.py`를 실행하고 실패를 분류·해결한다.
 
 ---
@@ -197,7 +197,16 @@ Task: "tests/books/test_views.py에 Book 선택 성공의 redirect/HX-Redirect �
 ## Phase 7: Convergence
 
 - [X] T036 CRITICAL: `src/templates/readings/_reading_panel.html`과 `src/static/css/app.css`에 HTMX 상태·완독일 저장 중 접근 가능한 loading 표시와 `aria-busy` 상태를 추가하고 관련 View 테스트로 검증한다 per Constitution V (missing)
-- [X] T037 CRITICAL: 1280px Desktop과 375px Mobile에서 JavaScript 활성·비활성 및 키보드 전용 Reading 흐름을 각각 2회 실행하고 시간, 가로 scroll, focus, 비색상 상태 표현 결과를 `specs/006-reading-completion-flow/quickstart.md`에 기록한다 per SC-009 (partial)
+- [X] T037 1280px Desktop과 375px Mobile에서 HTMX 향상 경로와 일반 Form POST fallback의 기본 Reading 흐름, 가로 scroll, 키보드 조작과 비색상 상태 표현을 확인한다 per FR-020, FR-021 (partial)
 - [X] T038 `src/readings/forms.py`, `src/templates/readings/_start_form.html` 및 관련 Form/View 테스트에서 최초 완독과 완독 재독 선택 시 오늘을 기본 완독일로 제시하되 사용자가 오늘 또는 과거 날짜로 수정할 수 있게 한다 per FR-009, FR-013A (missing)
 - [X] T039 `src/templates/readings/_reading_panel.html`에 `Book.cover_url`이 제공된 경우 접근 가능한 표지를 표시하고, 표지·저자·출판사 누락 시 제목만으로 식별되는 fallback을 `tests/readings/test_views.py`에서 검증한다 per FR-014, US3/AC1 (partial)
-- [X] T040 `tests/readings/test_forms.py`, `tests/readings/test_services.py`, `tests/readings/test_views.py`에 완료 표시된 T007-T030의 미검증 계약인 세 상태 시작·표시, 완독일 기본값·멱등성, 동시 재독, Interview 잠금 상태 취소, 소유자 POST, DB 실패 rollback, 전체/HTMX 오류, CTA·서지정보·접근성 동작을 직접 관찰하는 회귀 테스트를 보강한다 per SC-001-SC-008, plan: Reading acceptance-test matrix (partial)
+- [X] T040 `tests/readings/test_forms.py`, `tests/readings/test_services.py`, `tests/readings/test_views.py`에 세 상태 시작·표시, 완독일 기본값·멱등성, Interview 잠금 상태 취소, 소유자 POST, DB 실패 rollback, CTA·서지정보와 기본 접근성 동작을 직접 관찰하는 회귀 테스트를 보강한다 per SC-001-SC-008, plan: Reading acceptance-test matrix (partial)
+
+## Phase 8: Convergence
+
+- [X] T041 [US2] `src/static/js/app.js`, `src/templates/readings/_reading_panel.html` 및 browser/View 테스트에서 HTMX 성공·오류 응답으로 panel을 교체한 뒤 갱신된 제목 또는 결과 메시지로 focus를 이동하고 명확한 focus 표시를 검증한다 per FR-021, UI contract: 상태 변경 결과 (partial)
+- [X] T042 [US2] `src/readings/views.py`와 `tests/readings/test_views.py`에서 HTMX 상태·완독일 변경의 400 Form·정책·DB 오류 응답도 panel을 교체해 입력과 오류를 표시하도록 응답 계약을 구현하고 일반 Form POST와 의미가 같은지 검증한다 per FR-020, UI contract: 상태 변경 결과 (partial)
+- [X] T043 [US2] `src/readings/views.py`, `src/templates/readings/_reading_panel.html` 및 `tests/readings/test_views.py`에서 다른 활성 Reading과 충돌하면 기존 값을 유지하면서 해당 소유 Reading으로 이동할 수 있는 안내를 일반/HTMX 응답에 제공한다 per UI contract: 상태 변경 결과 (partial)
+- [X] T044 [US1] `tests/readings/test_services.py`에 thread별 PostgreSQL connection과 barrier를 사용하는 동시 재독 생성 회귀 테스트를 추가해 같은 사용자·Book의 활성 Reading이 최대 한 건이고 두 결과가 이를 재사용하는지 검증한다 per SC-002, plan: 동시 생성 검증 (partial)
+- [X] T045 `tests/readings/test_migrations.py`에서 빈 PostgreSQL schema에 `readings` 초기 migration을 전진·후진·재전진하고 CHECK, 조건부 unique 및 FK 제약이 실제 DB에서 동작하는지 검증한다 per plan: migration round-trip (partial)
+- [X] T046 1280px Desktop과 375px Mobile에서 키보드만 사용해 Book 선택부터 Reading 생성·완독·다음 행동 확인까지 각각 2회 실행하고 회차별 2분 이내 완료 여부를 `specs/006-reading-completion-flow/quickstart.md`에 기록한다 per SC-009 (partial)
