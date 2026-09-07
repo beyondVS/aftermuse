@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}{{ book.title }} · Reading · AfterMuse{% endblock %}
+
+{% block content %}
+  <section class="reading-entry" aria-labelledby="reading-entry-title">
+    <p class="eyebrow-pill">Reading 시작</p>
+    <h1 id="reading-entry-title">{{ book.title }}</h1>
+    {% if book.authors %}<p>저자 · {{ book.authors }}</p>{% endif %}
+    {% if active_reading %}
+      <section class="reading-card" aria-labelledby="active-reading-title">
+        <h2 id="active-reading-title">진행 중인 Reading이 있습니다</h2>
+        <p>현재 상태: <strong>{{ active_reading.get_status_display }}</strong></p>
+        <a class="btn" href="{% url 'readings:detail' active_reading.pk %}">계속 보기</a>
+      </section>
+    {% elif latest_completed_reading %}
+      <section class="reading-card" aria-labelledby="completed-history-title">
+        <h2 id="completed-history-title">최근 완독 기록</h2>
+        <p>{{ latest_completed_reading.completed_on }}에 완독했습니다. 새 Reading은 직접 선택해 시작할 수 있습니다.</p>
+        <a class="btn btn-secondary" href="{% url 'readings:detail' latest_completed_reading.pk %}">최근 완독 보기</a>
+        {% include "readings/_start_form.html" with action_url='readings:reread' source_reading=latest_completed_reading button_text='다시 읽기 시작' %}
+      </section>
+    {% else %}
+      <section class="reading-card" aria-labelledby="start-reading-title">
+        <h2 id="start-reading-title">어떤 상태로 시작할까요?</h2>
+        <p>책을 선택하는 것만으로는 Reading이 만들어지지 않습니다.</p>
+        {% include "readings/_start_form.html" with action_url='readings:create' book=book button_text='Reading 시작' %}
+      </section>
+    {% endif %}
+    <p><a href="{% url 'books:search' %}">도서 검색으로 돌아가기</a></p>
+  </section>
+{% endblock %}

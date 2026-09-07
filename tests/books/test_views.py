@@ -315,9 +315,9 @@ def test_select_creates_book_from_session_candidate_and_ignores_extra_post_data(
         reverse("books:select"), {"candidate_id": candidate_id}
     )
 
-    assert response.status_code == 200
-    assert retry_response.status_code == 200
-    assert "책 선택이 완료되었습니다" in response.content.decode()
+    assert response.status_code == 302
+    assert retry_response.status_code == 302
+    assert response.url == reverse("readings:book_entry", args=[Book.objects.get().pk])
     assert provider.queries == ["같은 제목"]
     assert Book.objects.count() == 1
     book = Book.objects.get()
@@ -373,8 +373,10 @@ def test_select_returns_safe_error_and_retries_same_candidate_after_storage_fail
     assert 'name="candidate_id"' in failed_content
     assert failed_content.count(candidate_id) == 1
     assert "internal database diagnostic" not in failed_content
-    assert retry_response.status_code == 200
-    assert "책 선택이 완료되었습니다" in retry_response.content.decode()
+    assert retry_response.status_code == 302
+    assert retry_response.url == reverse(
+        "readings:book_entry", args=[Book.objects.get().pk]
+    )
     assert attempts == 2
     assert Book.objects.count() == 1
 
@@ -387,4 +389,4 @@ def test_select_returns_fragment_for_htmx_request(authenticated_client) -> None:
     )
 
     assert response.status_code == 200
-    assert 'id="search-region"' in response.content.decode()
+    assert "HX-Redirect" not in response

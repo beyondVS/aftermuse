@@ -28,6 +28,9 @@
 - 검색 결과 session 후보 ID 기반의 CSRF 보호 Book 선택·등록 및 중복 방지 흐름
 - Book 저장 실패 후 같은 검색 후보를 안전하게 다시 선택할 수 있는 복구 UI
 - Kakao 실제 credential을 명시적으로 사용하는 `live` smoke test
+- 사용자·Book별 Reading 모델, 상태/완독일 CHECK와 활성 Reading 조건부 unique 제약
+- 명시적 Reading 시작·재독·상태/완독일 변경 Service와 소유자 전용 상세 화면
+- Book 선택 성공 시 Reading 진입으로 연결하는 일반 redirect와 HTMX `HX-Redirect`
 
 ### Changed
 

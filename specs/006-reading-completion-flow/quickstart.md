@@ -79,3 +79,11 @@ uv run python scripts/verify.py
 구현과 검증이 끝나면 `README.md`, `CHANGELOG.md`, 구현 계획의 IMP-030~033 완료 상태와
 검증 근거를 수술적으로 동기화한다. Day 05 계획에는 Interview 시작 시 Reading 상태와
 완독일을 잠그는 Service 연결 계약을 전달한다.
+
+## 검증 결과 (2026-09-07)
+
+- PostgreSQL에서 Reading/Book 선택 회귀 테스트 31개(동시 생성 포함)를 통과했다.
+- 1280px 및 375px에서 Reading 생성, HTMX 완독 상태 전환, 비활성 CTA를 확인했고 두
+  뷰포트 모두 가로 스크롤이 없었다.
+- JavaScript 비활성 흐름은 서버 렌더링 Form과 Django test client로 검증한다. 실제
+  브라우저에서 JavaScript를 비활성화한 반복 수동 검증은 배포 전 확인 항목으로 남는다.
