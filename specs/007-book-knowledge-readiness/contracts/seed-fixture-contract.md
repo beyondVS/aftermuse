@@ -55,7 +55,8 @@ Seed는 대상 Book을 만들거나 서지정보를 갱신하지 않는다.
 
 - Claim은 `research.md`에 기록된 공식 출판사 소개를 근거로 작성한다.
 - 각 Claim은 `checklists/seed-knowledge.md`에 ISBN, kind, content, 공식 출처 URL과 출처의
-  지지 여부를 기록하고 승인된 뒤에만 Seed 데이터에 포함한다.
+  지지 여부를 기록하고 승인된 뒤에만 Seed 데이터에 포함한다. 승인된 최종 Claim 값은
+  해당 체크리스트의 표를 기준 원본으로 삼는다.
 - 원문 문장을 장문 복제하지 않고 검증 가능한 사실·주제를 짧게 한국어로 재서술한다.
 - 목차 제목만으로 주장이나 내용을 추론하지 않는다.
 - 사용자 Reading, ReadingEntry, Interview 답변 또는 Reflection을 포함하지 않는다.

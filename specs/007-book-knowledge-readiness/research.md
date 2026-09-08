@@ -74,9 +74,10 @@ Service validation은 읽기 쉬운 오류를 제공한다.
 
 **Decision**: 서로 다른 질문 유형을 검증할 수 있도록 소설 《1984》
 (`9780452284234`)와 논픽션 《Thinking, Fast and Slow》(`9780374275631`) 두 권을 사용한다.
-각 책에는 공식 출판사 소개를 한국어로 짧게 재서술한 3~5개 Theme, Argument, Concept,
-Character Claim을 둔다. 원문 문장이나 장문 요약은 복제하지 않으며, 각 Claim은
-`checklists/seed-knowledge.md`에서 공식 출처의 지지 여부를 대조·승인한 뒤 적용한다.
+각 책에는 공식 출판사 소개를 한국어로 짧게 재서술한 4개 Theme, Argument, Concept,
+Character 또는 Event Claim을 둔다. 원문 문장이나 장문 요약은 복제하지 않으며, 최종
+ISBN13·kind·content와 Claim별 출처 대조·승인 기록은
+`checklists/seed-knowledge.md`를 기준 원본으로 사용한다.
 
 **Rationale**: 두 권 모두 공식 출판사 페이지에서 ISBN과 핵심 내용을 검증할 수 있는 유명
 도서이며, fiction의 Character/Event grounding과 nonfiction의 Argument/Concept grounding을
