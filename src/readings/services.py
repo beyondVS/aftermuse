@@ -142,9 +142,12 @@ def update_completion_date(*, user, reading: Reading, completed_on: date) -> Rea
 
 
 def has_started_interview(reading: Reading) -> bool:
-    """Day 05가 실제 Interview 조회로 대체할 잠금 확장 지점이다."""
-    del reading
-    return False
+    """저장된 Reading에 시작된 Interview가 있는지 반환한다."""
+    if reading.pk is None:
+        return False
+    from reflections.models import Interview
+
+    return Interview.objects.filter(reading_id=reading.pk).exists()
 
 
 def _lock_user(user):

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}인터뷰 시작 · AfterMuse{% endblock %}
+{% block content %}
+<section class="interview-page" aria-labelledby="interview-start-title">
+  <p class="eyebrow-pill">Interview</p>
+  <h1 id="interview-start-title">이 책으로 인터뷰를 시작할까요?</h1>
+  {% if error %}<div class="reading-error" role="alert" tabindex="-1" autofocus>{{ error }}</div>{% endif %}
+  <section class="interview-card" aria-labelledby="book-confirmation-title">
+    <h2 id="book-confirmation-title">책 확인</h2>
+    {% if reading.book.cover_url %}<img class="reading-cover" src="{{ reading.book.cover_url }}" alt="{{ reading.book.title }} 표지">{% endif %}
+    <dl class="book-metadata">
+      <dt>제목</dt><dd>{{ reading.book.title }}</dd>
+      {% if reading.book.authors %}<dt>저자</dt><dd>{{ reading.book.authors }}</dd>{% endif %}
+      {% if reading.book.publisher %}<dt>출판사</dt><dd>{{ reading.book.publisher }}</dd>{% endif %}
+      {% if reading.book.published_date %}<dt>출간일</dt><dd>{{ reading.book.published_date }}</dd>{% endif %}
+      <dt>ISBN13</dt><dd>{{ reading.book.isbn13 }}</dd>
+    </dl>
+  </section>
+  <p class="interview-notice">인터뷰를 시작하면 다른 책으로 변경할 수 없습니다.</p>
+  {% if readiness %}<p>준비 수준: {{ readiness }}</p>{% endif %}
+  {% if readiness == "READY_LIMITED" %}<p class="interview-notice">확인할 수 있는 정보가 제한적입니다. 기억에 남은 내용부터 정리해 볼게요.</p>{% endif %}
+  {% if can_start %}
+  <div class="interview-actions">
+    <a class="btn-secondary" href="{% url 'books:search' %}">책 다시 선택</a>
+    <form method="post" action="{% url 'reflections:interview_create' reading.pk %}">{% csrf_token %}<button type="submit">인터뷰 시작</button></form>
+  </div>
+  {% else %}<p><a href="{% url 'readings:detail' reading.pk %}">Reading 상세로 돌아가기</a></p>{% endif %}
+</section>
+{% endblock %}
