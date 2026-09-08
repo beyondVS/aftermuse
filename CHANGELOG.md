@@ -34,6 +34,9 @@
 - Book별 Claim을 저장·조회하는 `knowledge` 도메인과 PostgreSQL 제약 migration
 - 승인된 2권·8개 Claim의 멱등 수동 Seed command와 전체 rollback 검증
 - Claim 존재 여부에서 파생하는 `READY` / `READY_LIMITED` Book 준비 상태
+- 완독 Reading의 Book 확인과 명시적 POST 기반 Interview 시작, 진행 상태 재진입 흐름
+- Reading당 하나의 Interview와 순서가 보장되는 InterviewTurn 영속 모델 및 migration
+- 시작된 Interview의 Reading 완독 상태·완독일 변경 잠금과 `READY_LIMITED` 기억 중심 안내
 
 ### Changed
 

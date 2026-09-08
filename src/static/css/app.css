@@ -1583,6 +1583,60 @@ button:active,
   color: var(--color-ink-muted);
 }
 
+/* Interview start and empty progress state */
+.interview-page {
+  max-width: 52rem;
+  margin-inline: auto;
+}
+
+.interview-card {
+  margin-block: 1.5rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.book-metadata {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) minmax(0, 1fr);
+  gap: 0.55rem 1rem;
+}
+
+.book-metadata dt {
+  color: var(--color-ink-muted);
+  font-weight: 700;
+}
+
+.book-metadata dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.interview-notice {
+  padding: 0.9rem 1rem;
+  border-left: 4px solid var(--color-accent);
+  background: var(--color-accent-subtle);
+}
+
+.interview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin-block-start: 1.5rem;
+}
+
+.interview-actions form { margin: 0; }
+
+@media (max-width: 36rem) {
+  .interview-actions,
+  .interview-actions form,
+  .interview-actions a,
+  .interview-actions button { width: 100%; }
+}
+
 @media (max-width: 36rem) {
   .site-header-inner {
     gap: 0.75rem;

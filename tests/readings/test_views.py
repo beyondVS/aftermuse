@@ -8,6 +8,7 @@ from django.urls import reverse
 from books.models import Book
 from readings.models import Reading
 from readings.services import ActiveReadingExistsError
+from reflections.models import Interview
 
 
 @pytest.fixture
@@ -88,6 +89,20 @@ def test_detail_renders_status_specific_actions_and_book_metadata(
     assert 'alt="View 테스트 표지"' in content
     assert ("AI 독서노트 만들기" in content) is expects_completed_content
     assert ("새 Reading 시작" in content) is expects_completed_content
+
+
+def test_completed_reading_cta_uses_start_boundary_without_side_effect(
+    client, user, book
+) -> None:
+    reading = Reading.objects.create(
+        user=user, book=book, status=Reading.Status.COMPLETED, completed_on=date.today()
+    )
+    client.force_login(user)
+
+    content = client.get(reverse("readings:detail", args=[reading.pk])).content.decode()
+
+    assert reverse("reflections:interview_start", args=[reading.pk]) in content
+    assert Interview.objects.filter(reading=reading).count() == 0
 
 
 def test_detail_uses_title_when_optional_book_metadata_is_missing(

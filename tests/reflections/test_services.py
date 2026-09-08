@@ -1,0 +1,112 @@
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date
+from threading import Barrier
+
+import pytest
+from django.db import close_old_connections
+
+from books.models import Book
+from knowledge.models import BookKnowledge, KnowledgeKind
+from readings.models import Reading
+from readings.services import ReadingLockedError, update_completion_date
+from reflections.models import Interview
+from reflections.services import (
+    InterviewDestination,
+    InterviewPolicyError,
+    get_interview_destination,
+    start_interview,
+)
+
+
+@pytest.fixture
+def completed_reading(django_user_model) -> Reading:
+    user = django_user_model.objects.create_user(username="interview-service")
+    book = Book.objects.create(isbn13="9788937834795", title="Interview 서비스")
+    return Reading.objects.create(
+        user=user, book=book, status=Reading.Status.COMPLETED, completed_on=date.today()
+    )
+
+
+def test_start_is_idempotent_snapshots_readiness_and_locks_reading(
+    completed_reading,
+) -> None:
+    BookKnowledge.objects.create(
+        book=completed_reading.book, kind=KnowledgeKind.THEME, content="주제"
+    )
+    created = start_interview(user=completed_reading.user, reading=completed_reading)
+    repeated = start_interview(user=completed_reading.user, reading=completed_reading)
+
+    assert created.created
+    assert created.destination is InterviewDestination.INTERVIEW
+    assert created.interview.knowledge_readiness == Interview.KnowledgeReadiness.READY
+    assert not repeated.created
+    assert repeated.interview.pk == created.interview.pk
+    with pytest.raises(ReadingLockedError):
+        update_completion_date(
+            user=completed_reading.user,
+            reading=completed_reading,
+            completed_on=date.today(),
+        )
+
+
+def test_start_allows_limited_readiness(completed_reading) -> None:
+    result = start_interview(user=completed_reading.user, reading=completed_reading)
+
+    assert (
+        result.interview.knowledge_readiness
+        == Interview.KnowledgeReadiness.READY_LIMITED
+    )
+
+
+def test_start_rejects_unsaved_foreign_owned_and_incomplete_readings(
+    completed_reading, django_user_model
+) -> None:
+    with pytest.raises(InterviewPolicyError):
+        start_interview(user=completed_reading.user, reading=Reading())
+    other_user = django_user_model.objects.create_user(username="other-service")
+    with pytest.raises(InterviewPolicyError):
+        start_interview(user=other_user, reading=completed_reading)
+    completed_reading.status = Reading.Status.READING
+    completed_reading.completed_on = None
+    completed_reading.save()
+    with pytest.raises(InterviewPolicyError):
+        start_interview(user=completed_reading.user, reading=completed_reading)
+
+
+def test_readiness_snapshot_and_destination_validation(completed_reading) -> None:
+    BookKnowledge.objects.create(
+        book=completed_reading.book, kind=KnowledgeKind.THEME, content="주제"
+    )
+    result = start_interview(user=completed_reading.user, reading=completed_reading)
+    BookKnowledge.objects.filter(book=completed_reading.book).delete()
+    result.interview.refresh_from_db()
+
+    assert result.interview.knowledge_readiness == Interview.KnowledgeReadiness.READY
+    result.interview.status = "INVALID"
+    with pytest.raises(InterviewPolicyError):
+        get_interview_destination(result.interview)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_starts_converge_to_one_interview(completed_reading) -> None:
+    barrier = Barrier(2)
+
+    def start_from_separate_connection() -> tuple[int, bool]:
+        close_old_connections()
+        try:
+            barrier.wait()
+            result = start_interview(
+                user=completed_reading.user, reading=completed_reading
+            )
+            return result.interview.pk, result.created
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(
+            executor.map(lambda _: start_from_separate_connection(), range(2))
+        )
+
+    assert len({interview_id for interview_id, _created in results}) == 1
+    assert sorted(created for _interview_id, created in results) == [False, True]
+    assert Interview.objects.filter(reading=completed_reading).count() == 1

@@ -22,8 +22,8 @@ description: "인터뷰 시작 기능 구현을 위한 작업 목록"
 
 **목적**: 신규 `reflections` Django 앱과 URL namespace의 최소 골격을 준비한다.
 
-- [ ] T001 `src/reflections/__init__.py`, `src/reflections/apps.py`, `src/reflections/migrations/__init__.py`에 `reflections` Django 앱 골격을 생성한다.
-- [ ] T002 `src/config/settings.py`에 `reflections.apps.ReflectionsConfig`를 등록하고 `src/config/urls.py`에서 `reflections.urls`를 include한다.
+- [X] T001 `src/reflections/__init__.py`, `src/reflections/apps.py`, `src/reflections/migrations/__init__.py`에 `reflections` Django 앱 골격을 생성한다.
+- [X] T002 `src/config/settings.py`에 `reflections.apps.ReflectionsConfig`를 등록하고 `src/config/urls.py`에서 `reflections.urls`를 include한다.
 
 ---
 
@@ -33,10 +33,10 @@ description: "인터뷰 시작 기능 구현을 위한 작업 목록"
 
 **⚠️ 중요**: 이 단계가 완료될 때까지 사용자 스토리 구현을 시작할 수 없다.
 
-- [ ] T003 [P] `tests/reflections/test_models.py`에 Interview의 Reading 일대일, Book 보호, status/readiness CHECK, 저장 후 Reading/Book 변경 거부·기존 관계 보존·status 변경 허용과 InterviewTurn의 정렬·sequence UNIQUE·양수·비공백 질문·nullable answer 제약 테스트를 작성하고 실패를 확인한다.
-- [ ] T004 [P] `tests/reflections/test_migrations.py`에 신규 두 table만 생성하는 SQL 형태, 중복 Turn FK index 부재, PostgreSQL forward → zero → forward 및 제약 복원 테스트를 작성하고 실패를 확인한다.
-- [ ] T005 `src/reflections/models.py`에 `Interview`와 `InterviewTurn` 모델, choices, ordering, 저장 후 Reading/Book 변경을 거부하는 application validation 및 DB 제약을 구현한다.
-- [ ] T006 `src/reflections/migrations/0001_initial.py`에 books/readings leaf migration을 의존하는 신규 빈 Interview/InterviewTurn table과 FK·CHECK·UNIQUE만 포함한 additive migration을 생성한다.
+- [X] T003 [P] `tests/reflections/test_models.py`에 Interview의 Reading 일대일, Book 보호, status/readiness CHECK, 저장 후 Reading/Book 변경 거부·기존 관계 보존·status 변경 허용과 InterviewTurn의 정렬·sequence UNIQUE·양수·비공백 질문·nullable answer 제약 테스트를 작성하고 실패를 확인한다.
+- [X] T004 [P] `tests/reflections/test_migrations.py`에 신규 두 table만 생성하는 SQL 형태, 중복 Turn FK index 부재, PostgreSQL forward → zero → forward 및 제약 복원 테스트를 작성하고 실패를 확인한다.
+- [X] T005 `src/reflections/models.py`에 `Interview`와 `InterviewTurn` 모델, choices, ordering, 저장 후 Reading/Book 변경을 거부하는 application validation 및 DB 제약을 구현한다.
+- [X] T006 `src/reflections/migrations/0001_initial.py`에 books/readings leaf migration을 의존하는 신규 빈 Interview/InterviewTurn table과 FK·CHECK·UNIQUE만 포함한 additive migration을 생성한다.
 
 **체크포인트**: 저장 계층이 준비되고 새 Interview가 Turn 0개인 상태도 유효하며, 기존 table이나 data는 변경되지 않는다.
 
@@ -50,16 +50,16 @@ description: "인터뷰 시작 기능 구현을 위한 작업 목록"
 
 ### 사용자 스토리 1 테스트
 
-- [ ] T007 [P] [US1] `tests/reflections/test_services.py`에 소유자·저장된 Reading·완독 상태/날짜, 기존 Interview와 잠근 Reading의 Book 일치 검증, IN_PROGRESS 기본 생성, Turn/Credit/Reading 무변경 및 DB 오류 rollback 테스트를 작성하고 실패를 확인한다.
-- [ ] T008 [P] [US1] `tests/reflections/test_views.py`에 로그인, 소유자 404, 확인 GET 무부작용, 확정 POST/CSRF/method 제한, 성공 redirect, retry 가능한 오류와 Turn 0개 상세 화면 계약 테스트를 작성하고 실패를 확인한다.
-- [ ] T009 [P] [US1] `tests/readings/test_services.py`와 `tests/readings/test_views.py`에 실제 Interview 존재 시 완독 취소·완독일 변경 거부와 기존 값 보존 회귀 테스트를 추가하고 실패를 확인한다.
+- [X] T007 [P] [US1] `tests/reflections/test_services.py`에 소유자·저장된 Reading·완독 상태/날짜, 기존 Interview와 잠근 Reading의 Book 일치 검증, IN_PROGRESS 기본 생성, Turn/Credit/Reading 무변경 및 DB 오류 rollback 테스트를 작성하고 실패를 확인한다.
+- [X] T008 [P] [US1] `tests/reflections/test_views.py`에 로그인, 소유자 404, 확인 GET 무부작용, 확정 POST/CSRF/method 제한, 성공 redirect, retry 가능한 오류와 Turn 0개 상세 화면 계약 테스트를 작성하고 실패를 확인한다.
+- [X] T009 [P] [US1] `tests/readings/test_services.py`와 `tests/readings/test_views.py`에 실제 Interview 존재 시 완독 취소·완독일 변경 거부와 기존 값 보존 회귀 테스트를 추가하고 실패를 확인한다.
 
 ### 사용자 스토리 1 구현
 
-- [ ] T010 [US1] `src/reflections/services.py`에 소유자 범위 Reading 잠금, 완독 재검증, Reading Book 확정 및 원자적 IN_PROGRESS Interview 생성을 수행하는 `start_interview`와 정책 오류/result 계약을 구현한다.
-- [ ] T011 [US1] `src/readings/services.py`의 `has_started_interview()`를 실제 Interview 존재 조회로 교체해 상태 변경과 완독일 수정 잠금 seam을 연결한다.
-- [ ] T012 [US1] `src/reflections/urls.py`와 `src/reflections/views.py`에 인증된 확인 GET, CSRF 보호 확정 POST, 소유자 범위 Interview detail GET과 안전한 400/404 오류 처리를 구현한다.
-- [ ] T013 [US1] `src/templates/reflections/interview_start.html`, `src/templates/reflections/interview_detail.html`, `src/templates/readings/_reading_panel.html`에 책 확인 form, 책 재선택 link, 명시적 시작 action, Turn 0개 시작 상태와 Reading CTA 연결을 구현한다.
+- [X] T010 [US1] `src/reflections/services.py`에 소유자 범위 Reading 잠금, 완독 재검증, Reading Book 확정 및 원자적 IN_PROGRESS Interview 생성을 수행하는 `start_interview`와 정책 오류/result 계약을 구현한다.
+- [X] T011 [US1] `src/readings/services.py`의 `has_started_interview()`를 실제 Interview 존재 조회로 교체해 상태 변경과 완독일 수정 잠금 seam을 연결한다.
+- [X] T012 [US1] `src/reflections/urls.py`와 `src/reflections/views.py`에 인증된 확인 GET, CSRF 보호 확정 POST, 소유자 범위 Interview detail GET과 안전한 400/404 오류 처리를 구현한다.
+- [X] T013 [US1] `src/templates/reflections/interview_start.html`, `src/templates/reflections/interview_detail.html`, `src/templates/readings/_reading_panel.html`에 책 확인 form, 책 재선택 link, 명시적 시작 action, Turn 0개 시작 상태와 Reading CTA 연결을 구현한다.
 
 **체크포인트**: 사용자 스토리 1만으로 완독 Reading → 확인 → Interview 생성 → 상세 재접근의 MVP 흐름과 Reading 잠금이 동작한다.
 
@@ -73,12 +73,12 @@ description: "인터뷰 시작 기능 구현을 위한 작업 목록"
 
 ### 사용자 스토리 2 테스트
 
-- [ ] T014 [P] [US2] `tests/reflections/test_views.py`에 Django test client로 표지·제목·저자·출판사·출간일·ISBN13 선택 렌더링, 누락값 비추측, 단일 h1, label, link/button, 변경 불가 텍스트와 `role="alert"` HTML 계약 테스트를 작성하고 실패를 확인한다.
+- [X] T014 [P] [US2] `tests/reflections/test_views.py`에 Django test client로 표지·제목·저자·출판사·출간일·ISBN13 선택 렌더링, 누락값 비추측, 단일 h1, label, link/button, 변경 불가 텍스트와 `role="alert"` HTML 계약 테스트를 작성하고 실패를 확인한다.
 
 ### 사용자 스토리 2 구현
 
-- [ ] T015 [US2] `src/templates/reflections/interview_start.html`에 확보된 서지정보만 표시하는 label 기반 Book section, 변경 불가 텍스트, 실제 link/button, 오류 alert/focus와 일반 POST fallback을 구현한다.
-- [ ] T016 [US2] `src/static/css/app.css`에 확인·상세 화면의 visible focus, Desktop 우선 배치와 375px 무가로-scroll 반응형 스타일을 추가한다.
+- [X] T015 [US2] `src/templates/reflections/interview_start.html`에 확보된 서지정보만 표시하는 label 기반 Book section, 변경 불가 텍스트, 실제 link/button, 오류 alert/focus와 일반 POST fallback을 구현한다.
+- [X] T016 [US2] `src/static/css/app.css`에 확인·상세 화면의 visible focus, Desktop 우선 배치와 375px 무가로-scroll 반응형 스타일을 추가한다.
 
 **체크포인트**: 확인 화면만 열어도 대상 판본과 비가역적 시작 결과를 색상에 의존하지 않고 판단하고 취소 또는 시작할 수 있다.
 
@@ -92,13 +92,13 @@ description: "인터뷰 시작 기능 구현을 위한 작업 목록"
 
 ### 사용자 스토리 3 테스트
 
-- [ ] T017 [P] [US3] `tests/reflections/test_services.py`에 `get_book_knowledge_readiness()`의 READY/READY_LIMITED 결과를 시작 시 저장하고 이후 Knowledge 변화에도 Interview snapshot이 유지되는 테스트를 작성하고 실패를 확인한다.
-- [ ] T018 [P] [US3] `tests/reflections/test_views.py`에 READY_LIMITED에서만 기억에 남은 내용부터 정리한다는 안내가 표시되고 두 readiness 모두 시작 가능한 테스트를 작성하고 실패를 확인한다.
+- [X] T017 [P] [US3] `tests/reflections/test_services.py`에 `get_book_knowledge_readiness()`의 READY/READY_LIMITED 결과를 시작 시 저장하고 이후 Knowledge 변화에도 Interview snapshot이 유지되는 테스트를 작성하고 실패를 확인한다.
+- [X] T018 [P] [US3] `tests/reflections/test_views.py`에 READY_LIMITED에서만 기억에 남은 내용부터 정리한다는 안내가 표시되고 두 readiness 모두 시작 가능한 테스트를 작성하고 실패를 확인한다.
 
 ### 사용자 스토리 3 구현
 
-- [ ] T019 [US3] `src/reflections/services.py`에서 잠근 Reading의 Book으로 `knowledge.services.get_book_knowledge_readiness()`를 계산해 외부 I/O 없이 Interview에 저장하고 두 허용값 외 결과를 거부한다.
-- [ ] T020 [US3] `src/reflections/views.py`, `src/templates/reflections/interview_start.html`, `src/templates/reflections/interview_detail.html`에 readiness 표시 문맥과 READY_LIMITED 전용 기억 중심 안내를 연결한다.
+- [X] T019 [US3] `src/reflections/services.py`에서 잠근 Reading의 Book으로 `knowledge.services.get_book_knowledge_readiness()`를 계산해 외부 I/O 없이 Interview에 저장하고 두 허용값 외 결과를 거부한다.
+- [X] T020 [US3] `src/reflections/views.py`, `src/templates/reflections/interview_start.html`, `src/templates/reflections/interview_detail.html`에 readiness 표시 문맥과 READY_LIMITED 전용 기억 중심 안내를 연결한다.
 
 **체크포인트**: Knowledge가 제한된 책도 차단되지 않으며, 화면 안내와 영속 snapshot이 동일한 시작 조건을 나타낸다.
 
@@ -112,14 +112,14 @@ description: "인터뷰 시작 기능 구현을 위한 작업 목록"
 
 ### 사용자 스토리 4 테스트
 
-- [ ] T021 [P] [US4] `tests/reflections/test_services.py`에 반복 호출 재사용, 별도 DB connection 동시 시작 수렴, OneToOne 경쟁 `IntegrityError`의 조건부 복구, status별 destination과 잘못된 status 거부 테스트를 작성하고 실패를 확인한다.
-- [ ] T022 [P] [US4] `tests/reflections/test_views.py`에 기존 IN_PROGRESS 확인 GET/POST의 동일 detail redirect, 타인 Reading/Interview 동일 404, REFLECTION_READY/COMPLETED의 상태별 409 안내·무변경 및 미구현 Reflection route 미호출 테스트를 작성하고 실패를 확인한다.
+- [X] T021 [P] [US4] `tests/reflections/test_services.py`에 반복 호출 재사용, 별도 DB connection 동시 시작 수렴, OneToOne 경쟁 `IntegrityError`의 조건부 복구, status별 destination과 잘못된 status 거부 테스트를 작성하고 실패를 확인한다.
+- [X] T022 [P] [US4] `tests/reflections/test_views.py`에 기존 IN_PROGRESS 확인 GET/POST의 동일 detail redirect, 타인 Reading/Interview 동일 404, REFLECTION_READY/COMPLETED의 상태별 409 안내·무변경 및 미구현 Reflection route 미호출 테스트를 작성하고 실패를 확인한다.
 
 ### 사용자 스토리 4 구현
 
-- [ ] T023 [US4] `src/reflections/services.py`에 `get_interview_destination()`, 기존 Interview 재사용, Reading OneToOne 경쟁 후 동일 Reading Interview만 복구하는 멱등·동시성 처리를 구현한다.
-- [ ] T024 [US4] `src/reflections/views.py`에서 확인 GET과 확정 POST 모두 기존 Interview의 destination을 사용하고, IN_PROGRESS만 실제 detail로 redirect하며 후속 Reflection 목적지는 존재하지 않는 URL을 reverse하지 않고 내부 상태를 숨긴 상태별 409 안내로 처리한다.
-- [ ] T025 [US4] `tests/readings/test_views.py`에서 Interview가 없는 완독 Reading과 기존 Interview가 있는 Reading의 CTA가 동일한 `reflections:interview_start` GET 경계를 사용하고 CTA 렌더링 자체로 Interview가 생성되지 않는지 검증한다.
+- [X] T023 [US4] `src/reflections/services.py`에 `get_interview_destination()`, 기존 Interview 재사용, Reading OneToOne 경쟁 후 동일 Reading Interview만 복구하는 멱등·동시성 처리를 구현한다.
+- [X] T024 [US4] `src/reflections/views.py`에서 확인 GET과 확정 POST 모두 기존 Interview의 destination을 사용하고, IN_PROGRESS만 실제 detail로 redirect하며 후속 Reflection 목적지는 존재하지 않는 URL을 reverse하지 않고 내부 상태를 숨긴 상태별 409 안내로 처리한다.
+- [X] T025 [US4] `tests/readings/test_views.py`에서 Interview가 없는 완독 Reading과 기존 Interview가 있는 Reading의 CTA가 동일한 `reflections:interview_start` GET 경계를 사용하고 CTA 렌더링 자체로 Interview가 생성되지 않는지 검증한다.
 
 **체크포인트**: Reading당 전체 수명 Interview 한 건, 소유권 비노출 및 현재 단계별 재진입 계약이 보장된다.
 
@@ -129,10 +129,10 @@ description: "인터뷰 시작 기능 구현을 위한 작업 목록"
 
 **목적**: 변경 기록과 전체 기능 검증을 완료한다.
 
-- [ ] T026 [P] `CHANGELOG.md`의 `[Unreleased]`에 Interview/Turn 기반, 확인·시작·멱등 재진입 및 Reading 잠금 기능을 기록한다.
-- [ ] T027 `specs/008-interview-start/quickstart.md`의 정적 검사와 `tests/reflections`, `tests/readings` 명령을 실행해 schema drift, migration SQL/왕복 및 자동 인수 계약을 검증한다.
-- [ ] T028 브라우저 자동화 도구나 자동화 코드를 추가하지 않고 `specs/008-interview-start/quickstart.md`의 Desktop 1280px, Mobile 375px, keyboard/screen reader, metadata 누락, READY/READY_LIMITED 시나리오를 수동 실행해 결과를 확인한다.
-- [ ] T029 `scripts/verify.py`를 실행해 Django check, migration drift, Ruff format/lint와 전체 기본 pytest 품질 게이트를 통과시킨다.
+- [X] T026 [P] `CHANGELOG.md`의 `[Unreleased]`에 Interview/Turn 기반, 확인·시작·멱등 재진입 및 Reading 잠금 기능을 기록한다.
+- [X] T027 `specs/008-interview-start/quickstart.md`의 정적 검사와 `tests/reflections`, `tests/readings` 명령을 실행해 schema drift, migration SQL/왕복 및 자동 인수 계약을 검증한다.
+- [X] T028 브라우저 자동화 도구나 자동화 코드를 추가하지 않고 `specs/008-interview-start/quickstart.md`의 Desktop 1280px, Mobile 375px, keyboard/screen reader, metadata 누락, READY/READY_LIMITED 시나리오를 수동 실행해 결과를 확인한다.
+- [X] T029 `scripts/verify.py`를 실행해 Django check, migration drift, Ruff format/lint와 전체 기본 pytest 품질 게이트를 통과시킨다.
 
 ---
 
@@ -242,3 +242,21 @@ Task T022: tests/reflections/test_views.py에 재진입·소유권 테스트 작
 - p95 500ms 목표는 현재 성능 측정 도구가 없어 이번 완료 게이트에서 측정하지 않으며, 배포 후 tracing에서 실사용 속도 문제가 관찰될 때 별도 최적화 작업으로 다룬다.
 - migration은 신규 빈 table만 다루며 기존 table 변경·backfill·drop을 포함하지 않는다.
 - 각 작업 또는 논리적 그룹 후 커밋할 수 있지만, 커밋은 별도 사용자 요청이 있을 때만 수행한다.
+
+## Phase 8: Convergence
+
+- [X] T030 **CRITICAL** `src/reflections/views.py`와 `src/templates/reflections/interview_start.html`에서 미완독 Reading의 확인 GET이 시작 form 또는 활성 시작 action을 제공하지 않도록 하고, POST 재검증과 무생성 회귀 테스트를 `tests/reflections/test_views.py`에 추가한다. per FR-005, US1/AC1 (contradicts)
+- [X] T031 [P] `tests/reflections/test_models.py`와 신규 `tests/reflections/test_migrations.py`에 Book 보호, status/readiness CHECK, Reading/Book 저장 변경 거부와 기존 관계 보존, Turn ordering·nullable answer·모든 DB 제약, 신규 두 table만 생성하는 SQL, 중복 FK index 부재 및 PostgreSQL forward → zero → forward 복원을 검증한다. per FR-002–004, SC-008 (partial)
+- [X] T032 [P] `tests/reflections/test_services.py`, `tests/readings/test_services.py`, `tests/readings/test_views.py`에 미저장·비소유·미완독 Reading, 유효하지 않은 완독일, 손상된 Book 연결, 예상하지 못한 DB 오류 rollback, Turn/Credit/Reading 무변경과 실제 Interview 기반 완독 취소·완독일 변경 거부를 검증한다. per FR-005, FR-018, FR-021 (partial)
+- [X] T033 `src/reflections/services.py`의 OneToOne 경쟁 복구를 동일 Reading의 실제 unique 경쟁에만 제한하고 `tests/reflections/test_services.py`에 별도 PostgreSQL connection 동시 시작 수렴, 조건부 `IntegrityError` 복구, status별 destination 및 잘못된 status 거부 테스트를 추가한다. per FR-017, SC-004 (partial)
+- [X] T034 `src/reflections/views.py`의 확인 GET·확정 POST·detail GET 모두에서 기존 Interview의 Reading–Book 일치를 검증하고 손상된 연결이나 잘못된 status를 내부 정보 노출 없이 400 또는 409로 처리하는 회귀 테스트를 `tests/reflections/test_views.py`에 추가한다. per FR-011, SC-006 (partial)
+- [X] T035 [P] `src/reflections/views.py`, `src/templates/reflections/interview_start.html`, `src/templates/reflections/interview_detail.html`과 `tests/reflections/test_views.py`에 READY/READY_LIMITED 표시 문맥, 확보된 metadata만의 label 렌더링, 누락값 비추측, 단일 h1, 실제 link/button, method 제한, retry 오류 focus/alert와 Turn 0개 상세 계약을 완성한다. per FR-007, FR-015, T014–T020 (partial)
+- [X] T036 `specs/008-interview-start/quickstart.md`의 1280px Desktop, 375px Mobile, keyboard/screen reader, metadata 누락, READY/READY_LIMITED 시나리오를 브라우저 자동화 없이 수동 실행하고 결과를 확인한다. per FR-020, SC-007 (partial)
+
+## Phase 9: Convergence
+
+- [ ] T037 [P] `tests/reflections/test_models.py`와 `tests/reflections/test_migrations.py`에 Book 삭제 보호, Interview status/readiness DB CHECK, Turn nullable answer와 다중 Turn 정렬을 각각 관찰 가능한 assertion으로 검증하는 회귀 테스트를 추가한다. per FR-002–004, SC-008 (partial)
+- [ ] T038 [P] `tests/reflections/test_services.py`에 Interview 저장 중 예상하지 못한 DB 오류가 발생할 때 Interview·Turn이 남지 않고 Reading·Book·Credit 관련 상태가 변경되지 않으며 재시도 가능한지 검증하는 원자성 회귀 테스트를 추가한다. per FR-018, FR-021–022, SC-006 (partial)
+- [ ] T039 `src/reflections/services.py`의 `IntegrityError` 복구를 동일 Reading의 실제 OneToOne 경쟁으로 생성된 Interview에만 제한하고, 관련 없는 무결성 오류는 재발생시키는 조건부 복구 테스트를 `tests/reflections/test_services.py`에 추가한다. per FR-017, SC-004 (partial)
+- [ ] T040 [P] `tests/reflections/test_views.py`에서 Reading–Book 연결이 손상된 기존 Interview에 대한 확인 GET, 확정 POST와 detail GET이 모두 새 Interview나 변경을 남기지 않고 안전한 오류를 반환하는지 검증한다. per FR-011, SC-006 (partial)
+- [ ] T041 [P] `tests/reflections/test_views.py`에 시작 URL의 GET/POST method 제한, READY 표시 문맥, retry 오류의 alert·focus, Turn 0개 상세 화면 계약을 검증하는 자동 Web 회귀 테스트를 추가한다. per FR-020, SC-007 (partial)

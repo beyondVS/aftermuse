@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "books.apps.BooksConfig",
     "knowledge.apps.KnowledgeConfig",
     "readings.apps.ReadingsConfig",
+    "reflections.apps.ReflectionsConfig",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",

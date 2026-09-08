@@ -41,8 +41,8 @@
         {% if date_form.completed_on.errors %}<div id="{{ date_form.completed_on.id_for_label }}-error" class="reading-error" role="alert" tabindex="-1" data-reading-result autofocus>{{ date_form.completed_on.errors }}</div>{% endif %}
         <button type="submit" class="btn-secondary">완독일 수정</button>
       </form>
-      <button type="button" class="btn-disabled" disabled aria-disabled="true">AI 독서노트 만들기</button>
-      <p>AI 독서노트는 다음 단계에서 사용할 수 있습니다.</p>
+      <a class="btn" href="{% url 'reflections:interview_start' reading.pk %}">AI 독서노트 만들기</a>
+      <p>인터뷰로 생각을 정리할 준비를 시작할 수 있습니다.</p>
       <h3>다시 읽기</h3>
       {% include "readings/_start_form.html" with action_url='readings:reread' source_reading=reading start_form=reread_form button_text='새 Reading 시작' %}
     </section>

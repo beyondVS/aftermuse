@@ -16,6 +16,7 @@ from readings.services import (
     create_rereading,
     update_completion_date,
 )
+from reflections.models import Interview
 
 
 @pytest.fixture
@@ -129,6 +130,35 @@ def test_interview_lock_preserves_completed_reading_when_cancelling(
             reading=completed,
             status=Reading.Status.READING,
             completed_on=None,
+        )
+
+    completed.refresh_from_db()
+    assert completed.status == Reading.Status.COMPLETED
+    assert completed.completed_on == date.today()
+
+
+def test_actual_interview_locks_completion_state_and_date(user, book) -> None:
+    completed = Reading.objects.create(
+        user=user, book=book, status=Reading.Status.COMPLETED, completed_on=date.today()
+    )
+    Interview.objects.create(
+        reading=completed,
+        book=book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+    )
+
+    with pytest.raises(ReadingLockedError):
+        change_reading_state(
+            user=user,
+            reading=completed,
+            status=Reading.Status.READING,
+            completed_on=None,
+        )
+    with pytest.raises(ReadingLockedError):
+        update_completion_date(
+            user=user,
+            reading=completed,
+            completed_on=date.today() - timedelta(days=1),
         )
 
     completed.refresh_from_db()

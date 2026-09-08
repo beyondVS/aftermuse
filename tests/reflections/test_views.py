@@ -1,0 +1,165 @@
+from datetime import date
+
+import pytest
+from django.db import DatabaseError
+from django.test import Client
+from django.urls import reverse
+
+from books.models import Book
+from readings.models import Reading
+from reflections.models import Interview
+
+
+@pytest.fixture
+def reading(django_user_model) -> Reading:
+    user = django_user_model.objects.create_user(username="interview-view")
+    book = Book.objects.create(isbn13="9788937834796", title="Interview 화면")
+    return Reading.objects.create(
+        user=user, book=book, status=Reading.Status.COMPLETED, completed_on=date.today()
+    )
+
+
+def test_confirmation_get_is_side_effect_free_and_post_starts_interview(
+    client, reading
+) -> None:
+    client.force_login(reading.user)
+    start_url = reverse("reflections:interview_start", args=[reading.pk])
+
+    response = client.get(start_url)
+    created = client.post(reverse("reflections:interview_create", args=[reading.pk]))
+
+    assert response.status_code == 200
+    assert (
+        "인터뷰를 시작하면 다른 책으로 변경할 수 없습니다." in response.content.decode()
+    )
+    assert Interview.objects.count() == 1
+    assert created.status_code == 302
+    assert created.url == reverse(
+        "reflections:interview_detail", args=[Interview.objects.get().pk]
+    )
+
+
+def test_owner_and_csrf_boundaries_and_existing_status(
+    client, reading, django_user_model
+) -> None:
+    other = django_user_model.objects.create_user(username="interview-other")
+    client.force_login(other)
+    assert (
+        client.get(
+            reverse("reflections:interview_start", args=[reading.pk])
+        ).status_code
+        == 404
+    )
+    csrf_client = Client(enforce_csrf_checks=True)
+    csrf_client.force_login(reading.user)
+    assert (
+        csrf_client.post(
+            reverse("reflections:interview_create", args=[reading.pk])
+        ).status_code
+        == 403
+    )
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+        status=Interview.Status.COMPLETED,
+    )
+    client.force_login(reading.user)
+    unavailable = client.get(reverse("reflections:interview_start", args=[reading.pk]))
+    assert unavailable.status_code == 409
+    assert interview.pk == Interview.objects.get(reading=reading).pk
+
+
+def test_non_completed_reading_has_no_start_action_or_created_interview(
+    client, reading
+) -> None:
+    reading.status = Reading.Status.READING
+    reading.completed_on = None
+    reading.save()
+    client.force_login(reading.user)
+    start_url = reverse("reflections:interview_start", args=[reading.pk])
+
+    response = client.get(start_url)
+    created = client.post(reverse("reflections:interview_create", args=[reading.pk]))
+
+    assert response.status_code == 400
+    assert "인터뷰 시작</button>" not in response.content.decode()
+    assert created.status_code == 400
+    assert Interview.objects.filter(reading=reading).count() == 0
+
+
+def test_start_page_renders_only_available_metadata_and_accessible_actions(
+    client, reading
+) -> None:
+    reading.book.authors = "저자"
+    reading.book.publisher = "출판사"
+    reading.book.save()
+    client.force_login(reading.user)
+
+    content = client.get(
+        reverse("reflections:interview_start", args=[reading.pk])
+    ).content.decode()
+
+    assert content.count("<h1") == 1
+    assert "<dt>제목</dt>" in content
+    assert "<dt>저자</dt>" in content
+    assert "<dt>출판사</dt>" in content
+    assert "<dt>출간일</dt>" not in content
+    assert "<dt>ISBN13</dt>" in content
+    assert 'href="/books/search/"' in content
+    assert "인터뷰 시작</button>" in content
+
+
+def test_limited_guidance_and_retry_error_are_exposed_safely(
+    client, reading, monkeypatch
+) -> None:
+    client.force_login(reading.user)
+    start_url = reverse("reflections:interview_start", args=[reading.pk])
+    assert "기억에 남은 내용부터 정리" in client.get(start_url).content.decode()
+    monkeypatch.setattr(
+        "reflections.views.start_interview",
+        lambda **kwargs: (_ for _ in ()).throw(DatabaseError()),
+    )
+
+    response = client.post(reverse("reflections:interview_create", args=[reading.pk]))
+
+    assert response.status_code == 400
+    assert 'role="alert"' in response.content.decode()
+    assert "잠시 후 다시 시도해 주세요." in response.content.decode()
+
+
+@pytest.mark.parametrize(
+    "status",
+    [Interview.Status.REFLECTION_READY, Interview.Status.COMPLETED],
+)
+def test_existing_non_interview_status_is_a_safe_unavailable_response(
+    client, reading, status
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=status,
+    )
+    client.force_login(reading.user)
+
+    response = client.get(reverse("reflections:interview_detail", args=[interview.pk]))
+
+    assert response.status_code == 409
+    assert "아직 사용할 수 없습니다" in response.content.decode()
+
+
+def test_corrupted_interview_relationship_is_not_routed(client, reading) -> None:
+    other_book = Book.objects.create(isbn13="9788937834797", title="손상된 연결")
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+    )
+    Interview.objects.filter(pk=interview.pk).update(book=other_book)
+    client.force_login(reading.user)
+
+    response = client.get(reverse("reflections:interview_detail", args=[interview.pk]))
+
+    assert response.status_code == 400
+    assert "인터뷰 정보" in response.content.decode()
