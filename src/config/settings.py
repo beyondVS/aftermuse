@@ -30,6 +30,7 @@ KAKAO_REST_API_KEY = env("KAKAO_REST_API_KEY", default="")
 INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",
     "books.apps.BooksConfig",
+    "knowledge.apps.KnowledgeConfig",
     "readings.apps.ReadingsConfig",
     "django.contrib.admin",
     "django.contrib.auth",

@@ -31,6 +31,9 @@
 - 사용자·Book별 Reading 모델, 상태/완독일 CHECK와 활성 Reading 조건부 unique 제약
 - 명시적 Reading 시작·재독·상태/완독일 변경 Service와 소유자 전용 상세 화면
 - Book 선택 성공 시 Reading 진입으로 연결하는 일반 redirect와 HTMX `HX-Redirect`
+- Book별 Claim을 저장·조회하는 `knowledge` 도메인과 PostgreSQL 제약 migration
+- 승인된 2권·8개 Claim의 멱등 수동 Seed command와 전체 rollback 검증
+- Claim 존재 여부에서 파생하는 `READY` / `READY_LIMITED` Book 준비 상태
 
 ### Changed
 

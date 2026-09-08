@@ -41,7 +41,8 @@
 ```text
 완료: IMP-021, IMP-022
 완료: IMP-030, IMP-031, IMP-032, IMP-033
-다음: IMP-040
+완료: IMP-040, IMP-041, IMP-042
+다음: IMP-050
 Blocker: 없음
 ```
 
@@ -218,18 +219,18 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 #### Bundle 05A — 최소 Book Knowledge
 
-- [ ] **IMP-040 — BookKnowledge 최소 저장 구조 구현**
+- [x] **IMP-040 — BookKnowledge 최소 저장 구조 구현**
   - **선행 작업:** IMP-020
   - 2주 Core MVP에 필요한 최소 Claim 기반 BookKnowledge를 저장할 수 있게 한다.
   - Source/Evidence/Conflict 전체 운영 모델은 뒤로 미룬다.
   - **완료 조건:** 특정 Book에 수동 Seed Knowledge를 등록하고 조회할 수 있다.
 
-- [ ] **IMP-041 — 수동 Seed Knowledge Fixture 작성**
+- [x] **IMP-041 — 수동 Seed Knowledge Fixture 작성**
   - **선행 작업:** IMP-040
   - 검증용 유명 도서 2~3권에 대해 수동 BookKnowledge Seed를 작성한다.
   - **완료 조건:** Seed를 로드하면 Interview Context에 사용할 수 있다.
 
-- [ ] **IMP-042 — READY / READY_LIMITED 최소 판정 구현**
+- [x] **IMP-042 — READY / READY_LIMITED 최소 판정 구현**
   - **선행 작업:** IMP-040, IMP-041
   - Seed Knowledge가 있으면 READY, 없으면 READY_LIMITED로 단순 판정한다.
   - 자동 Research는 구현하지 않는다.

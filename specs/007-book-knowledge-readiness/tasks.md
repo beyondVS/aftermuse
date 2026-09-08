@@ -23,7 +23,7 @@ Ruff, `scripts/verify.py`를 포함한다.
 
 **목적**: 새 Knowledge 도메인을 Django 프로젝트에 인식시킬 최소 구조를 준비한다.
 
-- [ ] T001 `src/knowledge/__init__.py`, `src/knowledge/apps.py`, `src/knowledge/migrations/__init__.py`를 만들고 `src/config/settings.py`의 `INSTALLED_APPS`에 `knowledge.apps.KnowledgeConfig`를 등록한다.
+- [X] T001 `src/knowledge/__init__.py`, `src/knowledge/apps.py`, `src/knowledge/migrations/__init__.py`를 만들고 `src/config/settings.py`의 `INSTALLED_APPS`에 `knowledge.apps.KnowledgeConfig`를 등록한다.
 
 ---
 
@@ -31,8 +31,8 @@ Ruff, `scripts/verify.py`를 포함한다.
 
 **목적**: 테스트와 management command의 Python package 경계를 준비한다.
 
-- [ ] T002 `tests/knowledge/__init__.py`를 만들어 Knowledge 도메인 테스트 package를 준비한다.
-- [ ] T003 `src/knowledge/management/__init__.py`, `src/knowledge/management/commands/__init__.py`를 만들어 전용 Seed command package를 준비한다.
+- [X] T002 `tests/knowledge/__init__.py`를 만들어 Knowledge 도메인 테스트 package를 준비한다.
+- [X] T003 `src/knowledge/management/__init__.py`, `src/knowledge/management/commands/__init__.py`를 만들어 전용 Seed command package를 준비한다.
 
 **체크포인트**: Knowledge 테스트와 command 구현을 추가할 package 경계가 준비된다.
 
@@ -48,16 +48,16 @@ Ruff, `scripts/verify.py`를 포함한다.
 
 ### 사용자 스토리 1 테스트
 
-- [ ] T004 [P] [US1] `tests/knowledge/test_models.py`에 `BookKnowledge`의 5개 kind, Book FK, content 길이·공백 검증, 동일 Book·kind·content UNIQUE, Book 간 동일 Claim 허용을 검증하는 모델·DB 제약 테스트를 작성한다.
-- [ ] T005 [P] [US1] `tests/knowledge/test_services.py`에 `create_book_knowledge()`의 trim·validation·멱등 결과·동시 중복 방지와 `list_book_knowledge()`의 Book 격리·`kind`, `id` 정렬·단일 query 계약을 검증하는 Service 테스트를 작성한다.
-- [ ] T006 [P] [US1] `tests/knowledge/test_migrations.py`에 `knowledge.0001_initial`의 forward/reverse/forward 왕복, FK·kind/content CHECK·UNIQUE 복원과 `sqlmigrate` DDL이 기존 table 변경 없이 새 table만 생성함을 검증하는 migration 테스트를 작성한다.
+- [X] T004 [P] [US1] `tests/knowledge/test_models.py`에 `BookKnowledge`의 5개 kind, Book FK, content 길이·공백 검증, 동일 Book·kind·content UNIQUE, Book 간 동일 Claim 허용을 검증하는 모델·DB 제약 테스트를 작성한다.
+- [X] T005 [P] [US1] `tests/knowledge/test_services.py`에 `create_book_knowledge()`의 trim·validation·멱등 결과·동시 중복 방지와 `list_book_knowledge()`의 Book 격리·`kind`, `id` 정렬·단일 query 계약을 검증하는 Service 테스트를 작성한다.
+- [X] T006 [P] [US1] `tests/knowledge/test_migrations.py`에 `knowledge.0001_initial`의 forward/reverse/forward 왕복, FK·kind/content CHECK·UNIQUE 복원과 `sqlmigrate` DDL이 기존 table 변경 없이 새 table만 생성함을 검증하는 migration 테스트를 작성한다.
 
 ### 사용자 스토리 1 구현
 
-- [ ] T007 [US1] `src/knowledge/models.py`에 `KnowledgeKind`, 앞뒤 공백 제거 후 1~500자 Claim validation, Book FK, kind/non-whitespace CHECK와 `(book, kind, content)` UNIQUE를 구현하되 내부 공백과 대소문자는 보존한다.
-- [ ] T008 [US1] `src/knowledge/migrations/0001_initial.py`를 생성해 `books` leaf migration에 의존하는 신규 빈 `knowledge_bookknowledge` table, FK, CHECK, UNIQUE를 추가한다.
-- [ ] T009 [US1] `src/knowledge/services.py`에 `create_book_knowledge()`와 결과 객체, `list_book_knowledge()`를 구현해 정규화·검증·짧은 transaction·동시 `IntegrityError` 복구·결정적 조회를 보장한다.
-- [ ] T010 [US1] `tests/knowledge/test_models.py`, `tests/knowledge/test_services.py`, `tests/knowledge/test_migrations.py`의 US1 시나리오를 실행하고 실패 원인을 구현 계약에 맞춰 수정한다.
+- [X] T007 [US1] `src/knowledge/models.py`에 `KnowledgeKind`, 앞뒤 공백 제거 후 1~500자 Claim validation, Book FK, kind/non-whitespace CHECK와 `(book, kind, content)` UNIQUE를 구현하되 내부 공백과 대소문자는 보존한다.
+- [X] T008 [US1] `src/knowledge/migrations/0001_initial.py`를 생성해 `books` leaf migration에 의존하는 신규 빈 `knowledge_bookknowledge` table, FK, CHECK, UNIQUE를 추가한다.
+- [X] T009 [US1] `src/knowledge/services.py`에 `create_book_knowledge()`와 결과 객체, `list_book_knowledge()`를 구현해 정규화·검증·짧은 transaction·동시 `IntegrityError` 복구·결정적 조회를 보장한다.
+- [X] T010 [US1] `tests/knowledge/test_models.py`, `tests/knowledge/test_services.py`, `tests/knowledge/test_migrations.py`의 US1 시나리오를 실행하고 실패 원인을 구현 계약에 맞춰 수정한다.
 
 **체크포인트**: US1이 Claim 등록과 Book별 조회를 단독으로 제공하며, DB와 Service 양쪽에서
 중복·잘못된 입력을 막는다.
@@ -75,12 +75,12 @@ Ruff, `scripts/verify.py`를 포함한다.
 
 ### 사용자 스토리 2 테스트
 
-- [ ] T011 [P] [US2] `tests/knowledge/test_seed_command.py`에 `seed_book_knowledge` command의 2권·각 3~5 Claim 적용, 세 번 반복 실행 멱등성, ISBN13 연결, Service 호출 경계, 누락 Book·invalid kind·invalid content 시 전체 rollback과 Book 자동 생성 0건을 검증하는 테스트를 작성한다.
+- [X] T011 [P] [US2] `tests/knowledge/test_seed_command.py`에 `seed_book_knowledge` command의 2권·각 3~5 Claim 적용, 세 번 반복 실행 멱등성, ISBN13 연결, Service 호출 경계, 누락 Book·invalid kind·invalid content 시 전체 rollback과 Book 자동 생성 0건을 검증하는 테스트를 작성한다.
 
 ### 사용자 스토리 2 구현
 
-- [ ] T012 [P] [US2] `specs/007-book-knowledge-readiness/checklists/seed-knowledge.md`에 Claim별 ISBN13·kind·최종 content·공식 출처 URL·지지 여부를 기록하고 모두 승인한 뒤, 승인된 도서별 3~5개 Claim을 `src/knowledge/seed_data/book_knowledge.json`에 작성한다.
-- [ ] T013 [US2] `src/knowledge/services.py`에 전체 Book·Claim 선검증과 단일 transaction 멱등 저장을 수행하는 `seed_book_knowledge()`를 구현하고 `src/knowledge/management/commands/seed_book_knowledge.py`에는 JSON 해석·Service 호출·결과 보고만 구현한 뒤 `tests/knowledge/test_seed_command.py`를 통과시킨다.
+- [X] T012 [P] [US2] `specs/007-book-knowledge-readiness/checklists/seed-knowledge.md`에 Claim별 ISBN13·kind·최종 content·공식 출처 URL·지지 여부를 기록하고 모두 승인한 뒤, 승인된 도서별 3~5개 Claim을 `src/knowledge/seed_data/book_knowledge.json`에 작성한다.
+- [X] T013 [US2] `src/knowledge/services.py`에 전체 Book·Claim 선검증과 단일 transaction 멱등 저장을 수행하는 `seed_book_knowledge()`를 구현하고 `src/knowledge/management/commands/seed_book_knowledge.py`에는 JSON 해석·Service 호출·결과 보고만 구현한 뒤 `tests/knowledge/test_seed_command.py`를 통과시킨다.
 
 **체크포인트**: US2가 Book을 만들지 않으면서도 두 existing Book의 Context용 Claim을
 일관되게 재현하고, 실패 시 부분 데이터를 남기지 않는다.
@@ -97,12 +97,12 @@ Ruff, `scripts/verify.py`를 포함한다.
 
 ### 사용자 스토리 3 테스트
 
-- [ ] T014 [P] [US3] `tests/knowledge/test_services.py`에 `get_book_knowledge_readiness()`의 Claim 존재/부재 `READY`·`READY_LIMITED`, Book별 독립성, 단일 존재 query, 영속 상태 변경 없음 테스트를 추가한다.
+- [X] T014 [P] [US3] `tests/knowledge/test_services.py`에 `get_book_knowledge_readiness()`의 Claim 존재/부재 `READY`·`READY_LIMITED`, Book별 독립성, 단일 존재 query, 영속 상태 변경 없음 테스트를 추가한다.
 
 ### 사용자 스토리 3 구현
 
-- [ ] T015 [P] [US3] `src/knowledge/services.py`에 `BookKnowledgeReadiness` enum과 Claim 존재 여부만으로 값을 파생하는 `get_book_knowledge_readiness()`를 구현한다.
-- [ ] T016 [US3] `tests/knowledge/test_services.py`의 US3 시나리오를 실행해 `READY_LIMITED`가 오류·차단 상태를 만들지 않는지 검증한다.
+- [X] T015 [P] [US3] `src/knowledge/services.py`에 `BookKnowledgeReadiness` enum과 Claim 존재 여부만으로 값을 파생하는 `get_book_knowledge_readiness()`를 구현한다.
+- [X] T016 [US3] `tests/knowledge/test_services.py`의 US3 시나리오를 실행해 `READY_LIMITED`가 오류·차단 상태를 만들지 않는지 검증한다.
 
 **체크포인트**: US3은 별도 status table·column 없이 Book 단위의 안전한 후속 Interview
 정책 신호를 제공한다.
@@ -113,9 +113,9 @@ Ruff, `scripts/verify.py`를 포함한다.
 
 **목적**: 실제 schema, quickstart와 전체 품질 게이트가 계획·명세와 일치하는지 확인한다.
 
-- [ ] T017 `specs/007-book-knowledge-readiness/quickstart.md`의 명령대로 `uv run python src/manage.py check`, `uv run python src/manage.py makemigrations --check --dry-run`, `uv run python src/manage.py sqlmigrate knowledge 0001`, Seed command 반복 실행·상태 확인을 실행하고 실제 결과와 어긋나는 검증 안내만 수술적으로 갱신한다.
-- [ ] T018 `scripts/verify.py`와 관련 `tests/knowledge/`를 실행해 Django check, Ruff format/lint, PostgreSQL pytest를 통과시키고 실패를 수정한다.
-- [ ] T019 T017과 T018이 통과한 뒤 `CHANGELOG.md`의 `[Unreleased]`에 Bundle 05A를 기록하고 `docs/AfterMuse_MVP_Implementation_Plan_v5.md`의 IMP-040~IMP-042를 완료 처리한다.
+- [X] T017 `specs/007-book-knowledge-readiness/quickstart.md`의 명령대로 `uv run python src/manage.py check`, `uv run python src/manage.py makemigrations --check --dry-run`, `uv run python src/manage.py sqlmigrate knowledge 0001`, Seed command 반복 실행·상태 확인을 실행하고 실제 결과와 어긋나는 검증 안내만 수술적으로 갱신한다.
+- [X] T018 `scripts/verify.py`와 관련 `tests/knowledge/`를 실행해 Django check, Ruff format/lint, PostgreSQL pytest를 통과시키고 실패를 수정한다.
+- [X] T019 T017과 T018이 통과한 뒤 `CHANGELOG.md`의 `[Unreleased]`에 Bundle 05A를 기록하고 `docs/AfterMuse_MVP_Implementation_Plan_v5.md`의 IMP-040~IMP-042를 완료 처리한다.
 
 ---
 
