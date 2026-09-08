@@ -238,12 +238,12 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 #### Bundle 05B — 인터뷰 시작
 
-- [ ] **IMP-050 — Interview / Turn 기본 모델 구현**
+- [x] **IMP-050 — Interview / Turn 기본 모델 구현**
   - **선행 작업:** IMP-030, IMP-042
   - Interview와 질문/답변 Turn을 저장할 수 있게 한다.
   - **완료 조건:** Reading에 Interview를 생성하고 Turn을 저장할 수 있다.
 
-- [ ] **IMP-051 — Interview 시작 화면과 책 확정 UX 구현**
+- [x] **IMP-051 — Interview 시작 화면과 책 확정 UX 구현**
   - **선행 작업:** IMP-033, IMP-050
   - 인터뷰 시작 전 책을 확인하고 시작 후 책 변경 불가를 안내한다.
   - 2주 Core MVP에서는 Credit 예약을 하지 않는다.
