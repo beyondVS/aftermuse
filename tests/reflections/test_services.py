@@ -3,13 +3,13 @@ from datetime import date
 from threading import Barrier
 
 import pytest
-from django.db import close_old_connections
+from django.db import IntegrityError, close_old_connections
 
 from books.models import Book
 from knowledge.models import BookKnowledge, KnowledgeKind
 from readings.models import Reading
 from readings.services import ReadingLockedError, update_completion_date
-from reflections.models import Interview
+from reflections.models import Interview, InterviewTurn
 from reflections.services import (
     InterviewDestination,
     InterviewPolicyError,
@@ -110,3 +110,46 @@ def test_concurrent_starts_converge_to_one_interview(completed_reading) -> None:
     assert len({interview_id for interview_id, _created in results}) == 1
     assert sorted(created for _interview_id, created in results) == [False, True]
     assert Interview.objects.filter(reading=completed_reading).count() == 1
+
+
+def test_unexpected_database_error_rolls_back_and_a_retry_can_start(
+    completed_reading, monkeypatch
+) -> None:
+    original_save = Interview.save
+    original_book_id = completed_reading.book_id
+
+    def fail_insert(self, *args, **kwargs) -> None:
+        raise IntegrityError("unexpected database failure")
+
+    monkeypatch.setattr(Interview, "save", fail_insert)
+    with pytest.raises(IntegrityError):
+        start_interview(user=completed_reading.user, reading=completed_reading)
+
+    completed_reading.refresh_from_db()
+    assert Interview.objects.filter(reading=completed_reading).count() == 0
+    assert InterviewTurn.objects.count() == 0
+    assert completed_reading.book_id == original_book_id
+    monkeypatch.setattr(Interview, "save", original_save)
+
+    retried = start_interview(user=completed_reading.user, reading=completed_reading)
+
+    assert retried.created
+    assert Interview.objects.filter(reading=completed_reading).count() == 1
+
+
+def test_only_reading_one_to_one_conflicts_are_recoverable() -> None:
+    class Diagnostics:
+        constraint_name = "another_constraint"
+
+    class DatabaseCause(Exception):
+        diag = Diagnostics()
+
+    error = IntegrityError()
+    error.__cause__ = DatabaseCause()
+
+    from reflections.services import _is_reading_one_to_one_conflict
+
+    assert not _is_reading_one_to_one_conflict(error)
+
+    Diagnostics.constraint_name = "reflections_interview_reading_id_key"
+    assert _is_reading_one_to_one_conflict(error)

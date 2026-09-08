@@ -255,8 +255,12 @@ Task T022: tests/reflections/test_views.py에 재진입·소유권 테스트 작
 
 ## Phase 9: Convergence
 
-- [ ] T037 [P] `tests/reflections/test_models.py`와 `tests/reflections/test_migrations.py`에 Book 삭제 보호, Interview status/readiness DB CHECK, Turn nullable answer와 다중 Turn 정렬을 각각 관찰 가능한 assertion으로 검증하는 회귀 테스트를 추가한다. per FR-002–004, SC-008 (partial)
-- [ ] T038 [P] `tests/reflections/test_services.py`에 Interview 저장 중 예상하지 못한 DB 오류가 발생할 때 Interview·Turn이 남지 않고 Reading·Book·Credit 관련 상태가 변경되지 않으며 재시도 가능한지 검증하는 원자성 회귀 테스트를 추가한다. per FR-018, FR-021–022, SC-006 (partial)
-- [ ] T039 `src/reflections/services.py`의 `IntegrityError` 복구를 동일 Reading의 실제 OneToOne 경쟁으로 생성된 Interview에만 제한하고, 관련 없는 무결성 오류는 재발생시키는 조건부 복구 테스트를 `tests/reflections/test_services.py`에 추가한다. per FR-017, SC-004 (partial)
-- [ ] T040 [P] `tests/reflections/test_views.py`에서 Reading–Book 연결이 손상된 기존 Interview에 대한 확인 GET, 확정 POST와 detail GET이 모두 새 Interview나 변경을 남기지 않고 안전한 오류를 반환하는지 검증한다. per FR-011, SC-006 (partial)
-- [ ] T041 [P] `tests/reflections/test_views.py`에 시작 URL의 GET/POST method 제한, READY 표시 문맥, retry 오류의 alert·focus, Turn 0개 상세 화면 계약을 검증하는 자동 Web 회귀 테스트를 추가한다. per FR-020, SC-007 (partial)
+- [X] T037 [P] `tests/reflections/test_models.py`와 `tests/reflections/test_migrations.py`에 Book 삭제 보호, Interview status/readiness DB CHECK, Turn nullable answer와 다중 Turn 정렬을 각각 관찰 가능한 assertion으로 검증하는 회귀 테스트를 추가한다. per FR-002–004, SC-008 (partial)
+- [X] T038 [P] `tests/reflections/test_services.py`에 Interview 저장 중 예상하지 못한 DB 오류가 발생할 때 Interview·Turn이 남지 않고 Reading·Book·Credit 관련 상태가 변경되지 않으며 재시도 가능한지 검증하는 원자성 회귀 테스트를 추가한다. per FR-018, FR-021–022, SC-006 (partial)
+- [X] T039 `src/reflections/services.py`의 `IntegrityError` 복구를 동일 Reading의 실제 OneToOne 경쟁으로 생성된 Interview에만 제한하고, 관련 없는 무결성 오류는 재발생시키는 조건부 복구 테스트를 `tests/reflections/test_services.py`에 추가한다. per FR-017, SC-004 (partial)
+- [X] T040 [P] `tests/reflections/test_views.py`에서 Reading–Book 연결이 손상된 기존 Interview에 대한 확인 GET, 확정 POST와 detail GET이 모두 새 Interview나 변경을 남기지 않고 안전한 오류를 반환하는지 검증한다. per FR-011, SC-006 (partial)
+- [X] T041 [P] `tests/reflections/test_views.py`에 시작 URL의 GET/POST method 제한, READY 표시 문맥, retry 오류의 alert·focus, Turn 0개 상세 화면 계약을 검증하는 자동 Web 회귀 테스트를 추가한다. per FR-020, SC-007 (partial)
+
+## Phase 10: Convergence
+
+- [X] T042 **CRITICAL** `tests/test_settings.py`의 격리 프로젝트 fixture에 현재 `INSTALLED_APPS`가 요구하는 `src/knowledge`와 `src/reflections`를 포함하고 `uv run python scripts/verify.py` 전체 품질 게이트를 재통과시킨다. per Constitution V, T029 (partial)

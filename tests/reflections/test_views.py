@@ -125,6 +125,7 @@ def test_limited_guidance_and_retry_error_are_exposed_safely(
 
     assert response.status_code == 400
     assert 'role="alert"' in response.content.decode()
+    assert 'tabindex="-1" autofocus' in response.content.decode()
     assert "잠시 후 다시 시도해 주세요." in response.content.decode()
 
 
@@ -163,3 +164,48 @@ def test_corrupted_interview_relationship_is_not_routed(client, reading) -> None
 
     assert response.status_code == 400
     assert "인터뷰 정보" in response.content.decode()
+
+
+def test_corrupted_interview_cannot_be_reentered_or_changed(client, reading) -> None:
+    other_book = Book.objects.create(isbn13="9788937834798", title="손상된 시작 연결")
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+    )
+    Interview.objects.filter(pk=interview.pk).update(book=other_book)
+    client.force_login(reading.user)
+
+    start_url = reverse("reflections:interview_start", args=[reading.pk])
+    get_response = client.get(start_url)
+    post_response = client.post(
+        reverse("reflections:interview_create", args=[reading.pk])
+    )
+    detail_response = client.get(
+        reverse("reflections:interview_detail", args=[interview.pk])
+    )
+
+    assert [
+        response.status_code
+        for response in (get_response, post_response, detail_response)
+    ] == [400, 400, 400]
+    assert Interview.objects.filter(reading=reading).count() == 1
+    assert Interview.objects.get(pk=interview.pk).book_id == other_book.pk
+
+
+def test_start_and_detail_method_and_html_contracts(client, reading) -> None:
+    client.force_login(reading.user)
+    start_url = reverse("reflections:interview_start", args=[reading.pk])
+    create_url = reverse("reflections:interview_create", args=[reading.pk])
+
+    start_response = client.get(start_url)
+    created = client.post(create_url)
+    detail_response = client.get(created.url)
+
+    assert client.post(start_url).status_code == 405
+    assert client.get(create_url).status_code == 405
+    assert "준비 수준: READY_LIMITED" in start_response.content.decode()
+    assert 'role="alert"' not in start_response.content.decode()
+    assert created.status_code == 302
+    assert "첫 질문을 준비하고 있어요." in detail_response.content.decode()
+    assert Interview.objects.get(reading=reading).turns.count() == 0

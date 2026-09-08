@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import ProtectedError
 
 from books.models import Book
 from readings.models import Reading
@@ -46,3 +47,26 @@ def test_turn_orders_and_rejects_invalid_sequences_or_questions(interview) -> No
         InterviewTurn.objects.create(interview=interview, sequence=1, question="중복")
     with pytest.raises(ValidationError):
         InterviewTurn(interview=interview, sequence=0, question=" ").full_clean()
+
+
+def test_interview_database_constraints_and_book_protection(interview) -> None:
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Interview.objects.filter(pk=interview.pk).update(status="INVALID")
+    with pytest.raises(IntegrityError), transaction.atomic():
+        Interview.objects.filter(pk=interview.pk).update(knowledge_readiness="INVALID")
+    with pytest.raises(ProtectedError):
+        interview.book.delete()
+
+
+def test_turn_preserves_nullable_answers_and_sequence_order(interview) -> None:
+    later = InterviewTurn.objects.create(
+        interview=interview, sequence=2, question="두 번째 질문", answer=None
+    )
+    first = InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="첫 번째 질문", answer="답변"
+    )
+
+    turns = list(interview.turns.all())
+
+    assert [turn.pk for turn in turns] == [first.pk, later.pk]
+    assert later.answer is None

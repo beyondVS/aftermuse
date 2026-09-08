@@ -7,6 +7,8 @@ from knowledge.services import BookKnowledgeReadiness, get_book_knowledge_readin
 from readings.models import Reading
 from reflections.models import Interview
 
+_READING_UNIQUE_CONSTRAINT = "reflections_interview_reading_id_key"
+
 
 class InterviewDestination(StrEnum):
     """Interview 상태에서 사용자가 이어갈 수 있는 다음 단계다."""
@@ -89,6 +91,8 @@ def start_interview(*, user, reading: Reading) -> InterviewStartResult:
                 interview, created=True, destination=InterviewDestination.INTERVIEW
             )
     except IntegrityError as error:
+        if not _is_reading_one_to_one_conflict(error):
+            raise
         existing = (
             Interview.objects.select_related("book")
             .filter(reading_id=reading.pk)
@@ -105,3 +109,10 @@ def start_interview(*, user, reading: Reading) -> InterviewStartResult:
 def _validate_existing_interview(interview: Interview, reading: Reading) -> None:
     if interview.book_id != reading.book_id:
         raise InterviewPolicyError()
+
+
+def _is_reading_one_to_one_conflict(error: IntegrityError) -> bool:
+    """같은 Reading의 Interview 유일성 충돌만 멱등 재시도로 처리한다."""
+    cause = error.__cause__
+    diagnostics = getattr(cause, "diag", None)
+    return getattr(diagnostics, "constraint_name", None) == _READING_UNIQUE_CONSTRAINT

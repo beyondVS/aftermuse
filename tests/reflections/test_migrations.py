@@ -17,6 +17,10 @@ def test_initial_migration_is_additive_and_has_no_turn_fk_index() -> None:
     assert 'CREATE TABLE "REFLECTIONS_INTERVIEWTURN"' in sql
     assert "CHECK" in sql
     assert "UNIQUE" in sql
+    assert "REFLECTIONS_INTERVIEW_READINESS_VALID" in sql
+    assert "REFLECTIONS_INTERVIEW_STATUS_VALID" in sql
+    assert "REFLECTIONS_TURN_SEQUENCE_POSITIVE" in sql
+    assert "REFLECTIONS_TURN_INTERVIEW_SEQUENCE_UNIQ" in sql
     assert 'ALTER TABLE "BOOKS_BOOK"' not in sql
     assert 'ALTER TABLE "READINGS_READING"' not in sql
     assert 'CREATE INDEX "REFLECTIONS_INTERVIEWTURN_INTERVIEW_ID' not in sql
