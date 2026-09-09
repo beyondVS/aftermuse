@@ -6,14 +6,23 @@
 
 ## 🎨 1. UI/UX 디자인 및 디벨롭먼트 표준
 
-- **시각적 우수성 (Rich Aesthetics)**: 단순한 최소 기능 구현에 그치지 않고 현대적이고 감각적인 UI 스타일링(조화로운 컬러 팔레트, 현대적 서체, Glassmorphism, 부드러운 트랜지션 및 Hover 효과)을 적용하십시오.
-- **모던 CSS/Styling**: 픽셀 하드코딩 대신 HSL tailored 색상 모듈 및 Vanilla CSS/TailwindCSS 디자인 토큰을 활용하고, 브라우저 기본 폰트 대신 Google Fonts 등 현대적 폰트를 활용하십시오.
+- **디자인 결정 우선순위 (Design Precedence)**:
+  UI/UX 디자인 및 스타일링 결정은 다음 순서를 준수합니다.
+  사용자 명시 요구 → 소비 프로젝트의 디자인 시스템/토큰/설정 → 기존 제품의 일관된 시각적 관례 → 프레임워크/아키텍처 지침 → 템플릿 기본값.
+- **시각적 일관성 및 과잉 스타일링 방지**:
+  기존 제품과의 시각적 일관성, 사용성 및 접근성(A11y)을 최우선으로 보호합니다.
+  별도 디자인 개선 지시가 없는 일반 기능 구현이나 버그 수정에서 Glassmorphism, 임의의 micro-animation, 불필요한 hover/transition 등 특정 미적 취향이나 효과를 자의적으로 추가하지 마십시오.
+  사용자가 감각적인 UI나 디자인 고도화를 명시적으로 요청한 경우에 한해 요구 수준에 맞는 시각적 품질을 제공합니다.
+- **디자인 토큰 및 타이포그래피**:
+  임의의 픽셀 하드코딩 대신 소비 프로젝트의 기존 디자인 토큰(CSS 변수, Tailwind 클래스 등)을 활용합니다.
+  Google Fonts 등 외부 웹폰트나 외부 리소스는 기존 디자인 시스템에서 이미 사용 중이거나 사용자의 명시적 요구가 있을 때만 도입하며, 임의로 외부 에셋 의존성을 추가하지 마십시오.
 - **동적 뷰포트 안정성 (Dynamic Viewport Stability)**:
   모바일 브라우저 주소창 반응으로 인한 뷰포트 덜컹거림(Jump)을 방지하도록 고정 `100vh` 대신 동적 뷰포트 단위(`min-height: 100dvh` / `100dvh`)를 우선 사용하십시오.
 - **아티클 본문 가독성 제약 (Contextual Line-Length)**:
   랜딩페이지, 아티클, 포트폴리오 등 장문 파라그래프 텍스트 작성 시에는 가독성 최적화를 위해 문자 단위 너비 제한(`max-width: 65ch` 내외) 및 여유 있는 줄간격(`line-height: 1.625` / `relaxed`) 사용을 고려하십시오.
   (단, 고밀도 정보 배치가 필수적인 백오피스, 어드민 패널, 대시보드/데이터 테이블 표면에서는 본 제약을 적용하지 않습니다.)
-- **인터랙티브 마이크로 애니메이션**: 사용자 인터랙션 요소(버튼, 카드, 모달 등)에는 부드러운 상태 변화 애니메이션을 적용하여 사용성을 높이십시오.
+- **상태 피드백 및 인터랙션**:
+  인터랙션 요소(버튼, 링크, 입력 필드 등)는 불필요한 장식성 애니메이션을 남발하지 않고, 명확한 상태 피드백(hover, focus-visible, active, disabled)과 키보드 조작성을 제공하여 사용성을 보장하십시오.
 - **플레이스홀더 이미지 자제**: 이미지가 필요한 경우 실제 동작 가능한 미디어 및 생성형 에셋을 활용하십시오.
 
 ---
@@ -40,8 +49,8 @@
 
 ---
 
-## 📚 4. 외부 에이전트 스킬 카탈로그 (Recommended Agent Skills)
+## 📚 4. 선택형 외부 에이전트 스킬 참고 (Optional Agent Skills Reference)
 
-- **[taste-skill 카탈로그](recommended-external-skills.md)**:
-  Anti-slop 프론트엔드 모던 타이포그래피, Notion/Linear 스타일 `minimalist-ui`, 시안 기반 `image-to-code` 비주얼 파이프라인 등 외부 추천 스킬 상세 지침 및 설치 가이드는
-  [recommended-external-skills.md](recommended-external-skills.md) 모듈을 참조하십시오.
+- **[선택형 외부 스킬 카탈로그](recommended-external-skills.md)**:
+  Anti-slop 프론트엔드 모던 타이포그래피, Notion/Linear 스타일 `minimalist-ui`, 시안 기반 `image-to-code` 비주얼 파이프라인 등 선택형 외부 추천 스킬 상세 지침 및 설치 가이드는
+  [recommended-external-skills.md](recommended-external-skills.md) 모듈을 참조하십시오. (규범적 필수 요구사항이 아니며 필요 시 선택적으로 참조합니다.)

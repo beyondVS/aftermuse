@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "installed_version": "2.8.1",
+  "installed_version": "2.12.2",
   "hash_policy": {
     "text": "text-v1",
     "binary": "binary-v1"
   },
   "managed_block": {
-    "sha256": "e128b2db92afbed166dd0d97229887934a6da0c8b14e0563f2f79b08807e06cf"
+    "sha256": "6a81bf2b6a7455cce70871f200b3d48d11f02a5f5ad6ad378a244cda736a0076"
   },
   "managed_files": {
     ".agents/agents/auditor.md": {
@@ -24,10 +24,6 @@
     ".agents/skills/gitignore-generator/scripts/gitignore.sh": {
       "type": "text",
       "sha256": "c23de95a237f373956168c34d98382447fea0bdda25297eec3764b4ee539764e"
-    },
-    ".agents/skills/handoff/SKILL.md": {
-      "type": "text",
-      "sha256": "ec391e807018b3e8f65d76bea0fcad9fb25537f89bdfaca1280759a1b4348795"
     },
     ".agents/skills/python-ecosystem-kb/SKILL.md": {
       "type": "text",
@@ -59,7 +55,7 @@
     },
     "rules/architecture/library-package.md": {
       "type": "text",
-      "sha256": "3a2ed21d4ea134718abc888ed3d834a3552f68b0aa436088bb77f504c7305c99"
+      "sha256": "720fb60316d633926079516403e1d3997c095f45193ca102d62b93da2a221d01"
     },
     "rules/architecture/monorepo.md": {
       "type": "text",
@@ -71,7 +67,7 @@
     },
     "rules/architecture/web-frontend.md": {
       "type": "text",
-      "sha256": "1c0833b3b11ac9717fc0589ebdb741e84977285f89f1c22f005e91ee536085f9"
+      "sha256": "66be01100161be563ceb033dcf60c3b8e4c534efcaa10770492ed8e9f2e083a4"
     },
     "rules/frameworks/django.md": {
       "type": "text",
@@ -139,7 +135,7 @@
     },
     "rules/styles/html-css.md": {
       "type": "text",
-      "sha256": "f9566d0945b174a0345bd45248b07e8a3ff730b13f236a3e25ca2044e378c7e8"
+      "sha256": "e7e0229048dab59eb6f34c84bc24a67d847313e95770cacbafd131eeaa2c825b"
     },
     "rules/styles/javascript.md": {
       "type": "text",
@@ -147,7 +143,7 @@
     },
     "rules/styles/python.md": {
       "type": "text",
-      "sha256": "2bcb7be37715f7e766ef6dcf7a6c7563f9ebd5e8da6af3646a4a14b62f0aa271"
+      "sha256": "fadeb2d9dc5615876e03ae922a61edf1e9959e1e4c2fa94719177ecb44e4c1f3"
     },
     "rules/styles/typescript.md": {
       "type": "text",
