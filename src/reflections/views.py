@@ -117,12 +117,7 @@ def first_question(request: HttpRequest, interview_id: int) -> HttpResponse:
     except InterviewPolicyError:
         return render(request, "reflections/interview_unavailable.html", status=409)
     except QuestionGenerationError:
-        return render(
-            request,
-            "reflections/_interview_error.html",
-            {"interview": interview},
-            status=503,
-        )
+        return _question_error_response(request, interview)
     if request.headers.get("HX-Request") == "true":
         return render(
             request,
@@ -240,4 +235,20 @@ def _saved_response(
     )
     return render(
         request, template, {"interview": interview, "turn": turn}, status=status
+    )
+
+
+def _question_error_response(
+    request: HttpRequest, interview: Interview
+) -> HttpResponse:
+    template = (
+        "reflections/_interview_error.html"
+        if request.headers.get("HX-Request") == "true"
+        else "reflections/interview_detail.html"
+    )
+    return render(
+        request,
+        template,
+        {"interview": interview, "question_error": True},
+        status=503,
     )

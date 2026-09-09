@@ -30,9 +30,7 @@ class OpenAIQuestionProvider:
         if not api_key or not model or timeout <= 0:
             raise QuestionGenerationConfigurationError()
         self._model = model
-        self._client = client or OpenAI(
-            api_key=api_key, timeout=timeout, max_retries=0
-        )
+        self._client = client or OpenAI(api_key=api_key, timeout=timeout, max_retries=0)
 
     def generate_first_question(
         self, context: InterviewQuestionContext
@@ -59,8 +57,13 @@ class OpenAIQuestionProvider:
             raise QuestionGenerationUnavailable() from error
         except Exception as error:
             raise QuestionGenerationUnavailable() from error
+        if getattr(response, "status", "completed") != "completed":
+            raise QuestionGenerationRejected()
+        output_text = getattr(response, "output_text", None)
+        if not isinstance(output_text, str) or not output_text.strip():
+            raise QuestionGenerationRejected()
         try:
-            payload = json.loads(response.output_text)
+            payload = json.loads(output_text)
             question = payload["question"]
         except (AttributeError, KeyError, TypeError, json.JSONDecodeError) as error:
             raise QuestionGenerationRejected() from error

@@ -6,6 +6,11 @@ import pytest
 from django.db import IntegrityError, close_old_connections
 
 from books.models import Book
+from integrations.llm.contracts import (
+    GeneratedQuestion,
+    QuestionGenerationRejected,
+    QuestionGenerationUnavailable,
+)
 from integrations.llm.fake import FakeQuestionProvider
 from knowledge.models import BookKnowledge, KnowledgeKind
 from readings.models import Reading
@@ -205,3 +210,28 @@ def test_first_answer_is_saved_once_and_same_value_is_idempotent(
         )
     assert error.value.turn.answer == "처음 적은 답변"
     assert InterviewTurn.objects.get(pk=turn.pk).answer == "처음 적은 답변"
+
+
+@pytest.mark.parametrize(
+    "provider",
+    [
+        FakeQuestionProvider(error=QuestionGenerationUnavailable()),
+        FakeQuestionProvider(
+            result=GeneratedQuestion(question="질문입니다. 또 묻나요?")
+        ),
+        FakeQuestionProvider(result=GeneratedQuestion(question="물음표가 없습니다.")),
+    ],
+)
+def test_failed_or_invalid_first_question_never_creates_turn(
+    completed_reading, provider
+) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+
+    with pytest.raises((QuestionGenerationUnavailable, QuestionGenerationRejected)):
+        ensure_first_question(
+            user=completed_reading.user, interview=interview, provider=provider
+        )
+
+    assert InterviewTurn.objects.filter(interview=interview).count() == 0

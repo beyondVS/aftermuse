@@ -6,6 +6,7 @@ from django.test import Client
 from django.urls import reverse
 
 from books.models import Book
+from integrations.llm.contracts import QuestionGenerationTimeout
 from readings.models import Reading
 from reflections.models import Interview, InterviewTurn
 
@@ -287,3 +288,30 @@ def test_first_answer_post_returns_saved_fragment_or_detail_redirect(
     assert "다음 질문" not in fragment.content.decode()
     assert redirected.status_code == 302
     assert redirected.url == detail_url
+
+
+def test_question_generation_error_returns_retryable_alert(
+    client, reading, monkeypatch
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    client.force_login(reading.user)
+    monkeypatch.setattr(
+        "reflections.views.get_question_provider",
+        lambda: (_ for _ in ()).throw(QuestionGenerationTimeout()),
+    )
+
+    response = client.post(
+        reverse("reflections:first_question", args=[interview.pk]),
+        HTTP_HX_REQUEST="true",
+    )
+
+    content = response.content.decode()
+    assert response.status_code == 503
+    assert 'role="alert"' in content
+    assert 'tabindex="-1"' in content
+    assert "첫 질문 다시 준비하기" in content
+    assert InterviewTurn.objects.filter(interview=interview).count() == 0

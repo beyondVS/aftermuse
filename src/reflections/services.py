@@ -221,6 +221,7 @@ def _validate_first_question(question: object) -> str:
         or "\n" in normalized
         or not normalized.endswith(("?", "？"))
         or normalized.count("?") + normalized.count("？") != 1
+        or any(marker in normalized[:-1] for marker in ".!。！？")
     ):
         raise QuestionGenerationRejected()
     return normalized

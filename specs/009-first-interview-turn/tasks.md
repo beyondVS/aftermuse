@@ -120,14 +120,14 @@ description: "첫 인터뷰 Turn 구현을 위한 의존성 순서 작업 목록
 
 ### 사용자 스토리 4 테스트
 
-- [ ] T029 [P] [US4] `tests/integrations/llm/test_openai.py`에 timeout, 연결/rate-limit/5xx, refusal·empty·incomplete·invalid schema가 안전한 내부 오류로 변환되고 민감 원문이 로그에 없는 테스트를 작성하고 실패를 확인한다.
-- [ ] T030 [US4] `tests/reflections/test_services.py`에 provider 오류와 여러 문장·300자 초과·종결 부호 오류가 Turn을 만들지 않으며 재시도 성공 시 첫 Turn 한 건만 저장되는 테스트를 작성하고 실패를 확인한다.
-- [ ] T031 [US4] `tests/reflections/test_views.py`에 질문 생성 오류의 503 Error fragment, `role="alert"`, focus target, 실제 retry button, 기존 Interview 보존과 일반 HTML 재시도 계약 테스트를 작성하고 실패를 확인한다.
+- [X] T029 [P] [US4] `tests/integrations/llm/test_openai.py`에 timeout, 연결/rate-limit/5xx, refusal·empty·incomplete·invalid schema가 안전한 내부 오류로 변환되고 민감 원문이 로그에 없는 테스트를 작성하고 실패를 확인한다.
+- [X] T030 [US4] `tests/reflections/test_services.py`에 provider 오류와 여러 문장·300자 초과·종결 부호 오류가 Turn을 만들지 않으며 재시도 성공 시 첫 Turn 한 건만 저장되는 테스트를 작성하고 실패를 확인한다.
+- [X] T031 [US4] `tests/reflections/test_views.py`에 질문 생성 오류의 503 Error fragment, `role="alert"`, focus target, 실제 retry button, 기존 Interview 보존과 일반 HTML 재시도 계약 테스트를 작성하고 실패를 확인한다.
 
 ### 사용자 스토리 4 구현
 
-- [ ] T032 [US4] `src/integrations/llm/openai.py`와 `src/reflections/services.py`에 timeout·provider·rejection·configuration 오류 변환과 저장 전 결과 거부를 완성한다.
-- [ ] T033 [US4] `src/templates/reflections/_interview_error.html`과 `src/reflections/views.py`에 내부 오류를 노출하지 않는 alert/focus Error 상태와 자동 재시도 없는 명시적 질문 재시도를 구현한다.
+- [X] T032 [US4] `src/integrations/llm/openai.py`와 `src/reflections/services.py`에 timeout·provider·rejection·configuration 오류 변환과 저장 전 결과 거부를 완성한다.
+- [X] T033 [US4] `src/templates/reflections/_interview_error.html`과 `src/reflections/views.py`에 내부 오류를 노출하지 않는 alert/focus Error 상태와 자동 재시도 없는 명시적 질문 재시도를 구현한다.
 
 **체크포인트**: 모든 생성 실패가 동일 Interview의 데이터 무결성을 유지하며 한 번의 명확한 행동으로 회복된다.
 

@@ -8,7 +8,9 @@
   <p>준비 수준: {{ interview.knowledge_readiness }}</p>
   {% if interview.knowledge_readiness == "READY_LIMITED" %}<p class="interview-notice">기억에 남은 내용부터 정리해 볼게요.</p>{% endif %}
   <div id="interview-turn-region">
-    {% if turn %}
+    {% if question_error %}
+      {% include "reflections/_interview_error.html" %}
+    {% elif turn %}
       {% if turn.answer is None %}
         {% include "reflections/_interview_question.html" %}
       {% else %}
