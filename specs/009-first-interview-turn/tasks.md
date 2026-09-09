@@ -20,9 +20,9 @@ description: "첫 인터뷰 Turn 구현을 위한 의존성 순서 작업 목록
 
 **목적**: OpenAI SDK와 첫 질문 Provider 설정을 프로젝트 실행 환경에 추가한다.
 
-- [ ] T001 `pyproject.toml`에 `openai~=3.10.0` 런타임 의존성을 추가하고 `uv.lock`을 갱신한다.
-- [ ] T002 [P] `.env.example`과 `src/config/settings.py`에 provider, pinned model, API key, 30초 timeout 설정을 추가하고 필수/선택 설정의 시작 실패 정책을 반영한다.
-- [ ] T003 [P] `src/integrations/__init__.py`와 `src/integrations/llm/__init__.py`를 생성해 LLM integration package 구조를 마련한다.
+- [X] T001 `pyproject.toml`에 `openai~=3.10.0` 런타임 의존성을 추가하고 `uv.lock`을 갱신한다.
+- [X] T002 [P] `.env.example`과 `src/config/settings.py`에 provider, pinned model, API key, 30초 timeout 설정을 추가하고 필수/선택 설정의 시작 실패 정책을 반영한다.
+- [X] T003 [P] `src/integrations/__init__.py`와 `src/integrations/llm/__init__.py`를 생성해 LLM integration package 구조를 마련한다.
 
 **체크포인트**: lockfile로 재현 가능한 의존성과 credential을 노출하지 않는 설정 경계가 준비된다.
 
