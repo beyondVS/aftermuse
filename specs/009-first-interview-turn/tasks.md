@@ -34,9 +34,9 @@ description: "첫 인터뷰 Turn 구현을 위한 의존성 순서 작업 목록
 
 **⚠️ 중요**: 이 단계가 완료될 때까지 사용자 스토리 작업을 시작하지 않는다.
 
-- [ ] T004 `src/integrations/llm/contracts.py`에 immutable 질문 Context/결과 타입, `QuestionProvider` protocol, timeout·unavailable·rejected·configuration 오류 taxonomy를 정의한다.
-- [ ] T005 [P] `src/integrations/llm/fake.py`에 정상, 실패, 시간 초과, 사용할 수 없는 결과를 network 없이 결정적으로 재현하는 fake provider를 구현한다.
-- [ ] T006 [P] `src/integrations/llm/factory.py`에 Django 설정을 읽어 fake provider를 생성하고 알려지지 않은 provider 설정을 안전하게 거부하는 factory 기본 구조를 구현한다.
+- [X] T004 `src/integrations/llm/contracts.py`에 immutable 질문 Context/결과 타입, `QuestionProvider` protocol, timeout·unavailable·rejected·configuration 오류 taxonomy를 정의한다.
+- [X] T005 [P] `src/integrations/llm/fake.py`에 정상, 실패, 시간 초과, 사용할 수 없는 결과를 network 없이 결정적으로 재현하는 fake provider를 구현한다.
+- [X] T006 [P] `src/integrations/llm/factory.py`에 Django 설정을 읽어 fake provider를 생성하고 알려지지 않은 provider 설정을 안전하게 거부하는 factory 기본 구조를 구현한다.
 
 **체크포인트**: Provider 경계를 통해 실제 외부 호출 없이 모든 핵심 흐름을 테스트할 수 있다.
 
