@@ -38,6 +38,10 @@
 - 완독 Reading의 Book 확인과 명시적 POST 기반 Interview 시작, 진행 상태 재진입 흐름
 - Reading당 하나의 Interview와 순서가 보장되는 InterviewTurn 영속 모델 및 migration
 - 시작된 Interview의 Reading 완독 상태·완독일 변경 잠금과 `READY_LIMITED` 기억 중심 안내
+- `READY`/`READY_LIMITED` 신뢰 경계를 지키는 첫 질문 Context, fake·OpenAI Provider와 strict structured output Adapter
+- 첫 질문의 멱등 저장, HTMX Loading·Question·Error 전환과 명시적 재시도
+- 공백을 거부하는 2,000자 답변 form, 최초 답변의 불변·멱등 저장과 Saved 상태
+- 첫 질문·답변 Web 계약 및 network·credential 없는 Provider 회귀 테스트
 
 ### Changed
 

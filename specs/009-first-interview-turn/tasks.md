@@ -137,7 +137,7 @@ description: "첫 인터뷰 Turn 구현을 위한 의존성 순서 작업 목록
 
 **목적**: 전체 계약과 프로젝트 품질 게이트를 함께 검증한다.
 
-- [ ] T034 [P] `README.md`, `docs/README.md`, `CHANGELOG.md`에 첫 질문 생성·답변 저장 흐름, OpenAI Provider 설정, 새 Web 계약과 검증 결과를 기존 문서 관례에 맞춰 동기화한다.
+- [X] T034 [P] `README.md`, `docs/README.md`, `CHANGELOG.md`에 첫 질문 생성·답변 저장 흐름, OpenAI Provider 설정, 새 Web 계약과 검증 결과를 기존 문서 관례에 맞춰 동기화한다.
 - [ ] T035 [P] `specs/009-first-interview-turn/quickstart.md`의 Context, Provider, Service, HTML·HTMX 검증 명령을 실행하고 문서와 실제 명령이 다르면 해당 파일을 동기화한다.
 - [ ] T036 `src/reflections/migrations/`에 새 migration이 생기지 않았는지 `makemigrations --check --dry-run`으로 확인하고 `tests/reflections/`, `tests/integrations/llm/`의 전체 기능 테스트를 실행한다.
 - [ ] T037 `scripts/verify.py`로 Django check, migration drift, Ruff format/lint와 credential·network 없는 전체 pytest 품질 게이트를 실행한다.
