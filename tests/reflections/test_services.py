@@ -6,6 +6,7 @@ import pytest
 from django.db import IntegrityError, close_old_connections
 
 from books.models import Book
+from integrations.llm.fake import FakeQuestionProvider
 from knowledge.models import BookKnowledge, KnowledgeKind
 from readings.models import Reading
 from readings.services import ReadingLockedError, update_completion_date
@@ -13,6 +14,7 @@ from reflections.models import Interview, InterviewTurn
 from reflections.services import (
     InterviewDestination,
     InterviewPolicyError,
+    ensure_first_question,
     get_interview_destination,
     start_interview,
 )
@@ -153,3 +155,23 @@ def test_only_reading_one_to_one_conflicts_are_recoverable() -> None:
 
     Diagnostics.constraint_name = "reflections_interview_reading_id_key"
     assert _is_reading_one_to_one_conflict(error)
+
+
+def test_first_question_is_saved_once_and_reused(completed_reading) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    provider = FakeQuestionProvider()
+
+    created = ensure_first_question(
+        user=completed_reading.user, interview=interview, provider=provider
+    )
+    reused = ensure_first_question(
+        user=completed_reading.user, interview=interview, provider=provider
+    )
+
+    assert created.sequence == 1
+    assert created.question.endswith("?")
+    assert reused.pk == created.pk
+    assert len(provider.contexts) == 1
+    assert InterviewTurn.objects.filter(interview=interview, sequence=1).count() == 1

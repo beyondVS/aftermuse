@@ -4,12 +4,15 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
+from integrations.llm.contracts import QuestionGenerationError
+from integrations.llm.factory import get_question_provider
 from knowledge.services import get_book_knowledge_readiness
 from readings.models import Reading
 from reflections.models import Interview
 from reflections.services import (
     InterviewDestination,
     InterviewPolicyError,
+    ensure_first_question,
     get_interview_destination,
     start_interview,
 )
@@ -94,6 +97,37 @@ def interview_detail(request: HttpRequest, interview_id: int) -> HttpResponse:
     return _destination_response(request, interview, detail=True)
 
 
+@require_POST
+@login_required
+def first_question(request: HttpRequest, interview_id: int) -> HttpResponse:
+    """첫 질문 준비 POST를 일반 redirect 또는 HTMX fragment로 반환한다."""
+    interview = get_object_or_404(
+        Interview.objects.select_related("reading", "book"),
+        pk=interview_id,
+        reading__user=request.user,
+    )
+    try:
+        turn = ensure_first_question(
+            user=request.user, interview=interview, provider=get_question_provider()
+        )
+    except InterviewPolicyError:
+        return render(request, "reflections/interview_unavailable.html", status=409)
+    except QuestionGenerationError:
+        return render(
+            request,
+            "reflections/_interview_error.html",
+            {"interview": interview},
+            status=503,
+        )
+    if request.headers.get("HX-Request") == "true":
+        return render(
+            request,
+            "reflections/_interview_question.html",
+            {"interview": interview, "turn": turn},
+        )
+    return redirect("reflections:interview_detail", interview_id=interview.pk)
+
+
 def _destination_response(
     request: HttpRequest, interview: Interview, *, detail: bool = False
 ) -> HttpResponse:
@@ -115,8 +149,11 @@ def _destination_response(
         )
     if destination is InterviewDestination.INTERVIEW:
         if detail:
+            turn = interview.turns.filter(sequence=1).first()
             return render(
-                request, "reflections/interview_detail.html", {"interview": interview}
+                request,
+                "reflections/interview_detail.html",
+                {"interview": interview, "turn": turn},
             )
         return redirect("reflections:interview_detail", interview_id=interview.pk)
     label = (

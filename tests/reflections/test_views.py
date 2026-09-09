@@ -7,7 +7,7 @@ from django.urls import reverse
 
 from books.models import Book
 from readings.models import Reading
-from reflections.models import Interview
+from reflections.models import Interview, InterviewTurn
 
 
 @pytest.fixture
@@ -209,3 +209,29 @@ def test_start_and_detail_method_and_html_contracts(client, reading) -> None:
     assert created.status_code == 302
     assert "첫 질문을 준비하고 있어요." in detail_response.content.decode()
     assert Interview.objects.get(reading=reading).turns.count() == 0
+
+
+def test_detail_loading_and_first_question_post_contract(
+    client, reading, monkeypatch
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    client.force_login(reading.user)
+    detail_url = reverse("reflections:interview_detail", args=[interview.pk])
+    question_url = reverse("reflections:first_question", args=[interview.pk])
+
+    loading = client.get(detail_url)
+    fragment = client.post(question_url, HTTP_HX_REQUEST="true")
+    repeated = client.post(question_url)
+
+    assert loading.status_code == 200
+    assert 'id="interview-turn-region"' in loading.content.decode()
+    assert 'aria-busy="true"' in loading.content.decode()
+    assert fragment.status_code == 200
+    assert "가장 오래 남은 장면" in fragment.content.decode()
+    assert repeated.status_code == 302
+    assert repeated.url == detail_url
+    assert InterviewTurn.objects.filter(interview=interview, sequence=1).count() == 1

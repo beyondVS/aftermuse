@@ -3,9 +3,13 @@ from enum import StrEnum
 
 from django.db import IntegrityError, transaction
 
+from integrations.llm.contracts import (
+    QuestionGenerationRejected,
+    QuestionProvider,
+)
 from knowledge.services import BookKnowledgeReadiness, get_book_knowledge_readiness
 from readings.models import Reading
-from reflections.models import Interview
+from reflections.models import Interview, InterviewTurn
 
 _READING_UNIQUE_CONSTRAINT = "reflections_interview_reading_id_key"
 
@@ -116,3 +120,84 @@ def _is_reading_one_to_one_conflict(error: IntegrityError) -> bool:
     cause = error.__cause__
     diagnostics = getattr(cause, "diag", None)
     return getattr(diagnostics, "constraint_name", None) == _READING_UNIQUE_CONSTRAINT
+
+
+def ensure_first_question(
+    *, user, interview: Interview, provider: QuestionProvider
+) -> InterviewTurn:
+    """첫 Turn을 재사용하거나 provider 호출 뒤 한 번만 안전하게 저장한다."""
+    prepared = _get_valid_interview(user=user, interview=interview)
+    existing = InterviewTurn.objects.filter(interview=prepared, sequence=1).first()
+    if existing is not None:
+        return existing
+
+    from reflections.context import build_interview_question_context
+
+    generated = provider.generate_first_question(
+        build_interview_question_context(interview=prepared)
+    )
+    question = _validate_first_question(generated.question)
+    try:
+        with transaction.atomic():
+            locked = (
+                Interview.objects.select_for_update()
+                .select_related("reading", "book")
+                .filter(pk=prepared.pk, reading__user=user)
+                .first()
+            )
+            if locked is None:
+                raise InterviewPolicyError()
+            _validate_interview_state(locked)
+            existing = InterviewTurn.objects.filter(
+                interview=locked, sequence=1
+            ).first()
+            if existing is not None:
+                return existing
+            return InterviewTurn.objects.create(
+                interview=locked, sequence=1, question=question
+            )
+    except IntegrityError as error:
+        existing = InterviewTurn.objects.filter(
+            interview_id=prepared.pk, sequence=1
+        ).first()
+        if existing is not None:
+            return existing
+        raise error
+
+
+def _get_valid_interview(*, user, interview: Interview) -> Interview:
+    if not isinstance(interview, Interview) or interview.pk is None:
+        raise InterviewPolicyError()
+    prepared = (
+        Interview.objects.select_related("reading", "book")
+        .filter(pk=interview.pk, reading__user=user)
+        .first()
+    )
+    if prepared is None:
+        raise InterviewPolicyError()
+    _validate_interview_state(prepared)
+    return prepared
+
+
+def _validate_interview_state(interview: Interview) -> None:
+    if (
+        interview.book_id != interview.reading.book_id
+        or interview.status != Interview.Status.IN_PROGRESS
+    ):
+        raise InterviewPolicyError()
+
+
+def _validate_first_question(question: object) -> str:
+    """저장 전 질문의 줄 수, 길이, 문장 종결 조건을 강제한다."""
+    if not isinstance(question, str):
+        raise QuestionGenerationRejected()
+    normalized = question.strip()
+    if (
+        not normalized
+        or len(normalized) > 300
+        or "\n" in normalized
+        or not normalized.endswith(("?", "？"))
+        or normalized.count("?") + normalized.count("？") != 1
+    ):
+        raise QuestionGenerationRejected()
+    return normalized

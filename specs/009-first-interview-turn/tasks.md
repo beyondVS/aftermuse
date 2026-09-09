@@ -50,19 +50,19 @@ description: "첫 인터뷰 Turn 구현을 위한 의존성 순서 작업 목록
 
 ### 사용자 스토리 1 테스트
 
-- [ ] T007 [P] [US1] `tests/reflections/test_context.py`에 소유 관계, 진행 상태, 안정된 Knowledge 순서, `READY` 포함 및 `READY_LIMITED` 배제, trusted/untrusted 분리 테스트를 작성하고 실패를 확인한다.
-- [ ] T008 [P] [US1] `tests/integrations/llm/test_fake.py`에 fake provider 정상 결과와 호출 기록이 Context 계약을 보존하는 테스트를 작성하고 실패를 확인한다.
-- [ ] T009 [P] [US1] `tests/integrations/llm/test_openai.py`에 Responses API strict structured output, pinned model, `store=False`, tools 미전달, 30초 timeout, retry 0 설정과 함께 `READY`에는 확인된 맥락을 사용하고 `READY_LIMITED`에는 기억·인상·감정 중심 지침만 전달되는지 SDK client mock으로 검증하고 실패를 확인한다.
-- [ ] T010 [US1] `tests/reflections/test_services.py`에 `READY` 질문 후보의 확인된 책 맥락 사용, `READY_LIMITED` 질문 후보의 기억 중심 정책, 유효 질문의 sequence 1 저장, 기존 Turn 재사용 시 provider 미호출, 한 문장·300자 검증과 경쟁 생성의 단일 Turn 수렴 테스트를 작성하고 실패를 확인한다.
-- [ ] T011 [US1] `tests/reflections/test_views.py`에 익명 사용자의 detail·first-question 접근 차단, detail GET의 무변경 Loading 상태, first-question POST의 owner 404·관계/status 409, HTMX fragment와 일반 redirect 계약 테스트를 작성하고 실패를 확인한다.
+- [X] T007 [P] [US1] `tests/reflections/test_context.py`에 소유 관계, 진행 상태, 안정된 Knowledge 순서, `READY` 포함 및 `READY_LIMITED` 배제, trusted/untrusted 분리 테스트를 작성하고 실패를 확인한다.
+- [X] T008 [P] [US1] `tests/integrations/llm/test_fake.py`에 fake provider 정상 결과와 호출 기록이 Context 계약을 보존하는 테스트를 작성하고 실패를 확인한다.
+- [X] T009 [P] [US1] `tests/integrations/llm/test_openai.py`에 Responses API strict structured output, pinned model, `store=False`, tools 미전달, 30초 timeout, retry 0 설정과 함께 `READY`에는 확인된 맥락을 사용하고 `READY_LIMITED`에는 기억·인상·감정 중심 지침만 전달되는지 SDK client mock으로 검증하고 실패를 확인한다.
+- [X] T010 [US1] `tests/reflections/test_services.py`에 `READY` 질문 후보의 확인된 책 맥락 사용, `READY_LIMITED` 질문 후보의 기억 중심 정책, 유효 질문의 sequence 1 저장, 기존 Turn 재사용 시 provider 미호출, 한 문장·300자 검증과 경쟁 생성의 단일 Turn 수렴 테스트를 작성하고 실패를 확인한다.
+- [X] T011 [US1] `tests/reflections/test_views.py`에 익명 사용자의 detail·first-question 접근 차단, detail GET의 무변경 Loading 상태, first-question POST의 owner 404·관계/status 409, HTMX fragment와 일반 redirect 계약 테스트를 작성하고 실패를 확인한다.
 
 ### 사용자 스토리 1 구현
 
-- [ ] T012 [P] [US1] `src/reflections/context.py`에 현재 Interview의 Book·Reading·준비 수준과 허용된 Knowledge만 immutable payload로 구성하는 Context builder를 구현한다.
-- [ ] T013 [P] [US1] `src/integrations/llm/openai.py`에 Responses API structured output Adapter를 구현하고 `src/integrations/llm/factory.py`에 OpenAI provider 등록을 완성하며, prompt 지침과 untrusted payload를 분리하고 prompt·원문·credential을 로그에 남기지 않는다.
-- [ ] T014 [US1] `src/reflections/services.py`에 질문 후보 검증과 transaction 밖 provider 호출 후 row lock·재검증·sequence 1 멱등 저장을 수행하는 `ensure_first_question`을 구현한다.
-- [ ] T015 [US1] `src/reflections/urls.py`와 `src/reflections/views.py`에 owner-scoped detail GET 및 CSRF 보호 first-question POST를 추가하고 HTML/HTMX가 같은 Service 계약을 사용하게 한다.
-- [ ] T016 [US1] `src/templates/reflections/interview_detail.html`, `src/templates/reflections/_interview_loading.html`, `src/templates/reflections/_interview_question.html`에 무변경 GET shell, 보이는 Loading, 자동 HTMX POST와 no-JS 준비 form, 현재 질문 상태를 구현한다.
+- [X] T012 [P] [US1] `src/reflections/context.py`에 현재 Interview의 Book·Reading·준비 수준과 허용된 Knowledge만 immutable payload로 구성하는 Context builder를 구현한다.
+- [X] T013 [P] [US1] `src/integrations/llm/openai.py`에 Responses API structured output Adapter를 구현하고 `src/integrations/llm/factory.py`에 OpenAI provider 등록을 완성하며, prompt 지침과 untrusted payload를 분리하고 prompt·원문·credential을 로그에 남기지 않는다.
+- [X] T014 [US1] `src/reflections/services.py`에 질문 후보 검증과 transaction 밖 provider 호출 후 row lock·재검증·sequence 1 멱등 저장을 수행하는 `ensure_first_question`을 구현한다.
+- [X] T015 [US1] `src/reflections/urls.py`와 `src/reflections/views.py`에 owner-scoped detail GET 및 CSRF 보호 first-question POST를 추가하고 HTML/HTMX가 같은 Service 계약을 사용하게 한다.
+- [X] T016 [US1] `src/templates/reflections/interview_detail.html`, `src/templates/reflections/_interview_loading.html`, `src/templates/reflections/_interview_question.html`에 무변경 GET shell, 보이는 Loading, 자동 HTMX POST와 no-JS 준비 form, 현재 질문 상태를 구현한다.
 
 **체크포인트**: 첫 질문의 정상 경로가 준비 수준별 정책을 지키며 한 건만 저장되고 독립적으로 시연 가능하다.
 

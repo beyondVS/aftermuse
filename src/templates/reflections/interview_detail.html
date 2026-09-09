@@ -4,8 +4,15 @@
 <section class="interview-page" aria-labelledby="interview-title">
   <p class="eyebrow-pill">Interview</p>
   <h1 id="interview-title">{{ interview.book.title }}</h1>
-  <p>인터뷰를 시작했습니다. 첫 질문을 준비하고 있어요.</p>
+  <p>인터뷰를 시작했습니다.</p>
   <p>준비 수준: {{ interview.knowledge_readiness }}</p>
   {% if interview.knowledge_readiness == "READY_LIMITED" %}<p class="interview-notice">기억에 남은 내용부터 정리해 볼게요.</p>{% endif %}
+  <div id="interview-turn-region">
+    {% if turn %}
+      {% include "reflections/_interview_question.html" %}
+    {% else %}
+      {% include "reflections/_interview_loading.html" %}
+    {% endif %}
+  </div>
 </section>
 {% endblock %}

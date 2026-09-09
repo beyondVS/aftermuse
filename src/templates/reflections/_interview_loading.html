@@ -1,0 +1,7 @@
+<section aria-busy="true" aria-live="polite">
+  <p>첫 질문을 준비하고 있어요.</p>
+  <form method="post" action="{% url 'reflections:first_question' interview.pk %}" hx-post="{% url 'reflections:first_question' interview.pk %}" hx-target="#interview-turn-region" hx-swap="outerHTML" hx-trigger="load delay:100ms">
+    {% csrf_token %}
+    <button type="submit">첫 질문 준비하기</button>
+  </form>
+</section>

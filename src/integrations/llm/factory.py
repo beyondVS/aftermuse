@@ -7,6 +7,7 @@ from integrations.llm.contracts import (
     QuestionProvider,
 )
 from integrations.llm.fake import FakeQuestionProvider
+from integrations.llm.openai import OpenAIQuestionProvider
 
 
 def get_question_provider() -> QuestionProvider:
@@ -14,4 +15,10 @@ def get_question_provider() -> QuestionProvider:
     provider_name = settings.LLM_PROVIDER.strip().lower()
     if provider_name == "fake":
         return FakeQuestionProvider()
+    if provider_name == "openai":
+        return OpenAIQuestionProvider(
+            api_key=settings.OPENAI_API_KEY,
+            model=settings.OPENAI_MODEL,
+            timeout=settings.OPENAI_TIMEOUT_SECONDS,
+        )
     raise QuestionGenerationConfigurationError
