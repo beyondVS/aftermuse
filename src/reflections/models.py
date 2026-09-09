@@ -102,7 +102,18 @@ class InterviewTurn(models.Model):
         super().clean_fields(exclude=exclude)
 
     def clean(self) -> None:
-        """정규화된 질문이 실제 내용을 갖는지 검증한다."""
+        """질문과 최초 확정 답변의 애플리케이션 계약을 검증한다."""
         super().clean()
         if not isinstance(self.question, str) or not self.question:
             raise ValidationError({"question": "질문은 공백만으로 구성할 수 없습니다."})
+        if self.answer is not None:
+            if (
+                not isinstance(self.answer, str)
+                or not self.answer.strip()
+                or len(self.answer) > 2000
+            ):
+                raise ValidationError({"answer": "답변은 1~2,000자여야 합니다."})
+        if self.pk is not None:
+            original_answer = type(self).objects.only("answer").get(pk=self.pk).answer
+            if original_answer is not None and self.answer != original_answer:
+                raise ValidationError({"answer": "확정된 답변은 변경할 수 없습니다."})

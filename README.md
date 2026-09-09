@@ -48,7 +48,13 @@ Kakao 도서 검색 Adapter 및 로그인 사용자용 `/books/search/` 화면�
 Reading 재사용·완독 이력 보존·재독, 상태/완독일 변경과 소유자 전용 상세 화면을 사용할 수
 있습니다. 완독 후 `AI 독서노트 만들기` CTA에서 대상 책과 준비 상태를 확인하고 Interview를
 시작할 수 있으며, 시작된 Interview에는 Reading과 Book이 고정되고 진행 상태로 재진입할 수
-있습니다.
+있습니다. 진행 중 Interview에서는 준비 수준에 맞는 첫 질문을 생성하며, `READY`는 검증된
+Claim만 사용하고 `READY_LIMITED`는 기억·인상 중심으로 묻습니다. 첫 답변은 한 번만 확정되며
+동일 재제출은 안전하게 재사용하고, 질문 생성 실패는 같은 화면의 명시적 재시도로 복구합니다.
+생성 질문은 저장 전에 형식·금지 지시를 검사하며, HTMX의 validation·정책·저장 오류는 입력과
+내부 정보를 안전하게 보호하면서 Interview 영역 전체를 교체하고 오류 위치로 focus를 옮깁니다.
+기존 첫 질문 재사용과 Interview 정책 검증은 Provider 생성보다 먼저 수행되므로 외부 설정
+오류가 이미 저장된 질문이나 정책 충돌 응답을 가리지 않습니다.
 
 ## 기술 스택
 
@@ -123,6 +129,10 @@ uv run python src/manage.py runserver
 | `POSTGRES_PORT` | PostgreSQL port |
 | `KAKAO_REST_API_KEY` | 기본 Kakao 도서 검색 Adapter용 REST API key (일반 자동 테스트에서는 불필요) |
 | `ALADIN_TTB_KEY` | IMP-021 legacy 알라딘 Adapter용 TTB key (신규 발급 종료, 자동 테스트에서는 불필요) |
+| `LLM_PROVIDER` | 첫 질문 Provider (`fake` 기본값, 실제 연결 시 `openai`) |
+| `OPENAI_MODEL` | OpenAI 첫 질문 생성에 사용할 고정 모델 snapshot |
+| `OPENAI_API_KEY` | `LLM_PROVIDER=openai`일 때 필요한 API key |
+| `OPENAI_TIMEOUT_SECONDS` | 첫 질문 Provider 전체 timeout (기본 30초) |
 
 필수 환경변수가 없으면 Django는 시작 단계에서 명시적으로 실패합니다. Django는 저장소
 루트의 `.env`를 자동으로 읽으며, 같은 이름의 OS 환경변수가 있으면 OS 값을 우선합니다.
@@ -133,6 +143,13 @@ key 없이 실행할 수 있고, 실제 검색이나 명시적 live smoke를 실
 `KAKAO_REST_API_KEY`가 필요합니다. `ALADIN_TTB_KEY`는 기존 Adapter 호환을 위해 유지하며
 신규 검색 경로에서는 사용하지 않습니다. key와 Provider 원본 오류 내용은 반환값이나 오류
 메시지에 포함하지 않습니다.
+
+첫 질문의 기본 Provider는 `fake`이므로 자동 테스트와 일반 개발 흐름에 OpenAI credential이
+필요하지 않습니다. 실제 OpenAI Adapter는 `store=False`, tools 없이 고정 모델 snapshot으로
+질문 하나만 생성하며, timeout·Provider·출력 오류는 원문을 노출하지 않는 재시도 상태로
+변환합니다. 기존 질문 재사용과 Interview 소유권·관계·상태 검증이 끝난 뒤에만 Provider를
+생성하므로, 저장된 질문을 표시하는 경로는 Provider credential이나 구성 상태에 의존하지
+않습니다.
 
 ## 개발 명령
 

@@ -16,6 +16,10 @@ env = environ.Env(
     POSTGRES_PORT=int,
     ALADIN_TTB_KEY=str,
     KAKAO_REST_API_KEY=str,
+    LLM_PROVIDER=str,
+    OPENAI_MODEL=str,
+    OPENAI_API_KEY=str,
+    OPENAI_TIMEOUT_SECONDS=float,
 )
 
 if ENV_FILE.is_file():
@@ -26,6 +30,13 @@ DEBUG = env("DJANGO_DEBUG")
 ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS")
 ALADIN_TTB_KEY = env("ALADIN_TTB_KEY", default="")
 KAKAO_REST_API_KEY = env("KAKAO_REST_API_KEY", default="")
+
+# fake provider는 일상 개발과 자동 테스트에서 credential 없이 동작한다.
+# OpenAI adapter는 명시적으로 선택된 경우에만 빈 key를 거부한다.
+LLM_PROVIDER = env("LLM_PROVIDER", default="fake")
+OPENAI_MODEL = env("OPENAI_MODEL", default="gpt-5.4-mini-2026-03-17")
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+OPENAI_TIMEOUT_SECONDS = env("OPENAI_TIMEOUT_SECONDS", default=30.0)
 
 INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",

@@ -6,8 +6,13 @@ from django.test import Client
 from django.urls import reverse
 
 from books.models import Book
+from integrations.llm.contracts import (
+    QuestionGenerationConfigurationError,
+    QuestionGenerationTimeout,
+)
 from readings.models import Reading
-from reflections.models import Interview
+from reflections.models import Interview, InterviewTurn
+from reflections.services import FirstAnswerPersistenceError, InterviewPolicyError
 
 
 @pytest.fixture
@@ -209,3 +214,305 @@ def test_start_and_detail_method_and_html_contracts(client, reading) -> None:
     assert created.status_code == 302
     assert "첫 질문을 준비하고 있어요." in detail_response.content.decode()
     assert Interview.objects.get(reading=reading).turns.count() == 0
+
+
+def test_detail_loading_and_first_question_post_contract(
+    client, reading, monkeypatch
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    client.force_login(reading.user)
+    detail_url = reverse("reflections:interview_detail", args=[interview.pk])
+    question_url = reverse("reflections:first_question", args=[interview.pk])
+
+    loading = client.get(detail_url)
+    fragment = client.post(question_url, HTTP_HX_REQUEST="true")
+    repeated = client.post(question_url)
+
+    assert loading.status_code == 200
+    assert 'id="interview-turn-region"' in loading.content.decode()
+    assert 'aria-busy="true"' in loading.content.decode()
+    assert fragment.status_code == 200
+    assert "가장 오래 남은 장면" in fragment.content.decode()
+    assert repeated.status_code == 302
+    assert repeated.url == detail_url
+    assert InterviewTurn.objects.filter(interview=interview, sequence=1).count() == 1
+
+
+def test_first_question_reuse_and_policy_conflict_ignore_provider_configuration(
+    client, reading, monkeypatch
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 가장 오래 남았나요?"
+    )
+    client.force_login(reading.user)
+    question_url = reverse("reflections:first_question", args=[interview.pk])
+    monkeypatch.setattr(
+        "reflections.views.get_question_provider",
+        lambda: (_ for _ in ()).throw(QuestionGenerationConfigurationError()),
+    )
+
+    reused = client.post(question_url, HTTP_HX_REQUEST="true")
+    interview.status = Interview.Status.COMPLETED
+    interview.save(update_fields=("status", "updated_at"))
+    conflict = client.post(question_url, HTTP_HX_REQUEST="true")
+
+    assert reused.status_code == 200
+    assert "무엇이 가장 오래 남았나요?" in reused.content.decode()
+    assert conflict.status_code == 409
+    assert conflict.headers["HX-Retarget"] == "#interview-turn-region"
+
+
+def test_question_state_exposes_accessible_answer_form(client, reading) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 가장 오래 남았나요?"
+    )
+    client.force_login(reading.user)
+
+    content = client.get(
+        reverse("reflections:interview_detail", args=[interview.pk])
+    ).content.decode()
+
+    assert 'id="first-question-title"' in content
+    assert "무엇이 가장 오래 남았나요?" in content
+    assert 'for="id_answer"' in content
+    assert 'id="id_answer"' in content
+    assert 'aria-describedby="answer-help"' in content
+    assert 'id="answer-help"' in content
+    assert content.count('id="interview-turn-region"') == 1
+    assert 'hx-post="/reflections/interviews/' in content
+    assert 'hx-target="#interview-turn-region"' in content
+    assert 'type="submit"' in content
+    assert "data-answer-submission" in content
+
+
+def test_first_answer_post_returns_saved_fragment_or_detail_redirect(
+    client, reading
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 가장 오래 남았나요?"
+    )
+    client.force_login(reading.user)
+    answer_url = reverse("reflections:first_answer", args=[interview.pk])
+    detail_url = reverse("reflections:interview_detail", args=[interview.pk])
+
+    fragment = client.post(
+        answer_url, {"answer": "처음 적은 답변"}, HTTP_HX_REQUEST="true"
+    )
+    redirected = client.post(answer_url, {"answer": "처음 적은 답변"})
+
+    assert fragment.status_code == 200
+    assert "답변을 저장했습니다" in fragment.content.decode()
+    assert "다음 질문" not in fragment.content.decode()
+    assert redirected.status_code == 302
+    assert redirected.url == detail_url
+
+
+def test_question_generation_error_returns_retryable_alert(
+    client, reading, monkeypatch
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    client.force_login(reading.user)
+    monkeypatch.setattr(
+        "reflections.views.get_question_provider",
+        lambda: (_ for _ in ()).throw(QuestionGenerationTimeout()),
+    )
+
+    response = client.post(
+        reverse("reflections:first_question", args=[interview.pk]),
+        HTTP_HX_REQUEST="true",
+    )
+
+    content = response.content.decode()
+    assert response.status_code == 503
+    assert 'role="alert"' in content
+    assert 'tabindex="-1"' in content
+    assert "첫 질문 다시 준비하기" in content
+    assert InterviewTurn.objects.filter(interview=interview).count() == 0
+    assert response.headers["HX-Retarget"] == "#interview-turn-region"
+    assert response.headers["HX-Reswap"] == "outerHTML"
+    assert response.headers["HX-Trigger-After-Settle"] == "interviewTurnSettled"
+
+
+def test_interview_routes_hide_non_owned_or_missing_resources(
+    client, reading, django_user_model
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?"
+    )
+    other = django_user_model.objects.create_user(username="interview-route-other")
+    client.force_login(other)
+
+    for name in ("interview_detail", "first_question", "first_answer"):
+        url = reverse(f"reflections:{name}", args=[interview.pk])
+        response = client.get(url) if name == "interview_detail" else client.post(url)
+        missing_url = reverse(f"reflections:{name}", args=[999999])
+        missing = (
+            client.get(missing_url)
+            if name == "interview_detail"
+            else client.post(missing_url)
+        )
+        assert response.status_code == missing.status_code == 404
+
+
+def test_answer_errors_swap_bound_form_and_preserve_input(
+    client, reading, monkeypatch
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?"
+    )
+    client.force_login(reading.user)
+    answer_url = reverse("reflections:first_answer", args=[interview.pk])
+
+    invalid = client.post(answer_url, {"answer": "   "}, HTTP_HX_REQUEST="true")
+    invalid_content = invalid.content.decode()
+    assert invalid.status_code == 400
+    assert invalid.headers["HX-Retarget"] == "#interview-turn-region"
+    assert invalid.headers["HX-Reswap"] == "outerHTML"
+    assert 'aria-describedby="answer-help id_answer-error"' in invalid_content
+    assert 'data-interview-focus="true"' in invalid_content
+
+    monkeypatch.setattr(
+        "reflections.views.save_first_answer",
+        lambda **kwargs: (_ for _ in ()).throw(FirstAnswerPersistenceError()),
+    )
+    failed = client.post(
+        answer_url, {"answer": "다시 제출할 원문"}, HTTP_HX_REQUEST="true"
+    )
+    failed_content = failed.content.decode()
+    assert failed.status_code == 503
+    assert "다시 제출할 원문" in failed_content
+    assert 'id="answer-form-error"' in failed_content
+    assert failed.headers["HX-Trigger-After-Settle"] == "interviewTurnSettled"
+
+
+def test_answer_conflict_and_csrf_keep_the_safe_contract(client, reading) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="무엇이 남았나요?",
+        answer="확정된 원문",
+    )
+    answer_url = reverse("reflections:first_answer", args=[interview.pk])
+    csrf_client = Client(enforce_csrf_checks=True)
+    csrf_client.force_login(reading.user)
+    assert csrf_client.post(answer_url, {"answer": "새 원문"}).status_code == 403
+
+    client.force_login(reading.user)
+    conflict = client.post(answer_url, {"answer": "새 원문"}, HTTP_HX_REQUEST="true")
+    assert conflict.status_code == 409
+    assert conflict.headers["HX-Retarget"] == "#interview-turn-region"
+    assert "확정된 원문" in conflict.content.decode()
+
+
+def test_anonymous_interview_routes_redirect_to_login(client, reading) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    for name in ("interview_detail", "first_question", "first_answer"):
+        url = reverse(f"reflections:{name}", args=[interview.pk])
+        response = client.get(url) if name == "interview_detail" else client.post(url)
+        assert response.status_code == 302
+        assert "/accounts/login/" in response.url
+
+
+def test_question_post_rejects_csrf_and_unavailable_status(client, reading) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+        status=Interview.Status.COMPLETED,
+    )
+    question_url = reverse("reflections:first_question", args=[interview.pk])
+    csrf_client = Client(enforce_csrf_checks=True)
+    csrf_client.force_login(reading.user)
+    assert csrf_client.post(question_url).status_code == 403
+
+    client.force_login(reading.user)
+    assert client.post(question_url).status_code == 409
+
+
+def test_policy_conflicts_replace_htmx_interview_region_safely(
+    client, reading, monkeypatch
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question=" multiline-policy-secret "
+    )
+    client.force_login(reading.user)
+    question_url = reverse("reflections:first_question", args=[interview.pk])
+    answer_url = reverse("reflections:first_answer", args=[interview.pk])
+
+    def reject_policy(**kwargs):
+        raise InterviewPolicyError("internal-policy-detail")
+
+    monkeypatch.setattr("reflections.views.ensure_first_question", reject_policy)
+    question = client.post(question_url, HTTP_HX_REQUEST="true")
+    question_page = client.post(question_url)
+    monkeypatch.setattr("reflections.views.save_first_answer", reject_policy)
+    answer = client.post(
+        answer_url, {"answer": "보존 대상이 아닌 입력"}, HTTP_HX_REQUEST="true"
+    )
+    answer_page = client.post(answer_url, {"answer": "보존 대상이 아닌 입력"})
+
+    for response in (question, answer):
+        content = response.content.decode()
+        assert response.status_code == 409
+        assert response.headers["HX-Retarget"] == "#interview-turn-region"
+        assert response.headers["HX-Reswap"] == "outerHTML"
+        assert response.headers["HX-Trigger-After-Settle"] == "interviewTurnSettled"
+        assert content.count('id="interview-turn-region"') == 1
+        assert 'role="alert"' in content
+        assert "현재 단계를 사용할 수 없습니다" in content
+        assert "internal-policy-detail" not in content
+        assert "보존 대상이 아닌 입력" not in content
+
+    for response in (question_page, answer_page):
+        content = response.content.decode()
+        assert response.status_code == 409
+        assert "현재 단계를 아직 사용할 수 없습니다" in content
+        assert "internal-policy-detail" not in content
+        assert "보존 대상이 아닌 입력" not in content

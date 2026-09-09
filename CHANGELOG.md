@@ -38,6 +38,12 @@
 - 완독 Reading의 Book 확인과 명시적 POST 기반 Interview 시작, 진행 상태 재진입 흐름
 - Reading당 하나의 Interview와 순서가 보장되는 InterviewTurn 영속 모델 및 migration
 - 시작된 Interview의 Reading 완독 상태·완독일 변경 잠금과 `READY_LIMITED` 기억 중심 안내
+- `READY`/`READY_LIMITED` 신뢰 경계를 지키는 첫 질문 Context, fake·OpenAI Provider와 strict structured output Adapter
+- 첫 질문의 멱등 저장, HTMX Loading·Question·Error 전환과 명시적 재시도
+- 공백을 거부하는 2,000자 답변 form, 최초 답변의 불변·멱등 저장과 Saved 상태
+- 첫 질문·답변 Web 계약 및 network·credential 없는 Provider 회귀 테스트
+- 생성 질문의 금지 지시·상태 변경·허용되지 않은 참조를 저장 전에 거부하는 안전성 검사
+- HTMX 정책 충돌을 내부 정보 비노출 안내와 Interview 영역 전체 교체로 복구하는 fragment
 
 ### Changed
 
@@ -52,3 +58,7 @@
 - Ruff 검사 범위를 애플리케이션 코드, 테스트와 프로젝트 스크립트로 제한
 - Reading 상태 변경의 HTMX 오류 panel 교체와 결과 focus, 활성 Reading 충돌 복구 안내를
   일반 Form POST와 동일한 의미 계약으로 강화
+- 첫 답변 validation·conflict·DB 오류와 첫 질문 생성 오류가 HTMX 4xx/5xx에서도 Interview
+  영역을 교체하고 입력 보존·오류 focus 계약을 유지하도록 강화
+- 첫 질문의 소유권·관계·상태 검증과 기존 Turn 재사용 이후에만 Provider를 생성하도록 호출
+  순서를 변경해 저장된 질문과 정책 충돌 응답이 Provider 설정에 의존하지 않도록 개선

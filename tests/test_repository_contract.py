@@ -20,6 +20,10 @@ def test_example_environment_has_required_names() -> None:
         "POSTGRES_PORT",
         "ALADIN_TTB_KEY",
         "KAKAO_REST_API_KEY",
+        "LLM_PROVIDER",
+        "OPENAI_MODEL",
+        "OPENAI_API_KEY",
+        "OPENAI_TIMEOUT_SECONDS",
     }
 
     configured_names = {

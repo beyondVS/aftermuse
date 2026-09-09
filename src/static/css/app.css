@@ -1630,6 +1630,84 @@ button:active,
 
 .interview-actions form { margin: 0; }
 
+.interview-page {
+  max-width: 48rem;
+  margin-inline: auto;
+}
+
+#interview-turn-region {
+  margin-block-start: 2rem;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+.interview-guidance,
+.answer-help,
+.answer-submitting {
+  color: var(--color-ink-muted);
+  font-size: 0.9rem;
+}
+
+.answer-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-block-start: 1.5rem;
+}
+
+.answer-form label {
+  font-weight: 700;
+}
+
+.answer-form textarea {
+  width: 100%;
+  min-height: 10rem;
+  resize: vertical;
+  padding: 0.85rem;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  color: var(--color-ink);
+  font: inherit;
+}
+
+.answer-form textarea:focus-visible {
+  border-color: var(--color-accent);
+}
+
+.answer-error {
+  padding: 0.75rem;
+  border: 1px solid var(--color-error-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.answer-submitting {
+  display: none;
+  margin: 0;
+}
+
+.answer-form[aria-busy="true"] .answer-submitting {
+  display: block;
+}
+
+@media (max-width: 36rem) {
+  .interview-page {
+    max-width: none;
+  }
+
+  #interview-turn-region {
+    padding: 1.15rem;
+  }
+
+  .answer-form button {
+    width: 100%;
+  }
+}
+
 @media (max-width: 36rem) {
   .interview-actions,
   .interview-actions form,

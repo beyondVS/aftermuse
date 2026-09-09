@@ -1,0 +1,7 @@
+<section id="interview-turn-region" role="alert" tabindex="-1" data-interview-focus autofocus>
+  <p>질문을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
+  <form method="post" action="{% url 'reflections:first_question' interview.pk %}" hx-post="{% url 'reflections:first_question' interview.pk %}" hx-target="#interview-turn-region" hx-swap="outerHTML">
+    {% csrf_token %}
+    <button type="submit">첫 질문 다시 준비하기</button>
+  </form>
+</section>
