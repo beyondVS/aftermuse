@@ -8,6 +8,7 @@ from integrations.llm.contracts import QuestionGenerationError
 from integrations.llm.factory import get_question_provider
 from knowledge.services import get_book_knowledge_readiness
 from readings.models import Reading
+from reflections.forms import FirstAnswerForm
 from reflections.models import Interview
 from reflections.services import (
     InterviewDestination,
@@ -123,7 +124,11 @@ def first_question(request: HttpRequest, interview_id: int) -> HttpResponse:
         return render(
             request,
             "reflections/_interview_question.html",
-            {"interview": interview, "turn": turn},
+            {
+                "interview": interview,
+                "turn": turn,
+                "answer_form": FirstAnswerForm(),
+            },
         )
     return redirect("reflections:interview_detail", interview_id=interview.pk)
 
@@ -153,7 +158,11 @@ def _destination_response(
             return render(
                 request,
                 "reflections/interview_detail.html",
-                {"interview": interview, "turn": turn},
+                {
+                    "interview": interview,
+                    "turn": turn,
+                    "answer_form": FirstAnswerForm(),
+                },
             )
         return redirect("reflections:interview_detail", interview_id=interview.pk)
     label = (

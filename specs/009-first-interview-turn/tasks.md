@@ -76,14 +76,14 @@ description: "첫 인터뷰 Turn 구현을 위한 의존성 순서 작업 목록
 
 ### 사용자 스토리 2 테스트
 
-- [ ] T017 [P] [US2] `tests/reflections/test_forms.py`에 답변 form의 필수값, 공백 거부, 2,000자 경계와 원문 보존 테스트를 작성하고 실패를 확인한다.
-- [ ] T018 [US2] `tests/reflections/test_views.py`에 질문 heading, textarea label/help/error, 실제 submit button, 제출 중 상태, Desktop/Mobile semantic 응답과 색상 외 상태 식별 계약 테스트를 작성하고 실패를 확인한다.
+- [X] T017 [P] [US2] `tests/reflections/test_forms.py`에 답변 form의 필수값, 공백 거부, 2,000자 경계와 원문 보존 테스트를 작성하고 실패를 확인한다.
+- [X] T018 [US2] `tests/reflections/test_views.py`에 질문 heading, textarea label/help/error, 실제 submit button, 제출 중 상태, Desktop/Mobile semantic 응답과 색상 외 상태 식별 계약 테스트를 작성하고 실패를 확인한다.
 
 ### 사용자 스토리 2 구현
 
-- [ ] T019 [P] [US2] `src/reflections/forms.py`에 공백을 거부하고 최대 2,000자를 자르지 않으며 사용자가 입력한 원문을 bound data로 유지하는 answer form을 구현한다.
-- [ ] T020 [US2] `src/templates/reflections/_interview_question.html`에 책 식별 정보, 단일 질문, 부담을 낮추는 안내, 연결된 label/help/error와 progressive-enhancement 제출 form을 구현한다.
-- [ ] T021 [US2] `src/static/css/app.css`에 집중형 질문 배치, 명확한 focus 표시, 색상 외 상태 표현과 대표 Desktop/Mobile 폭에서 동작하는 반응형 스타일을 추가한다.
+- [X] T019 [P] [US2] `src/reflections/forms.py`에 공백을 거부하고 최대 2,000자를 자르지 않으며 사용자가 입력한 원문을 bound data로 유지하는 answer form을 구현한다.
+- [X] T020 [US2] `src/templates/reflections/_interview_question.html`에 책 식별 정보, 단일 질문, 부담을 낮추는 안내, 연결된 label/help/error와 progressive-enhancement 제출 form을 구현한다.
+- [X] T021 [US2] `src/static/css/app.css`에 집중형 질문 배치, 명확한 focus 표시, 색상 외 상태 표현과 대표 Desktop/Mobile 폭에서 동작하는 반응형 스타일을 추가한다.
 
 **체크포인트**: 질문 화면과 답변 입력·제출 조작이 마우스나 색상에 의존하지 않고 독립적으로 검증된다.
 

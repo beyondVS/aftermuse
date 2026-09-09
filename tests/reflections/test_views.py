@@ -235,3 +235,28 @@ def test_detail_loading_and_first_question_post_contract(
     assert repeated.status_code == 302
     assert repeated.url == detail_url
     assert InterviewTurn.objects.filter(interview=interview, sequence=1).count() == 1
+
+
+def test_question_state_exposes_accessible_answer_form(client, reading) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 가장 오래 남았나요?"
+    )
+    client.force_login(reading.user)
+
+    content = client.get(
+        reverse("reflections:interview_detail", args=[interview.pk])
+    ).content.decode()
+
+    assert 'id="first-question-title"' in content
+    assert "무엇이 가장 오래 남았나요?" in content
+    assert 'for="id_answer"' in content
+    assert 'id="id_answer"' in content
+    assert 'aria-describedby="answer-help"' in content
+    assert 'id="answer-help"' in content
+    assert 'type="submit"' in content
+    assert 'data-answer-submission' in content

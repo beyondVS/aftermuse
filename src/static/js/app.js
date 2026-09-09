@@ -44,3 +44,13 @@ document.addEventListener("htmx:beforeRequest", (event) => {
 document.addEventListener("htmx:afterRequest", (event) => {
   setReadingSubmissionBusy(event, false);
 });
+
+document.addEventListener("submit", (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement) || !form.matches("[data-answer-submission]")) {
+    return;
+  }
+
+  form.setAttribute("aria-busy", "true");
+  form.querySelector("button[type='submit']")?.setAttribute("disabled", "disabled");
+});
