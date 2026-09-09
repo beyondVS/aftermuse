@@ -9,7 +9,11 @@
   {% if interview.knowledge_readiness == "READY_LIMITED" %}<p class="interview-notice">기억에 남은 내용부터 정리해 볼게요.</p>{% endif %}
   <div id="interview-turn-region">
     {% if turn %}
-      {% include "reflections/_interview_question.html" %}
+      {% if turn.answer is None %}
+        {% include "reflections/_interview_question.html" %}
+      {% else %}
+        {% include "reflections/_interview_answer_saved.html" %}
+      {% endif %}
     {% else %}
       {% include "reflections/_interview_loading.html" %}
     {% endif %}

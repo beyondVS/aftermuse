@@ -259,4 +259,31 @@ def test_question_state_exposes_accessible_answer_form(client, reading) -> None:
     assert 'aria-describedby="answer-help"' in content
     assert 'id="answer-help"' in content
     assert 'type="submit"' in content
-    assert 'data-answer-submission' in content
+    assert "data-answer-submission" in content
+
+
+def test_first_answer_post_returns_saved_fragment_or_detail_redirect(
+    client, reading
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 가장 오래 남았나요?"
+    )
+    client.force_login(reading.user)
+    answer_url = reverse("reflections:first_answer", args=[interview.pk])
+    detail_url = reverse("reflections:interview_detail", args=[interview.pk])
+
+    fragment = client.post(
+        answer_url, {"answer": "처음 적은 답변"}, HTTP_HX_REQUEST="true"
+    )
+    redirected = client.post(answer_url, {"answer": "처음 적은 답변"})
+
+    assert fragment.status_code == 200
+    assert "답변을 저장했습니다" in fragment.content.decode()
+    assert "다음 질문" not in fragment.content.decode()
+    assert redirected.status_code == 302
+    assert redirected.url == detail_url

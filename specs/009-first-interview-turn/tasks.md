@@ -97,16 +97,16 @@ description: "첫 인터뷰 Turn 구현을 위한 의존성 순서 작업 목록
 
 ### 사용자 스토리 3 테스트
 
-- [ ] T022 [P] [US3] `tests/reflections/test_models.py`에 기존 schema가 nullable 미응답 상태와 2,000자 답변 원문을 migration 없이 보존하는 회귀 테스트를 추가하고 현재 동작을 확인한다.
-- [ ] T023 [US3] `tests/reflections/test_services.py`에 최초 답변 저장, 동일 값 멱등 성공, 다른 값 409용 conflict, row lock 동시 제출, DB 실패 시 answer `NULL` 유지와 후속 작업 0건 테스트를 작성하고 실패를 확인한다.
-- [ ] T024 [US3] `tests/reflections/test_views.py`에 익명 사용자의 answer POST 접근 차단, answer POST의 400·404·409·성공 응답, 비소유자와 미존재 대상의 동일한 404 형태, HTML redirect/HTMX saved fragment, validation·DB 실패 입력 보존 및 다음 질문 action 부재 테스트를 작성하고 실패를 확인한다.
+- [X] T022 [P] [US3] `tests/reflections/test_models.py`에 기존 schema가 nullable 미응답 상태와 2,000자 답변 원문을 migration 없이 보존하는 회귀 테스트를 추가하고 현재 동작을 확인한다.
+- [X] T023 [US3] `tests/reflections/test_services.py`에 최초 답변 저장, 동일 값 멱등 성공, 다른 값 409용 conflict, row lock 동시 제출, DB 실패 시 answer `NULL` 유지와 후속 작업 0건 테스트를 작성하고 실패를 확인한다.
+- [X] T024 [US3] `tests/reflections/test_views.py`에 익명 사용자의 answer POST 접근 차단, answer POST의 400·404·409·성공 응답, 비소유자와 미존재 대상의 동일한 404 형태, HTML redirect/HTMX saved fragment, validation·DB 실패 입력 보존 및 다음 질문 action 부재 테스트를 작성하고 실패를 확인한다.
 
 ### 사용자 스토리 3 구현
 
-- [ ] T025 [US3] `src/reflections/models.py`에 DDL 변경 없이 Answer의 1~2,000자 application validation과 최초 확정 불변 계약을 보강한다.
-- [ ] T026 [US3] `src/reflections/services.py`에 owner-scoped row lock, 최초 저장, 동일 값 멱등 처리, 다른 값 conflict와 DB 오류 변환을 수행하되 Coverage·분석·다음 질문을 호출하지 않는 `save_first_answer`를 구현한다.
-- [ ] T027 [US3] `src/reflections/urls.py`와 `src/reflections/views.py`에 sequence 1 answer POST를 연결하고 validation·저장 실패에는 bound form을, 성공에는 redirect 또는 saved fragment를 반환한다.
-- [ ] T028 [US3] `src/templates/reflections/_interview_answer_saved.html`에 확정 원문과 저장 완료 상태를 표시하고 수정·교체·다음 질문 action을 노출하지 않는 Saved 상태를 구현한다.
+- [X] T025 [US3] `src/reflections/models.py`에 DDL 변경 없이 Answer의 1~2,000자 application validation과 최초 확정 불변 계약을 보강한다.
+- [X] T026 [US3] `src/reflections/services.py`에 owner-scoped row lock, 최초 저장, 동일 값 멱등 처리, 다른 값 conflict와 DB 오류 변환을 수행하되 Coverage·분석·다음 질문을 호출하지 않는 `save_first_answer`를 구현한다.
+- [X] T027 [US3] `src/reflections/urls.py`와 `src/reflections/views.py`에 sequence 1 answer POST를 연결하고 validation·저장 실패에는 bound form을, 성공에는 redirect 또는 saved fragment를 반환한다.
+- [X] T028 [US3] `src/templates/reflections/_interview_answer_saved.html`에 확정 원문과 저장 완료 상태를 표시하고 수정·교체·다음 질문 action을 노출하지 않는 Saved 상태를 구현한다.
 
 **체크포인트**: 저장 성공과 실패 모두에서 사용자의 원문이 유실되거나 덮어써지지 않는다.
 

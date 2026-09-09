@@ -25,4 +25,9 @@ urlpatterns = [
         views.first_question,
         name="first_question",
     ),
+    path(
+        "interviews/<int:interview_id>/turns/1/answer/",
+        views.first_answer,
+        name="first_answer",
+    ),
 ]

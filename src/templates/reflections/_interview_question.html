@@ -2,7 +2,7 @@
   <h2 id="first-question-title">첫 번째 질문</h2>
   <p>{{ turn.question }}</p>
   <p class="interview-guidance">정답은 없어요. 기억에 남은 부분부터 천천히 적어 보세요.</p>
-  <form method="post" action="/reflections/interviews/{{ interview.pk }}/turns/1/answer/" class="answer-form" data-answer-submission aria-busy="false">
+  <form method="post" action="{% url 'reflections:first_answer' interview.pk %}" class="answer-form" data-answer-submission aria-busy="false">
     {% csrf_token %}
     {% if answer_form.non_field_errors %}<div class="answer-error" role="alert">{{ answer_form.non_field_errors }}</div>{% endif %}
     <label for="{{ answer_form.answer.id_for_label }}">{{ answer_form.answer.label }}</label>

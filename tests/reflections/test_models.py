@@ -70,3 +70,22 @@ def test_turn_preserves_nullable_answers_and_sequence_order(interview) -> None:
 
     assert [turn.pk for turn in turns] == [first.pk, later.pk]
     assert later.answer is None
+
+
+def test_turn_answer_validation_preserves_first_confirmed_value(interview) -> None:
+    turn = InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="첫 번째 질문", answer=None
+    )
+    turn.answer = "가" * 2000
+    turn.full_clean()
+    turn.save()
+    turn.answer = "다른 답변"
+
+    with pytest.raises(ValidationError):
+        turn.full_clean()
+
+    assert InterviewTurn.objects.get(pk=turn.pk).answer == "가" * 2000
+    with pytest.raises(ValidationError):
+        InterviewTurn(
+            interview=interview, sequence=2, question="두 번째 질문", answer=" \n"
+        ).full_clean()

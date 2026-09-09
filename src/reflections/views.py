@@ -11,10 +11,13 @@ from readings.models import Reading
 from reflections.forms import FirstAnswerForm
 from reflections.models import Interview
 from reflections.services import (
+    FirstAnswerConflict,
+    FirstAnswerPersistenceError,
     InterviewDestination,
     InterviewPolicyError,
     ensure_first_question,
     get_interview_destination,
+    save_first_answer,
     start_interview,
 )
 
@@ -133,6 +136,41 @@ def first_question(request: HttpRequest, interview_id: int) -> HttpResponse:
     return redirect("reflections:interview_detail", interview_id=interview.pk)
 
 
+@require_POST
+@login_required
+def first_answer(request: HttpRequest, interview_id: int) -> HttpResponse:
+    """첫 답변을 확정하고 성공 상태 또는 보존된 입력 오류를 반환한다."""
+    interview = get_object_or_404(
+        Interview.objects.select_related("reading", "book"),
+        pk=interview_id,
+        reading__user=request.user,
+    )
+    turn = get_object_or_404(interview.turns, sequence=1)
+    form = FirstAnswerForm(request.POST)
+    if not form.is_valid():
+        return _question_response(request, interview, turn, form, status=400)
+    try:
+        result = save_first_answer(
+            user=request.user,
+            interview=interview,
+            answer=form.cleaned_data["answer"],
+        )
+    except InterviewPolicyError:
+        return render(request, "reflections/interview_unavailable.html", status=409)
+    except FirstAnswerPersistenceError:
+        form.add_error(None, "답변을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.")
+        return _question_response(request, interview, turn, form, status=503)
+    except FirstAnswerConflict as error:
+        return _saved_response(request, interview, error.turn, status=409)
+    if request.headers.get("HX-Request") == "true":
+        return render(
+            request,
+            "reflections/_interview_answer_saved.html",
+            {"turn": result.turn},
+        )
+    return redirect("reflections:interview_detail", interview_id=interview.pk)
+
+
 def _destination_response(
     request: HttpRequest, interview: Interview, *, detail: bool = False
 ) -> HttpResponse:
@@ -172,4 +210,34 @@ def _destination_response(
     )
     return render(
         request, "reflections/interview_unavailable.html", {"label": label}, status=409
+    )
+
+
+def _question_response(
+    request: HttpRequest,
+    interview: Interview,
+    turn,
+    form: FirstAnswerForm,
+    *,
+    status: int,
+) -> HttpResponse:
+    context = {"interview": interview, "turn": turn, "answer_form": form}
+    template = (
+        "reflections/_interview_question.html"
+        if request.headers.get("HX-Request") == "true"
+        else "reflections/interview_detail.html"
+    )
+    return render(request, template, context, status=status)
+
+
+def _saved_response(
+    request: HttpRequest, interview: Interview, turn, *, status: int
+) -> HttpResponse:
+    template = (
+        "reflections/_interview_answer_saved.html"
+        if request.headers.get("HX-Request") == "true"
+        else "reflections/interview_detail.html"
+    )
+    return render(
+        request, template, {"interview": interview, "turn": turn}, status=status
     )

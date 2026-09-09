@@ -12,10 +12,12 @@ from readings.models import Reading
 from readings.services import ReadingLockedError, update_completion_date
 from reflections.models import Interview, InterviewTurn
 from reflections.services import (
+    FirstAnswerConflict,
     InterviewDestination,
     InterviewPolicyError,
     ensure_first_question,
     get_interview_destination,
+    save_first_answer,
     start_interview,
 )
 
@@ -175,3 +177,31 @@ def test_first_question_is_saved_once_and_reused(completed_reading) -> None:
     assert reused.pk == created.pk
     assert len(provider.contexts) == 1
     assert InterviewTurn.objects.filter(interview=interview, sequence=1).count() == 1
+
+
+def test_first_answer_is_saved_once_and_same_value_is_idempotent(
+    completed_reading,
+) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    turn = InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?"
+    )
+
+    saved = save_first_answer(
+        user=completed_reading.user, interview=interview, answer="처음 적은 답변"
+    )
+    repeated = save_first_answer(
+        user=completed_reading.user, interview=interview, answer="처음 적은 답변"
+    )
+
+    assert saved.turn.pk == turn.pk
+    assert saved.saved
+    assert not repeated.saved
+    with pytest.raises(FirstAnswerConflict) as error:
+        save_first_answer(
+            user=completed_reading.user, interview=interview, answer="다른 답변"
+        )
+    assert error.value.turn.answer == "처음 적은 답변"
+    assert InterviewTurn.objects.get(pk=turn.pk).answer == "처음 적은 답변"

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from django.db import IntegrityError, transaction
+from django.db import DatabaseError, IntegrityError, transaction
 
 from integrations.llm.contracts import (
     QuestionGenerationRejected,
@@ -24,6 +24,29 @@ class InterviewDestination(StrEnum):
 
 class InterviewPolicyError(Exception):
     """시작 흐름에서 안전하게 표시할 수 있는 정책 오류다."""
+
+
+class FirstAnswerValidationError(Exception):
+    """첫 답변이 저장 계약을 충족하지 않음을 나타낸다."""
+
+
+class FirstAnswerPersistenceError(Exception):
+    """답변 확정 중 복구 가능한 데이터베이스 오류가 발생했음을 나타낸다."""
+
+
+class FirstAnswerConflict(Exception):
+    """이미 다른 원문으로 확정된 첫 답변이 있음을 나타낸다."""
+
+    def __init__(self, turn: InterviewTurn) -> None:
+        self.turn = turn
+
+
+@dataclass(frozen=True, slots=True)
+class FirstAnswerSaveResult:
+    """첫 답변 저장 또는 동일 값 재사용의 결과다."""
+
+    turn: InterviewTurn
+    saved: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,3 +224,47 @@ def _validate_first_question(question: object) -> str:
     ):
         raise QuestionGenerationRejected()
     return normalized
+
+
+def save_first_answer(
+    *, user, interview: Interview, answer: object
+) -> FirstAnswerSaveResult:
+    """첫 답변을 한 번만 확정하고 같은 재제출은 멱등 처리한다."""
+    validated_answer = _validate_first_answer(answer)
+    try:
+        with transaction.atomic():
+            locked_interview = (
+                Interview.objects.select_for_update()
+                .select_related("reading", "book")
+                .filter(pk=interview.pk, reading__user=user)
+                .first()
+            )
+            if locked_interview is None:
+                raise InterviewPolicyError()
+            _validate_interview_state(locked_interview)
+            turn = (
+                InterviewTurn.objects.select_for_update()
+                .filter(interview=locked_interview, sequence=1)
+                .first()
+            )
+            if turn is None:
+                raise InterviewPolicyError()
+            if turn.answer is None:
+                turn.answer = validated_answer
+                turn.full_clean()
+                turn.save(update_fields=("answer", "updated_at"))
+                return FirstAnswerSaveResult(turn=turn, saved=True)
+            if turn.answer == validated_answer:
+                return FirstAnswerSaveResult(turn=turn, saved=False)
+            raise FirstAnswerConflict(turn)
+    except FirstAnswerConflict:
+        raise
+    except DatabaseError as error:
+        raise FirstAnswerPersistenceError() from error
+
+
+def _validate_first_answer(answer: object) -> str:
+    """답변 원문을 바꾸지 않고 public 저장 범위만 확인한다."""
+    if not isinstance(answer, str) or not answer.strip() or len(answer) > 2000:
+        raise FirstAnswerValidationError()
+    return answer
