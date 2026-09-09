@@ -7,6 +7,7 @@ from knowledge.models import BookKnowledge, KnowledgeKind
 from readings.models import Reading
 from reflections.context import build_interview_question_context
 from reflections.models import Interview
+from reflections.services import InterviewPolicyError
 
 
 @pytest.fixture
@@ -53,3 +54,26 @@ def test_limited_context_excludes_claims_even_when_book_has_them(interview) -> N
 
     assert context.knowledge_claims == ()
     assert context.policy.value == "memory_centered"
+
+
+def test_context_rejects_invalid_interview_state_and_excludes_other_book_claims(
+    interview,
+) -> None:
+    other_book = Book.objects.create(isbn13="9788937834702", title="다른 책")
+    BookKnowledge.objects.create(
+        book=interview.book, kind=KnowledgeKind.THEME, content="현재 책 Claim"
+    )
+    BookKnowledge.objects.create(
+        book=other_book, kind=KnowledgeKind.THEME, content="다른 책 Claim"
+    )
+
+    assert build_interview_question_context(interview=interview).knowledge_claims == (
+        "현재 책 Claim",
+    )
+    interview.status = Interview.Status.COMPLETED
+    with pytest.raises(InterviewPolicyError):
+        build_interview_question_context(interview=interview)
+    interview.status = Interview.Status.IN_PROGRESS
+    interview.book = other_book
+    with pytest.raises(InterviewPolicyError):
+        build_interview_question_context(interview=interview)

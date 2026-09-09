@@ -112,10 +112,12 @@ def first_question(request: HttpRequest, interview_id: int) -> HttpResponse:
     )
     try:
         turn = ensure_first_question(
-            user=request.user, interview=interview, provider=get_question_provider()
+            user=request.user,
+            interview=interview,
+            provider_factory=get_question_provider,
         )
     except InterviewPolicyError:
-        return render(request, "reflections/interview_unavailable.html", status=409)
+        return _policy_conflict_response(request)
     except QuestionGenerationError:
         return _question_error_response(request, interview)
     if request.headers.get("HX-Request") == "true":
@@ -151,7 +153,7 @@ def first_answer(request: HttpRequest, interview_id: int) -> HttpResponse:
             answer=form.cleaned_data["answer"],
         )
     except InterviewPolicyError:
-        return render(request, "reflections/interview_unavailable.html", status=409)
+        return _policy_conflict_response(request)
     except FirstAnswerPersistenceError:
         form.add_error(None, "답변을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.")
         return _question_response(request, interview, turn, form, status=503)
@@ -216,13 +218,16 @@ def _question_response(
     *,
     status: int,
 ) -> HttpResponse:
+    _prepare_answer_form_accessibility(form)
     context = {"interview": interview, "turn": turn, "answer_form": form}
     template = (
         "reflections/_interview_question.html"
         if request.headers.get("HX-Request") == "true"
         else "reflections/interview_detail.html"
     )
-    return render(request, template, context, status=status)
+    return _interview_turn_response(
+        request, template, context, status=status, focus_error=bool(form.errors)
+    )
 
 
 def _saved_response(
@@ -233,7 +238,7 @@ def _saved_response(
         if request.headers.get("HX-Request") == "true"
         else "reflections/interview_detail.html"
     )
-    return render(
+    return _interview_turn_response(
         request, template, {"interview": interview, "turn": turn}, status=status
     )
 
@@ -246,9 +251,59 @@ def _question_error_response(
         if request.headers.get("HX-Request") == "true"
         else "reflections/interview_detail.html"
     )
-    return render(
+    return _interview_turn_response(
         request,
         template,
         {"interview": interview, "question_error": True},
         status=503,
+        focus_error=True,
     )
+
+
+def _policy_conflict_response(request: HttpRequest) -> HttpResponse:
+    """정책 충돌의 내부 사유를 숨기고 요청 방식에 맞는 409를 반환한다."""
+    is_htmx = request.headers.get("HX-Request") == "true"
+    template = (
+        "reflections/_interview_unavailable.html"
+        if is_htmx
+        else "reflections/interview_unavailable.html"
+    )
+    return _interview_turn_response(
+        request,
+        template,
+        {"label": "현재 단계"},
+        status=409,
+        focus_error=is_htmx,
+    )
+
+
+def _prepare_answer_form_accessibility(form: FirstAnswerForm) -> None:
+    """오류가 있는 bound 답변 form의 설명·focus 대상을 연결한다."""
+    if not form.errors:
+        return
+    descriptions = ["answer-help"]
+    if form.non_field_errors():
+        descriptions.append("answer-form-error")
+    if form.errors.get("answer"):
+        descriptions.append("id_answer-error")
+        form.fields["answer"].widget.attrs["aria-invalid"] = "true"
+    form.fields["answer"].widget.attrs["aria-describedby"] = " ".join(descriptions)
+    form.fields["answer"].widget.attrs["data-interview-focus"] = "true"
+
+
+def _interview_turn_response(
+    request: HttpRequest,
+    template: str,
+    context: dict[str, object],
+    *,
+    status: int,
+    focus_error: bool = False,
+) -> HttpResponse:
+    """HTMX 오류도 Interview region 전체 교체로 회복할 수 있게 반환한다."""
+    response = render(request, template, context, status=status)
+    if request.headers.get("HX-Request") == "true" and status >= 400:
+        response.headers["HX-Retarget"] = "#interview-turn-region"
+        response.headers["HX-Reswap"] = "outerHTML"
+        if focus_error:
+            response.headers["HX-Trigger-After-Settle"] = "interviewTurnSettled"
+    return response

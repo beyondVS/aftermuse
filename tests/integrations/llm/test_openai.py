@@ -1,11 +1,14 @@
 from datetime import date
 from types import SimpleNamespace
 
+import httpx2 as httpx
 import pytest
+from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
 
 from integrations.llm.contracts import (
     InterviewQuestionContext,
     QuestionGenerationRejected,
+    QuestionGenerationTimeout,
     QuestionGenerationUnavailable,
     QuestionPolicy,
 )
@@ -155,3 +158,99 @@ def test_adapter_converts_unexpected_provider_failure_without_detail_leakage() -
         ).generate_first_question(context)
 
     assert str(error.value) == ""
+
+
+@pytest.mark.parametrize(
+    ("provider_error", "expected_error"),
+    [
+        (
+            APITimeoutError(
+                httpx.Request("POST", "https://api.openai.com/v1/responses")
+            ),
+            QuestionGenerationTimeout,
+        ),
+        (
+            APIConnectionError(
+                request=httpx.Request("POST", "https://api.openai.com/v1/responses")
+            ),
+            QuestionGenerationUnavailable,
+        ),
+        (
+            RateLimitError(
+                "sensitive provider body",
+                response=httpx.Response(
+                    429, request=httpx.Request("POST", "https://api.openai.com")
+                ),
+                body={"detail": "secret"},
+            ),
+            QuestionGenerationUnavailable,
+        ),
+        (
+            APIStatusError(
+                "sensitive provider body",
+                response=httpx.Response(
+                    500, request=httpx.Request("POST", "https://api.openai.com")
+                ),
+                body={"detail": "secret"},
+            ),
+            QuestionGenerationUnavailable,
+        ),
+    ],
+)
+def test_adapter_converts_sdk_errors_without_provider_detail(
+    provider_error, expected_error
+) -> None:
+    context = InterviewQuestionContext(
+        book_title="책",
+        authors="저자",
+        publisher="출판사",
+        reading_status="COMPLETED",
+        completed_on=None,
+        knowledge_readiness="READY_LIMITED",
+        knowledge_claims=(),
+        policy=QuestionPolicy.MEMORY_CENTERED,
+    )
+    client = UnavailableClient()
+    client.create = lambda **kwargs: (_ for _ in ()).throw(provider_error)
+
+    with pytest.raises(expected_error) as error:
+        OpenAIQuestionProvider(
+            api_key="test-key", model="pinned-model", timeout=30, client=client
+        ).generate_first_question(context)
+
+    assert str(error.value) == ""
+
+
+def test_adapter_rejects_refusal_and_uses_fixed_timeout_without_retries(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class CapturingClient(RecordingClient):
+        def __init__(self, **kwargs) -> None:
+            captured.update(kwargs)
+            super().__init__()
+
+    monkeypatch.setattr("integrations.llm.openai.OpenAI", CapturingClient)
+    provider = OpenAIQuestionProvider(
+        api_key="test-key", model="pinned-model", timeout=30
+    )
+    context = InterviewQuestionContext(
+        book_title="책",
+        authors="저자",
+        publisher="출판사",
+        reading_status="COMPLETED",
+        completed_on=None,
+        knowledge_readiness="READY_LIMITED",
+        knowledge_claims=(),
+        policy=QuestionPolicy.MEMORY_CENTERED,
+    )
+    provider._client = FixedResponseClient(
+        SimpleNamespace(status="completed", output_text=None)
+    )
+
+    with pytest.raises(QuestionGenerationRejected):
+        provider.generate_first_question(context)
+
+    assert captured["timeout"] == 30
+    assert captured["max_retries"] == 0

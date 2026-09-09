@@ -228,3 +228,28 @@ Task T029: tests/integrations/llm/test_openai.py의 Provider 오류 변환 테�
 - 실제 OpenAI 연결은 선택형 `live` smoke이며 기본 테스트와 완료 조건에 포함하지 않는다.
 - 실제 브라우저 조작은 현재 승인된 완료 조건이 아니므로 작업에 포함하지 않고 결정적 HTML 응답 계약으로 Desktop/Mobile·접근성을 검증한다.
 - schema는 기존 column을 재사용하므로 migration을 생성하지 않으며 drift 0건을 검증한다.
+
+## Phase 8: Convergence
+
+**목적**: 현재 구현에서 확인된 질문 안전성, HTMX 회복 경로, 접근성 및 계약 테스트의 잔여 간극을 해소한다.
+
+- [X] T038 CRITICAL: `src/reflections/services.py`의 첫 질문 Application Validation에서 질문 외 지시, 상태 변경 요청 및 허용되지 않은 참조를 거부하고 `tests/reflections/test_services.py`에 저장·노출 0건 회귀 테스트를 추가한다. per Constitution III, FR-008 (partial)
+- [X] T039 `src/templates/reflections/_interview_question.html`과 `src/static/js/app.js`에 progressive-enhancement 답변 HTMX POST 및 400·409·503 region swap/busy 복구를 연결하고, 실패 시 bound 입력과 명시적 재제출 행동을 유지하는 테스트를 추가한다. per FR-018A, SC-003B (partial)
+- [X] T040 `src/static/js/app.js`, `src/templates/reflections/_interview_error.html`, `src/reflections/views.py`에서 첫 질문 생성 503 HTMX 응답이 Interview region을 교체하고 Error focus와 한 번의 명시적 재시도를 제공하도록 연결해 검증한다. per FR-020, SC-004 (partial)
+- [X] T041 `tests/reflections/test_services.py`에 첫 질문 경쟁 생성의 단일 Turn 수렴, 동일·상이 답변 동시 제출의 최초 원문 보존, DB 실패 rollback과 재시도 성공 및 후속 작업 0건을 PostgreSQL transaction 경로로 검증한다. per T010, T023, SC-006 (partial)
+- [X] T042 `tests/reflections/test_views.py`에 detail·first-question·first-answer route의 익명 접근 차단, 비소유·미존재 동일 404, CSRF, 관계·status 409, 답변 400·409·503 입력 보존과 일반 HTML/HTMX 응답 계약을 추가한다. per T011, T024, T031, SC-007 (partial)
+- [X] T043 `src/templates/reflections/interview_detail.html`과 Interview fragment에서 `interview-turn-region` ID를 한 응답에 하나만 유지하고 textarea의 help·field/non-field error 설명 및 focus 관계를 연결해 결정적 HTML 테스트로 검증한다. per FR-015, SC-005 (partial)
+- [X] T044 `tests/reflections/test_context.py`에 Interview 관계 불일치·비진행 상태 거부와 현재 Book·Reading·Knowledge 외 데이터 배제, trusted policy와 untrusted payload 분리 계약을 추가한다. per T007, FR-001~FR-005 (partial)
+- [X] T045 `tests/integrations/llm/test_openai.py`에 SDK timeout·connection·rate-limit·5xx·refusal 변환, client 생성의 30초 timeout/retry 0, invalid schema와 민감 원문·credential 비노출 계약을 network 없이 검증한다. per T029, FR-006 (partial)
+
+## Phase 9: Convergence
+
+**목적**: HTMX 요청의 정책 충돌 응답도 Interview region 안에서 안전하고 일관되게 복구되도록 한다.
+
+- [X] T046 HIGH: `src/reflections/views.py`, 관련 Interview fragment와 `tests/reflections/test_views.py`에서 first-question·first-answer의 정책·관계·status 409 HTMX 응답이 민감정보를 노출하지 않는 안내를 `#interview-turn-region` 전체 교체로 반환하고, 일반 HTML 응답 계약은 유지하도록 구현·검증한다. per Web contract 공통 원칙, FR-015, FR-021 (partial)
+
+## Phase 10: Convergence
+
+**목적**: 첫 질문의 정책 검증과 기존 Turn 재사용이 Provider 구성 상태에 의존하지 않도록 호출 순서를 바로잡는다.
+
+- [X] T047 HIGH: `src/reflections/views.py`, `src/reflections/services.py`와 관련 `tests/reflections/test_views.py`·`tests/reflections/test_services.py`에서 소유권·관계·status 검증 및 기존 sequence 1 Turn 재사용을 Provider 생성보다 먼저 수행하도록 지연하고, Provider 설정 오류가 있어도 기존 Turn은 재사용되며 정책 충돌은 409로 유지되는 회귀 테스트를 추가한다. per FR-012, Web contract first-question, Service contract ensure_first_question (partial)

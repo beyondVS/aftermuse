@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -12,6 +13,15 @@ from readings.models import Reading
 from reflections.models import Interview, InterviewTurn
 
 _READING_UNIQUE_CONSTRAINT = "reflections_interview_reading_id_key"
+_QUESTION_PROHIBITED_PATTERNS = (
+    "관리자 권한",
+    "시스템 상태",
+    "상태를 변경",
+    "크레딧",
+    "웹 검색",
+    "데이터베이스",
+    "이전 지시를 무시",
+)
 
 
 class InterviewDestination(StrEnum):
@@ -146,13 +156,23 @@ def _is_reading_one_to_one_conflict(error: IntegrityError) -> bool:
 
 
 def ensure_first_question(
-    *, user, interview: Interview, provider: QuestionProvider
+    *,
+    user,
+    interview: Interview,
+    provider: QuestionProvider | None = None,
+    provider_factory: Callable[[], QuestionProvider] | None = None,
 ) -> InterviewTurn:
     """첫 Turn을 재사용하거나 provider 호출 뒤 한 번만 안전하게 저장한다."""
     prepared = _get_valid_interview(user=user, interview=interview)
     existing = InterviewTurn.objects.filter(interview=prepared, sequence=1).first()
     if existing is not None:
         return existing
+    if provider is not None and provider_factory is not None:
+        raise ValueError("provider와 provider_factory는 함께 지정할 수 없습니다.")
+    if provider is None:
+        if provider_factory is None:
+            raise ValueError("provider 또는 provider_factory가 필요합니다.")
+        provider = provider_factory()
 
     from reflections.context import build_interview_question_context
 
@@ -222,6 +242,7 @@ def _validate_first_question(question: object) -> str:
         or not normalized.endswith(("?", "？"))
         or normalized.count("?") + normalized.count("？") != 1
         or any(marker in normalized[:-1] for marker in ".!。！？")
+        or any(pattern in normalized for pattern in _QUESTION_PROHIBITED_PATTERNS)
     ):
         raise QuestionGenerationRejected()
     return normalized
