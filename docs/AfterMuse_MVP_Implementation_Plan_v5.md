@@ -253,30 +253,30 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 #### Bundle 06A — 첫 인터뷰 Turn
 
-- [ ] **IMP-060 — LLM Provider Adapter 최소 구현**
+- [x] **IMP-060 — LLM Provider Adapter 최소 구현**
   - **선행 작업:** IMP-003
   - Interview 질문/Reflection 생성을 위한 LLM Adapter 경계를 만든다.
   - 테스트에서는 fake provider를 사용할 수 있어야 한다.
   - **완료 조건:** 실제 Provider 없이도 질문 생성 흐름을 테스트할 수 있다.
 
-- [ ] **IMP-061 — Interview Context Pack 구성**
+- [x] **IMP-061 — Interview Context Pack 구성**
   - **선행 작업:** IMP-041, IMP-050
   - Book, 최소 Knowledge, Reading 상태를 LLM 입력용 Context로 구성한다.
   - READY_LIMITED에서는 책 내용을 단정하지 않게 한다.
   - **완료 조건:** READY/READY_LIMITED별 Context가 다르게 생성된다.
 
-- [ ] **IMP-062 — 첫 질문 생성 구현**
+- [x] **IMP-062 — 첫 질문 생성 구현**
   - **선행 작업:** IMP-060, IMP-061
   - Reading/Knowledge 상태에 따라 첫 질문을 생성한다.
   - Knowledge가 부족하면 기억 중심 질문으로 시작한다.
   - **완료 조건:** READY와 READY_LIMITED에서 각각 적절한 첫 질문이 나온다.
 
-- [ ] **IMP-063 — Interview 질문 화면 구현**
+- [x] **IMP-063 — Interview 질문 화면 구현**
   - **선행 작업:** IMP-051, IMP-062
   - 일반 Chat UI가 아니라 한 번에 하나의 질문에 집중하는 화면을 구현한다.
   - **완료 조건:** 첫 질문을 보고 답변을 입력할 수 있다.
 
-- [ ] **IMP-064 — 답변 저장 구현**
+- [x] **IMP-064 — 답변 저장 구현**
   - **선행 작업:** IMP-063
   - 사용자의 답변을 먼저 안전하게 저장한다.
   - LLM 실패가 답변 유실로 이어지지 않아야 한다.
