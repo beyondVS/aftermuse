@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "installed_version": "2.12.2",
+  "installed_version": "2.13.1",
   "hash_policy": {
     "text": "text-v1",
     "binary": "binary-v1"
   },
   "managed_block": {
-    "sha256": "6a81bf2b6a7455cce70871f200b3d48d11f02a5f5ad6ad378a244cda736a0076"
+    "sha256": "ef5ffe2b13b0f1027f3b4d32b21456b3c1d98e622bd7ef630e67b4ab92922465"
   },
   "managed_files": {
     ".agents/agents/auditor.md": {
