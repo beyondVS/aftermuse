@@ -295,10 +295,12 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 #### Bundle 07B — 답변 분석 계약
 
-- [ ] **IMP-071 — Answer Analysis 최소 구현**
+- [x] **IMP-071 — Answer Analysis 최소 구현**
   - **선행 작업:** IMP-060, IMP-070
   - LLM 또는 fake provider를 통해 답변의 의미, low-information 여부, coverage patch를 얻는다.
-  - **완료 조건:** 정상 답변과 low-information 답변이 구분된다.
+  - **완료 조건:** 정상/low-information 답변, 원문 근거, strict Coverage 상승 후보와
+    Provider 오류 경계를 fake·OpenAI Adapter 및 Service 회귀 테스트와 `scripts/verify.py`로
+    검증했다.
 
 #### Bundle 07C — 적응형 다음 Turn
 

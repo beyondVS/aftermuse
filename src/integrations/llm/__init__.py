@@ -1,8 +1,18 @@
-"""첫 인터뷰 질문 생성을 위한 LLM Adapter 경계를 제공한다."""
+"""Interview 질문과 답변 분석을 위한 LLM Adapter 경계를 제공한다."""
 
 from integrations.llm.contracts import (
+    AnswerAnalysisConfigurationError,
+    AnswerAnalysisContext,
+    AnswerAnalysisError,
+    AnswerAnalysisProvider,
+    AnswerAnalysisRejected,
+    AnswerAnalysisTimeout,
+    AnswerAnalysisUnavailable,
+    CurrentCoverageItem,
     GeneratedQuestion,
     InterviewQuestionContext,
+    ProposedAnswerAnalysis,
+    ProposedCoverageChange,
     QuestionGenerationConfigurationError,
     QuestionGenerationError,
     QuestionGenerationRejected,
@@ -11,11 +21,21 @@ from integrations.llm.contracts import (
     QuestionPolicy,
     QuestionProvider,
 )
-from integrations.llm.factory import get_question_provider
+from integrations.llm.factory import get_answer_analysis_provider, get_question_provider
 
 __all__ = [
+    "AnswerAnalysisConfigurationError",
+    "AnswerAnalysisContext",
+    "AnswerAnalysisError",
+    "AnswerAnalysisProvider",
+    "AnswerAnalysisRejected",
+    "AnswerAnalysisTimeout",
+    "AnswerAnalysisUnavailable",
+    "CurrentCoverageItem",
     "GeneratedQuestion",
     "InterviewQuestionContext",
+    "ProposedAnswerAnalysis",
+    "ProposedCoverageChange",
     "QuestionGenerationConfigurationError",
     "QuestionGenerationError",
     "QuestionGenerationRejected",
@@ -23,5 +43,6 @@ __all__ = [
     "QuestionGenerationUnavailable",
     "QuestionPolicy",
     "QuestionProvider",
+    "get_answer_analysis_provider",
     "get_question_provider",
 ]

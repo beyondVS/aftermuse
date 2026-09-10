@@ -54,7 +54,10 @@ Claim만 사용하고 `READY_LIMITED`는 기억·인상 중심으로 묻습니�
 생성 질문은 저장 전에 형식·금지 지시를 검사하며, HTMX의 validation·정책·저장 오류는 입력과
 내부 정보를 안전하게 보호하면서 Interview 영역 전체를 교체하고 오류 위치로 focus를 옮깁니다.
 기존 첫 질문 재사용과 Interview 정책 검증은 Provider 생성보다 먼저 수행되므로 외부 설정
-오류가 이미 저장된 질문이나 정책 충돌 응답을 가리지 않습니다.
+오류가 이미 저장된 질문이나 정책 충돌 응답을 가리지 않습니다. 확정 답변은 비영속 Answer
+Analysis 계약으로 의미와 low-information 여부, 현재 상태보다 높은 Core Coverage 후보를 얻을
+수 있습니다. 후보별 근거 인용은 답변 원문과 대조하고 Provider 출력 전체를 Application에서
+재검증하며, 분석 성공·실패 모두 답변·Turn·Coverage를 직접 변경하지 않습니다.
 
 ## 기술 스택
 
@@ -129,10 +132,10 @@ uv run python src/manage.py runserver
 | `POSTGRES_PORT` | PostgreSQL port |
 | `KAKAO_REST_API_KEY` | 기본 Kakao 도서 검색 Adapter용 REST API key (일반 자동 테스트에서는 불필요) |
 | `ALADIN_TTB_KEY` | IMP-021 legacy 알라딘 Adapter용 TTB key (신규 발급 종료, 자동 테스트에서는 불필요) |
-| `LLM_PROVIDER` | 첫 질문 Provider (`fake` 기본값, 실제 연결 시 `openai`) |
-| `OPENAI_MODEL` | OpenAI 첫 질문 생성에 사용할 고정 모델 snapshot |
+| `LLM_PROVIDER` | Interview LLM Provider (`fake` 기본값, 실제 연결 시 `openai`) |
+| `OPENAI_MODEL` | OpenAI 질문·답변 분석에 사용할 고정 모델 snapshot |
 | `OPENAI_API_KEY` | `LLM_PROVIDER=openai`일 때 필요한 API key |
-| `OPENAI_TIMEOUT_SECONDS` | 첫 질문 Provider 전체 timeout (기본 30초) |
+| `OPENAI_TIMEOUT_SECONDS` | Interview LLM Provider 전체 timeout (기본 30초) |
 
 필수 환경변수가 없으면 Django는 시작 단계에서 명시적으로 실패합니다. Django는 저장소
 루트의 `.env`를 자동으로 읽으며, 같은 이름의 OS 환경변수가 있으면 OS 값을 우선합니다.
@@ -144,9 +147,9 @@ key 없이 실행할 수 있고, 실제 검색이나 명시적 live smoke를 실
 신규 검색 경로에서는 사용하지 않습니다. key와 Provider 원본 오류 내용은 반환값이나 오류
 메시지에 포함하지 않습니다.
 
-첫 질문의 기본 Provider는 `fake`이므로 자동 테스트와 일반 개발 흐름에 OpenAI credential이
+Interview LLM의 기본 Provider는 `fake`이므로 자동 테스트와 일반 개발 흐름에 OpenAI credential이
 필요하지 않습니다. 실제 OpenAI Adapter는 `store=False`, tools 없이 고정 모델 snapshot으로
-질문 하나만 생성하며, timeout·Provider·출력 오류는 원문을 노출하지 않는 재시도 상태로
+질문 또는 답변 분석 결과만 생성하며, timeout·Provider·출력 오류는 원문을 노출하지 않는 상태로
 변환합니다. 기존 질문 재사용과 Interview 소유권·관계·상태 검증이 끝난 뒤에만 Provider를
 생성하므로, 저장된 질문을 표시하는 경로는 Provider credential이나 구성 상태에 의존하지
 않습니다.

@@ -5,9 +5,12 @@ import pytest
 from books.models import Book
 from knowledge.models import BookKnowledge, KnowledgeKind
 from readings.models import Reading
-from reflections.context import build_interview_question_context
-from reflections.models import Interview
-from reflections.services import InterviewPolicyError
+from reflections.context import (
+    build_answer_analysis_context,
+    build_interview_question_context,
+)
+from reflections.models import Interview, InterviewTurn
+from reflections.services import AnswerAnalysisPolicyError, InterviewPolicyError
 
 
 @pytest.fixture
@@ -77,3 +80,39 @@ def test_context_rejects_invalid_interview_state_and_excludes_other_book_claims(
     interview.book = other_book
     with pytest.raises(InterviewPolicyError):
         build_interview_question_context(interview=interview)
+
+
+def test_answer_analysis_context_preserves_answer_and_canonical_coverage(
+    interview,
+) -> None:
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="무엇이 남았나요?",
+        answer="  원문 공백을 보존합니다  ",
+    )
+    interview.coverage["REACTION"] = "PARTIAL"
+    interview.save(update_fields=("coverage", "updated_at"))
+
+    context = build_answer_analysis_context(interview=interview, turn=turn)
+
+    assert context.answer == "  원문 공백을 보존합니다  "
+    assert tuple(item.axis for item in context.current_coverage) == (
+        "MEMORY",
+        "REACTION",
+        "CONNECTION",
+        "AFTERTHOUGHT",
+    )
+    assert context.current_coverage[1].status == "PARTIAL"
+
+
+def test_answer_analysis_context_rejects_wrong_or_unanswered_turn(interview) -> None:
+    unanswered = InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="질문?"
+    )
+    other = Interview()
+
+    with pytest.raises(AnswerAnalysisPolicyError):
+        build_answer_analysis_context(interview=interview, turn=unanswered)
+    with pytest.raises(AnswerAnalysisPolicyError):
+        build_answer_analysis_context(interview=other, turn=unanswered)

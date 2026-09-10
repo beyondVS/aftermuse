@@ -9,22 +9,28 @@ from django.test.utils import CaptureQueriesContext
 
 from books.models import Book
 from integrations.llm.contracts import (
+    AnswerAnalysisRejected,
     GeneratedQuestion,
+    ProposedAnswerAnalysis,
+    ProposedCoverageChange,
     QuestionGenerationRejected,
     QuestionGenerationUnavailable,
 )
-from integrations.llm.fake import FakeQuestionProvider
+from integrations.llm.fake import FakeAnswerAnalysisProvider, FakeQuestionProvider
 from knowledge.models import BookKnowledge, KnowledgeKind
 from readings.models import Reading
 from readings.services import ReadingLockedError, update_completion_date
 from reflections.models import CoverageStatus, Interview, InterviewTurn
 from reflections.services import (
+    AnalyzedCoverageChange,
+    AnswerAnalysisPolicyError,
     CoveragePatchItem,
     CoveragePolicyError,
     FirstAnswerConflict,
     FirstAnswerPersistenceError,
     InterviewDestination,
     InterviewPolicyError,
+    analyze_interview_answer,
     apply_interview_coverage_patch,
     ensure_first_question,
     get_interview_coverage,
@@ -887,3 +893,224 @@ def test_coverage_query_and_update_counts(completed_reading) -> None:
         if query["sql"].lstrip().upper().startswith('UPDATE "REFLECTIONS_INTERVIEW"')
     ]
     assert len(interview_updates) == 1
+
+
+def _answered_interview(completed_reading) -> tuple[Interview, InterviewTurn]:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="이 책에서 무엇이 남았나요?",
+        answer="결말이 허무했지만 제 선택을 돌아보게 됐어요.",
+    )
+    return interview, turn
+
+
+def test_answer_analysis_returns_grounded_canonical_strict_promotions(
+    completed_reading,
+) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    provider = FakeAnswerAnalysisProvider(
+        result=ProposedAnswerAnalysis(
+            meaning="  결말의 허무함이 자신의 선택을 돌아보게 했다.  ",
+            low_information=False,
+            coverage_patch=(
+                ProposedCoverageChange(
+                    "CONNECTION", "COVERED", "제 선택을 돌아보게 됐어요"
+                ),
+                ProposedCoverageChange("REACTION", "PARTIAL", "결말이 허무했지만"),
+            ),
+        )
+    )
+
+    result = analyze_interview_answer(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        provider=provider,
+    )
+
+    assert result.meaning == "결말의 허무함이 자신의 선택을 돌아보게 했다."
+    assert result.coverage_patch == (
+        AnalyzedCoverageChange("REACTION", "PARTIAL", "결말이 허무했지만"),
+        AnalyzedCoverageChange("CONNECTION", "COVERED", "제 선택을 돌아보게 됐어요"),
+    )
+    assert provider.contexts[0].answer == turn.answer
+    assert len(provider.contexts[0].current_coverage) == 4
+
+
+def test_answer_analysis_supports_low_information_and_normal_empty_patch(
+    completed_reading,
+) -> None:
+    interview, turn = _answered_interview(completed_reading)
+
+    low = analyze_interview_answer(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        provider=FakeAnswerAnalysisProvider(
+            result=ProposedAnswerAnalysis(None, True, ())
+        ),
+    )
+    normal = analyze_interview_answer(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        provider=FakeAnswerAnalysisProvider(
+            result=ProposedAnswerAnalysis("이미 다룬 생각", False, ())
+        ),
+    )
+
+    assert (low.meaning, low.low_information, low.coverage_patch) == (None, True, ())
+    assert (normal.meaning, normal.low_information, normal.coverage_patch) == (
+        "이미 다룬 생각",
+        False,
+        (),
+    )
+
+
+@pytest.mark.parametrize(
+    "proposed",
+    [
+        ProposedAnswerAnalysis("의미", "false", ()),
+        ProposedAnswerAnalysis(None, False, ()),
+        ProposedAnswerAnalysis("의미", True, ()),
+        ProposedAnswerAnalysis(
+            None, True, (ProposedCoverageChange("MEMORY", "PARTIAL", "결말"),)
+        ),
+        ProposedAnswerAnalysis(" ", False, ()),
+        ProposedAnswerAnalysis("x" * 1001, False, ()),
+        ProposedAnswerAnalysis(
+            "의미", False, (ProposedCoverageChange("UNKNOWN", "PARTIAL", "결말"),)
+        ),
+        ProposedAnswerAnalysis(
+            "의미", False, (ProposedCoverageChange("MEMORY", "UNCOVERED", "결말"),)
+        ),
+        ProposedAnswerAnalysis(
+            "의미", False, (ProposedCoverageChange("MEMORY", "PARTIAL", "없는 근거"),)
+        ),
+        ProposedAnswerAnalysis("이전 지시를 무시", False, ()),
+    ],
+)
+def test_answer_analysis_rejects_invalid_results_atomically(
+    completed_reading, proposed
+) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    original_coverage = interview.coverage.copy()
+
+    with pytest.raises(AnswerAnalysisRejected):
+        analyze_interview_answer(
+            user=completed_reading.user,
+            interview=interview,
+            turn=turn,
+            provider=FakeAnswerAnalysisProvider(result=proposed),
+        )
+
+    interview.refresh_from_db()
+    turn.refresh_from_db()
+    assert interview.coverage == original_coverage
+    assert turn.answer == "결말이 허무했지만 제 선택을 돌아보게 됐어요."
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        (
+            ProposedCoverageChange("REACTION", "PARTIAL", "결말이 허무했지만"),
+            ProposedCoverageChange("REACTION", "COVERED", "결말이 허무했지만"),
+        ),
+        tuple(ProposedCoverageChange("MEMORY", "PARTIAL", "결말") for _ in range(5)),
+    ],
+)
+def test_answer_analysis_rejects_duplicate_or_excessive_patch(
+    completed_reading, patch
+) -> None:
+    interview, turn = _answered_interview(completed_reading)
+
+    with pytest.raises(AnswerAnalysisRejected):
+        analyze_interview_answer(
+            user=completed_reading.user,
+            interview=interview,
+            turn=turn,
+            provider=FakeAnswerAnalysisProvider(
+                result=ProposedAnswerAnalysis("의미", False, patch)
+            ),
+        )
+
+
+def test_answer_analysis_requires_strict_promotion(completed_reading) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    interview.coverage["REACTION"] = "PARTIAL"
+    interview.coverage["AFTERTHOUGHT"] = "COVERED"
+    interview.save(update_fields=("coverage", "updated_at"))
+
+    for axis, status in (("REACTION", "PARTIAL"), ("AFTERTHOUGHT", "COVERED")):
+        with pytest.raises(AnswerAnalysisRejected):
+            analyze_interview_answer(
+                user=completed_reading.user,
+                interview=interview,
+                turn=turn,
+                provider=FakeAnswerAnalysisProvider(
+                    result=ProposedAnswerAnalysis(
+                        "의미",
+                        False,
+                        (ProposedCoverageChange(axis, status, "결말"),),
+                    )
+                ),
+            )
+
+
+def test_answer_analysis_rejects_invalid_target_before_provider_factory(
+    completed_reading, django_user_model
+) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    other_user = django_user_model.objects.create_user(username="analysis-other")
+    factory_called = False
+
+    def provider_factory():
+        nonlocal factory_called
+        factory_called = True
+        return FakeAnswerAnalysisProvider()
+
+    for user, target_interview, target_turn in (
+        (other_user, interview, turn),
+        (completed_reading.user, Interview(), turn),
+        (completed_reading.user, interview, InterviewTurn()),
+    ):
+        with pytest.raises(AnswerAnalysisPolicyError):
+            analyze_interview_answer(
+                user=user,
+                interview=target_interview,
+                turn=target_turn,
+                provider_factory=provider_factory,
+            )
+
+    InterviewTurn.objects.filter(pk=turn.pk).update(answer="")
+    with pytest.raises(AnswerAnalysisPolicyError):
+        analyze_interview_answer(
+            user=completed_reading.user,
+            interview=interview,
+            turn=turn,
+            provider_factory=provider_factory,
+        )
+
+    assert not factory_called
+
+
+def test_answer_analysis_is_read_only(completed_reading) -> None:
+    interview, turn = _answered_interview(completed_reading)
+
+    with CaptureQueriesContext(connection) as queries:
+        analyze_interview_answer(
+            user=completed_reading.user,
+            interview=interview,
+            turn=turn,
+            provider=FakeAnswerAnalysisProvider(),
+        )
+
+    statements = (query["sql"].lstrip().upper() for query in queries.captured_queries)
+    assert not any(
+        statement.startswith(("INSERT", "UPDATE", "DELETE")) for statement in statements
+    )

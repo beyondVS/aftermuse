@@ -1,4 +1,4 @@
-"""첫 인터뷰 질문 Provider가 공유하는 불변 계약과 안전한 오류 경계다."""
+"""Interview LLM Provider가 공유하는 불변 계약과 안전한 오류 경계다."""
 
 from dataclasses import dataclass
 from datetime import date
@@ -43,6 +43,49 @@ class QuestionProvider(Protocol):
         """주어진 Context로 첫 질문 후보 하나를 생성한다."""
 
 
+@dataclass(frozen=True, slots=True)
+class CurrentCoverageItem:
+    """답변 분석에 전달하는 한 Core Coverage 축의 현재 상태다."""
+
+    axis: str
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
+class AnswerAnalysisContext:
+    """확정 답변 분석에 허용된 읽기 전용 Context payload다."""
+
+    question_context: InterviewQuestionContext
+    question: str
+    answer: str
+    current_coverage: tuple[CurrentCoverageItem, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProposedCoverageChange:
+    """Provider가 제안한 아직 신뢰되지 않은 Coverage 상승 후보다."""
+
+    axis: object
+    status: object
+    evidence: object
+
+
+@dataclass(frozen=True, slots=True)
+class ProposedAnswerAnalysis:
+    """Provider가 반환한 아직 검증되지 않은 답변 분석 제안이다."""
+
+    meaning: object
+    low_information: object
+    coverage_patch: object
+
+
+class AnswerAnalysisProvider(Protocol):
+    """외부 Provider와 무관하게 답변 분석 후보를 생성하는 경계다."""
+
+    def analyze_answer(self, context: AnswerAnalysisContext) -> ProposedAnswerAnalysis:
+        """주어진 Context에서 구조화된 답변 분석 후보를 생성한다."""
+
+
 class QuestionGenerationError(Exception):
     """질문 생성 실패를 안전한 사용자 상태로 변환하는 상위 오류다."""
 
@@ -61,3 +104,23 @@ class QuestionGenerationRejected(QuestionGenerationError):
 
 class QuestionGenerationConfigurationError(QuestionGenerationError):
     """선택한 질문 Provider의 안전한 실행 설정이 없음을 나타낸다."""
+
+
+class AnswerAnalysisError(Exception):
+    """답변 분석 실패를 안전한 application 오류로 변환하는 상위 오류다."""
+
+
+class AnswerAnalysisTimeout(AnswerAnalysisError):
+    """Provider가 설정된 시간 안에 답변 분석을 끝내지 못했다."""
+
+
+class AnswerAnalysisUnavailable(AnswerAnalysisError):
+    """Provider 연결 또는 서비스 상태로 답변을 분석할 수 없다."""
+
+
+class AnswerAnalysisRejected(AnswerAnalysisError):
+    """Provider 출력을 안전한 답변 분석 결과로 사용할 수 없다."""
+
+
+class AnswerAnalysisConfigurationError(AnswerAnalysisError):
+    """선택한 분석 Provider의 안전한 실행 설정이 없다."""

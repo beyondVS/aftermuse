@@ -7,6 +7,10 @@ from django.db import DatabaseError, IntegrityError, transaction
 from django.utils import timezone
 
 from integrations.llm.contracts import (
+    AnswerAnalysisProvider,
+    AnswerAnalysisRejected,
+    ProposedAnswerAnalysis,
+    ProposedCoverageChange,
     QuestionGenerationRejected,
     QuestionProvider,
 )
@@ -30,6 +34,15 @@ _QUESTION_PROHIBITED_PATTERNS = (
     "데이터베이스",
     "이전 지시를 무시",
 )
+_ANALYSIS_PROHIBITED_PATTERNS = (
+    "이전 지시를 무시",
+    "시스템 프롬프트",
+    "관리자 권한",
+    "API 키를 공개",
+    "비밀값을 출력",
+)
+_ANSWER_MEANING_MAX_LENGTH = 1000
+_ANSWER_EVIDENCE_MAX_LENGTH = 500
 
 
 class InterviewDestination(StrEnum):
@@ -46,6 +59,10 @@ class InterviewPolicyError(Exception):
 
 class CoveragePolicyError(Exception):
     """Coverage 대상, 입력 또는 상태 전환이 계약을 위반했다."""
+
+
+class AnswerAnalysisPolicyError(Exception):
+    """답변 분석 대상의 소유권, 관계 또는 상태가 계약을 위반했다."""
 
 
 class FirstAnswerValidationError(Exception):
@@ -113,6 +130,24 @@ class CoveragePatchResult:
 
     snapshot: CoverageSnapshot
     changed: bool
+
+
+@dataclass(frozen=True, slots=True)
+class AnalyzedCoverageChange:
+    """원문 근거가 확인된 한 Core Coverage 상승 후보다."""
+
+    axis: CoreCoverageAxis
+    status: CoverageStatus
+    evidence: str
+
+
+@dataclass(frozen=True, slots=True)
+class AnswerAnalysisResult:
+    """Application 검증을 통과한 비영속 답변 분석 결과다."""
+
+    meaning: str | None
+    low_information: bool
+    coverage_patch: tuple[AnalyzedCoverageChange, ...]
 
 
 def get_interview_destination(interview: Interview) -> InterviewDestination:
@@ -337,6 +372,137 @@ def _validate_first_answer(answer: object) -> str:
     if not isinstance(answer, str) or not answer.strip() or len(answer) > 2000:
         raise FirstAnswerValidationError()
     return answer
+
+
+def analyze_interview_answer(
+    *,
+    user,
+    interview: Interview,
+    turn: InterviewTurn,
+    provider: AnswerAnalysisProvider | None = None,
+    provider_factory: Callable[[], AnswerAnalysisProvider] | None = None,
+) -> AnswerAnalysisResult:
+    """확정 답변을 분석하고 검증된 비영속 결과만 반환한다."""
+    if provider is not None and provider_factory is not None:
+        raise ValueError("provider와 provider_factory는 함께 지정할 수 없습니다.")
+    prepared, prepared_turn = _get_answer_analysis_target(
+        user=user, interview=interview, turn=turn
+    )
+    if provider is None:
+        if provider_factory is None:
+            from integrations.llm.factory import get_answer_analysis_provider
+
+            provider_factory = get_answer_analysis_provider
+        provider = provider_factory()
+
+    from reflections.context import build_answer_analysis_context
+
+    context = build_answer_analysis_context(interview=prepared, turn=prepared_turn)
+    proposed = provider.analyze_answer(context)
+    return _validate_answer_analysis(proposed, context.answer, prepared.coverage)
+
+
+def _get_answer_analysis_target(
+    *, user, interview: Interview, turn: InterviewTurn
+) -> tuple[Interview, InterviewTurn]:
+    """소유권과 관계를 숨긴 채 DB의 최신 분석 대상을 준비한다."""
+    if (
+        not isinstance(interview, Interview)
+        or interview.pk is None
+        or not isinstance(turn, InterviewTurn)
+        or turn.pk is None
+    ):
+        raise AnswerAnalysisPolicyError()
+    prepared = (
+        Interview.objects.select_related("reading", "book")
+        .filter(pk=interview.pk, reading__user=user)
+        .first()
+    )
+    if (
+        prepared is None
+        or prepared.book_id != prepared.reading.book_id
+        or prepared.status != Interview.Status.IN_PROGRESS
+        or not is_canonical_coverage(prepared.coverage)
+    ):
+        raise AnswerAnalysisPolicyError()
+    prepared_turn = InterviewTurn.objects.filter(pk=turn.pk, interview=prepared).first()
+    if (
+        prepared_turn is None
+        or not isinstance(prepared_turn.question, str)
+        or not prepared_turn.question.strip()
+        or not isinstance(prepared_turn.answer, str)
+        or not prepared_turn.answer.strip()
+        or len(prepared_turn.answer) > 2000
+    ):
+        raise AnswerAnalysisPolicyError()
+    return prepared, prepared_turn
+
+
+def _validate_answer_analysis(
+    proposed: object, answer: str, current_coverage: dict[str, str]
+) -> AnswerAnalysisResult:
+    """Provider 제안을 부분 수용 없이 trusted 분석 결과로 변환한다."""
+    if not isinstance(proposed, ProposedAnswerAnalysis) or not isinstance(
+        proposed.low_information, bool
+    ):
+        raise AnswerAnalysisRejected()
+    patch = proposed.coverage_patch
+    if (
+        not isinstance(patch, Sequence)
+        or isinstance(patch, (str, bytes))
+        or len(patch) > len(CoreCoverageAxis)
+    ):
+        raise AnswerAnalysisRejected()
+    if proposed.low_information:
+        if proposed.meaning is not None or patch:
+            raise AnswerAnalysisRejected()
+        return AnswerAnalysisResult(None, True, ())
+    meaning = _validate_analysis_text(
+        proposed.meaning, maximum=_ANSWER_MEANING_MAX_LENGTH
+    )
+    validated: dict[CoreCoverageAxis, AnalyzedCoverageChange] = {}
+    for item in patch:
+        if not isinstance(item, ProposedCoverageChange):
+            raise AnswerAnalysisRejected()
+        try:
+            axis = CoreCoverageAxis(item.axis)
+            status = CoverageStatus(item.status)
+            current_status = CoverageStatus(current_coverage[axis.value])
+        except (KeyError, TypeError, ValueError) as error:
+            raise AnswerAnalysisRejected() from error
+        if (
+            axis in validated
+            or status is CoverageStatus.UNCOVERED
+            or _coverage_rank(status) <= _coverage_rank(current_status)
+        ):
+            raise AnswerAnalysisRejected()
+        evidence = _validate_analysis_text(
+            item.evidence, maximum=_ANSWER_EVIDENCE_MAX_LENGTH
+        )
+        if evidence not in answer:
+            raise AnswerAnalysisRejected()
+        validated[axis] = AnalyzedCoverageChange(axis, status, evidence)
+    return AnswerAnalysisResult(
+        meaning=meaning,
+        low_information=False,
+        coverage_patch=tuple(
+            validated[axis] for axis in CoreCoverageAxis if axis in validated
+        ),
+    )
+
+
+def _validate_analysis_text(value: object, *, maximum: int) -> str:
+    """분석 문자열의 길이와 권한 변경 지시를 안전 경계에서 검사한다."""
+    if not isinstance(value, str):
+        raise AnswerAnalysisRejected()
+    normalized = value.strip()
+    if (
+        not normalized
+        or len(normalized) > maximum
+        or any(pattern in normalized for pattern in _ANALYSIS_PROHIBITED_PATTERNS)
+    ):
+        raise AnswerAnalysisRejected()
+    return normalized
 
 
 def get_interview_coverage(*, user, interview: Interview) -> CoverageSnapshot:

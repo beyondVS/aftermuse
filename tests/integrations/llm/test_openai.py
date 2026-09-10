@@ -6,13 +6,18 @@ import pytest
 from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
 
 from integrations.llm.contracts import (
+    AnswerAnalysisContext,
+    AnswerAnalysisRejected,
+    AnswerAnalysisTimeout,
+    AnswerAnalysisUnavailable,
+    CurrentCoverageItem,
     InterviewQuestionContext,
     QuestionGenerationRejected,
     QuestionGenerationTimeout,
     QuestionGenerationUnavailable,
     QuestionPolicy,
 )
-from integrations.llm.openai import OpenAIQuestionProvider
+from integrations.llm.openai import OpenAIAnswerAnalysisProvider, OpenAIQuestionProvider
 
 
 class RecordingClient:
@@ -44,6 +49,125 @@ class UnavailableClient(RecordingClient):
 
     def create(self, **kwargs):
         raise RuntimeError("provider internal detail")
+
+
+def _analysis_context() -> AnswerAnalysisContext:
+    return AnswerAnalysisContext(
+        question_context=InterviewQuestionContext(
+            book_title="검증 책",
+            authors="저자",
+            publisher="출판사",
+            reading_status="COMPLETED",
+            completed_on=date(2026, 9, 9),
+            knowledge_readiness="READY",
+            knowledge_claims=("검증된 Claim",),
+            policy=QuestionPolicy.KNOWLEDGE_GROUNDED,
+        ),
+        question="결말은 어땠나요?",
+        answer="결말이 허무했어요",
+        current_coverage=(
+            CurrentCoverageItem("MEMORY", "UNCOVERED"),
+            CurrentCoverageItem("REACTION", "UNCOVERED"),
+            CurrentCoverageItem("CONNECTION", "PARTIAL"),
+            CurrentCoverageItem("AFTERTHOUGHT", "COVERED"),
+        ),
+    )
+
+
+def test_answer_analysis_adapter_uses_strict_schema_and_untrusted_payload() -> None:
+    client = FixedResponseClient(
+        SimpleNamespace(
+            status="completed",
+            output_text=(
+                '{"meaning":"허무함을 느꼈다","low_information":false,'
+                '"coverage_patch":[{"axis":"REACTION","status":"PARTIAL",'
+                '"evidence":"결말이 허무했어요"}]}'
+            ),
+        )
+    )
+
+    result = OpenAIAnswerAnalysisProvider(
+        api_key="test-key", model="pinned-model", timeout=30, client=client
+    ).analyze_answer(_analysis_context())
+
+    request = client.calls[0]
+    schema = request["text"]["format"]["schema"]
+    assert result.meaning == "허무함을 느꼈다"
+    assert result.coverage_patch[0].evidence == "결말이 허무했어요"
+    assert request["store"] is False
+    assert "tools" not in request
+    assert request["text"]["format"]["strict"] is True
+    assert schema["required"] == ["meaning", "low_information", "coverage_patch"]
+    assert schema["properties"]["coverage_patch"]["maxItems"] == 4
+    assert "결말이 허무했어요" in request["input"]
+    assert "결말이 허무했어요" not in request["instructions"]
+    assert "검증된 Claim" in request["input"]
+    assert "답변 길이나 특정 표현 하나만으로 판정하지 말고" in request["instructions"]
+    assert "짧더라도 구체적인 의미가 있으면 정상" in request["instructions"]
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        SimpleNamespace(status="incomplete", output_text="{}"),
+        SimpleNamespace(status="completed", output_text=""),
+        SimpleNamespace(status="completed", output_text="not-json"),
+        SimpleNamespace(status="completed", output_text='{"meaning":"누락"}'),
+    ],
+)
+def test_answer_analysis_adapter_rejects_incomplete_or_malformed_output(
+    response,
+) -> None:
+    provider = OpenAIAnswerAnalysisProvider(
+        api_key="test-key",
+        model="pinned-model",
+        timeout=30,
+        client=FixedResponseClient(response),
+    )
+
+    with pytest.raises(AnswerAnalysisRejected):
+        provider.analyze_answer(_analysis_context())
+
+
+@pytest.mark.parametrize(
+    ("provider_error", "expected_error"),
+    [
+        (
+            APITimeoutError(
+                httpx.Request("POST", "https://api.openai.com/v1/responses")
+            ),
+            AnswerAnalysisTimeout,
+        ),
+        (
+            APIConnectionError(
+                request=httpx.Request("POST", "https://api.openai.com/v1/responses")
+            ),
+            AnswerAnalysisUnavailable,
+        ),
+        (
+            RateLimitError(
+                "sensitive provider body",
+                response=httpx.Response(
+                    429, request=httpx.Request("POST", "https://api.openai.com")
+                ),
+                body={"detail": "secret"},
+            ),
+            AnswerAnalysisUnavailable,
+        ),
+    ],
+)
+def test_answer_analysis_adapter_maps_sdk_errors_without_detail(
+    provider_error, expected_error
+) -> None:
+    client = UnavailableClient()
+    client.create = lambda **kwargs: (_ for _ in ()).throw(provider_error)
+
+    with pytest.raises(expected_error) as error:
+        OpenAIAnswerAnalysisProvider(
+            api_key="test-key", model="pinned-model", timeout=30, client=client
+        ).analyze_answer(_analysis_context())
+
+    assert str(error.value) == ""
 
 
 def test_responses_adapter_uses_strict_schema_and_policy_boundary() -> None:

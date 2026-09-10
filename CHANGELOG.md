@@ -44,6 +44,8 @@
 - 첫 질문·답변 Web 계약 및 network·credential 없는 Provider 회귀 테스트
 - 생성 질문의 금지 지시·상태 변경·허용되지 않은 참조를 저장 전에 거부하는 안전성 검사
 - HTMX 정책 충돌을 내부 정보 비노출 안내와 Interview 영역 전체 교체로 복구하는 fragment
+- 확정 답변의 의미·low-information 여부와 원문 근거 기반 Core Coverage 상승 후보를 반환하는
+  비영속 Answer Analysis 계약, fake·OpenAI Adapter 및 Application 검증 경계
 
 ### Changed
 
