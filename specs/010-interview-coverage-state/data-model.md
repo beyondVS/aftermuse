@@ -92,7 +92,7 @@ Coverage 변경은 사용자 소유 Interview 행을 row lock으로 획득한 �
 DB CHECK는 다음을 함께 보장한다.
 
 - `jsonb_typeof(coverage) = 'object'`
-- `jsonb_object_length(coverage) = 4`
+- 네 canonical 키를 제거한 결과가 빈 object여야 함 (추가 키 없음)
 - 네 canonical 키가 모두 존재함
 - 각 canonical 키의 text 값이 세 허용 상태 중 하나임
 

@@ -1,6 +1,57 @@
+from enum import StrEnum
+
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
+from django.db.models.expressions import RawSQL
+
+
+class CoreCoverageAxis(StrEnum):
+    """Reflection 근거를 수집하는 고정 Coverage 축이다."""
+
+    MEMORY = "MEMORY"
+    REACTION = "REACTION"
+    CONNECTION = "CONNECTION"
+    AFTERTHOUGHT = "AFTERTHOUGHT"
+
+
+class CoverageStatus(StrEnum):
+    """Core Coverage 축의 단방향 수집 상태다."""
+
+    UNCOVERED = "UNCOVERED"
+    PARTIAL = "PARTIAL"
+    COVERED = "COVERED"
+
+
+CORE_COVERAGE = tuple(CoreCoverageAxis)
+COVERAGE_AXES_SQL = "ARRAY['MEMORY', 'REACTION', 'CONNECTION', 'AFTERTHOUGHT']"
+COVERAGE_CONSTRAINT_SQL = f"""
+jsonb_typeof(coverage) = 'object'
+AND (coverage - {COVERAGE_AXES_SQL}::text[]) = '{{}}'::jsonb
+AND coverage ?& {COVERAGE_AXES_SQL}
+AND (coverage->>'MEMORY') IN ('UNCOVERED', 'PARTIAL', 'COVERED')
+AND (coverage->>'REACTION') IN ('UNCOVERED', 'PARTIAL', 'COVERED')
+AND (coverage->>'CONNECTION') IN ('UNCOVERED', 'PARTIAL', 'COVERED')
+AND (coverage->>'AFTERTHOUGHT') IN ('UNCOVERED', 'PARTIAL', 'COVERED')
+""".strip()
+
+
+def default_coverage() -> dict[str, str]:
+    """새 Interview에 독립적인 canonical Coverage 값을 제공한다."""
+    return {axis.value: CoverageStatus.UNCOVERED.value for axis in CORE_COVERAGE}
+
+
+def is_canonical_coverage(value: object) -> bool:
+    """저장 가능한 Coverage JSON object shape인지 확인한다."""
+    return (
+        isinstance(value, dict)
+        and set(value) == {axis.value for axis in CORE_COVERAGE}
+        and all(
+            isinstance(status, str)
+            and status in {item.value for item in CoverageStatus}
+            for status in value.values()
+        )
+    )
 
 
 class Interview(models.Model):
@@ -23,6 +74,10 @@ class Interview(models.Model):
     status = models.CharField(
         max_length=20, choices=Status.choices, default=Status.IN_PROGRESS
     )
+    coverage = models.JSONField(
+        default=default_coverage,
+        db_default=models.Value(default_coverage(), output_field=models.JSONField()),
+    )
     started_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -38,6 +93,14 @@ class Interview(models.Model):
                 ),
                 name="reflections_interview_status_valid",
             ),
+            models.CheckConstraint(
+                condition=RawSQL(
+                    COVERAGE_CONSTRAINT_SQL,
+                    params=(),
+                    output_field=models.BooleanField(),
+                ),
+                name="reflections_interview_coverage_canonical",
+            ),
         ]
 
     def __str__(self) -> str:
@@ -51,6 +114,8 @@ class Interview(models.Model):
     def clean(self) -> None:
         """기존 Interview의 Reading과 Book 관계 변경을 막는다."""
         super().clean()
+        if not is_canonical_coverage(self.coverage):
+            raise ValidationError({"coverage": "Coverage 형식이 올바르지 않습니다."})
         if self.pk is None:
             return
         original = type(self).objects.only("reading_id", "book_id").get(pk=self.pk)

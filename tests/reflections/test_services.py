@@ -3,7 +3,9 @@ from datetime import date
 from threading import Barrier
 
 import pytest
-from django.db import DatabaseError, IntegrityError, close_old_connections
+from django.db import DatabaseError, IntegrityError, close_old_connections, connection
+from django.db.models.query import QuerySet
+from django.test.utils import CaptureQueriesContext
 
 from books.models import Book
 from integrations.llm.contracts import (
@@ -15,13 +17,17 @@ from integrations.llm.fake import FakeQuestionProvider
 from knowledge.models import BookKnowledge, KnowledgeKind
 from readings.models import Reading
 from readings.services import ReadingLockedError, update_completion_date
-from reflections.models import Interview, InterviewTurn
+from reflections.models import CoverageStatus, Interview, InterviewTurn
 from reflections.services import (
+    CoveragePatchItem,
+    CoveragePolicyError,
     FirstAnswerConflict,
     FirstAnswerPersistenceError,
     InterviewDestination,
     InterviewPolicyError,
+    apply_interview_coverage_patch,
     ensure_first_question,
+    get_interview_coverage,
     get_interview_destination,
     save_first_answer,
     start_interview,
@@ -422,3 +428,462 @@ def test_answer_database_failure_rolls_back_and_can_be_retried(
     )
     assert retried.saved
     assert retried.turn.answer == "보존할 답변"
+
+
+def test_coverage_patch_updates_only_requested_axes_and_is_readable(
+    completed_reading,
+) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    turn = InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+
+    result = apply_interview_coverage_patch(
+        user=completed_reading.user,
+        interview=interview,
+        patch=(
+            CoveragePatchItem("MEMORY", "PARTIAL"),
+            CoveragePatchItem("REACTION", CoverageStatus.COVERED),
+        ),
+    )
+
+    assert result.changed
+    assert result.snapshot.memory is CoverageStatus.PARTIAL
+    assert result.snapshot.reaction is CoverageStatus.COVERED
+    assert result.snapshot.connection is CoverageStatus.UNCOVERED
+    assert (
+        get_interview_coverage(user=completed_reading.user, interview=interview)
+        == result.snapshot
+    )
+    turn.refresh_from_db()
+    interview.refresh_from_db()
+    assert turn.answer == "답변"
+    assert interview.status == Interview.Status.IN_PROGRESS
+
+
+def test_coverage_rejects_invalid_duplicate_or_decreasing_patch(
+    completed_reading,
+) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+    apply_interview_coverage_patch(
+        user=completed_reading.user,
+        interview=interview,
+        patch=(CoveragePatchItem("MEMORY", "COVERED"),),
+    )
+
+    for patch in (
+        (CoveragePatchItem("MEMORY", "PARTIAL"),),
+        (CoveragePatchItem("INVALID", "COVERED"),),
+        (
+            CoveragePatchItem("REACTION", "PARTIAL"),
+            CoveragePatchItem("REACTION", "COVERED"),
+        ),
+    ):
+        with pytest.raises(CoveragePolicyError):
+            apply_interview_coverage_patch(
+                user=completed_reading.user, interview=interview, patch=patch
+            )
+
+    interview.refresh_from_db()
+    assert interview.coverage["MEMORY"] == "COVERED"
+    assert interview.coverage["REACTION"] == "UNCOVERED"
+
+
+def test_coverage_requires_owner_progress_answer_and_valid_book_connection(
+    completed_reading, django_user_model
+) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    patch = (CoveragePatchItem("MEMORY", "PARTIAL"),)
+    other_user = django_user_model.objects.create_user(username="coverage-other")
+
+    with pytest.raises(CoveragePolicyError):
+        get_interview_coverage(user=other_user, interview=interview)
+    with pytest.raises(CoveragePolicyError):
+        apply_interview_coverage_patch(
+            user=completed_reading.user, interview=interview, patch=patch
+        )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+    interview.status = Interview.Status.COMPLETED
+    interview.save(update_fields=("status", "updated_at"))
+    assert get_interview_coverage(user=completed_reading.user, interview=interview)
+    with pytest.raises(CoveragePolicyError):
+        apply_interview_coverage_patch(
+            user=completed_reading.user, interview=interview, patch=patch
+        )
+
+
+def test_foreign_coverage_patch_matches_unsaved_target_and_preserves_domain_state(
+    completed_reading, django_user_model
+) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="무엇이 남았나요?",
+        answer="비공개 답변",
+    )
+    knowledge = BookKnowledge.objects.create(
+        book=completed_reading.book,
+        kind=KnowledgeKind.THEME,
+        content="보존할 지식",
+    )
+    other_user = django_user_model.objects.create_user(username="coverage-intruder")
+    patch = (CoveragePatchItem("MEMORY", "PARTIAL"),)
+
+    errors = []
+    for target in (interview, Interview()):
+        with pytest.raises(CoveragePolicyError) as error:
+            apply_interview_coverage_patch(
+                user=other_user, interview=target, patch=patch
+            )
+        errors.append(error.value)
+
+    assert type(errors[0]) is type(errors[1]) is CoveragePolicyError
+    assert errors[0].args == errors[1].args == ()
+    interview.refresh_from_db()
+    turn.refresh_from_db()
+    completed_reading.refresh_from_db()
+    knowledge.refresh_from_db()
+    assert interview.status == Interview.Status.IN_PROGRESS
+    assert interview.coverage == {
+        "MEMORY": CoverageStatus.UNCOVERED,
+        "REACTION": CoverageStatus.UNCOVERED,
+        "CONNECTION": CoverageStatus.UNCOVERED,
+        "AFTERTHOUGHT": CoverageStatus.UNCOVERED,
+    }
+    assert list(interview.turns.values_list("sequence", "question", "answer")) == [
+        (1, "무엇이 남았나요?", "비공개 답변")
+    ]
+    assert completed_reading.status == Reading.Status.COMPLETED
+    assert completed_reading.completed_on == date.today()
+    assert knowledge.kind == KnowledgeKind.THEME
+    assert knowledge.content == "보존할 지식"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_coverage_patches_preserve_each_axis(completed_reading) -> None:
+    """서로 다른 축의 경쟁 patch가 최신 locked snapshot에 함께 반영된다."""
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+    barrier = Barrier(2)
+
+    def apply_from_separate_connection(axis: str) -> None:
+        close_old_connections()
+        try:
+            barrier.wait()
+            apply_interview_coverage_patch(
+                user=completed_reading.user,
+                interview=interview,
+                patch=(CoveragePatchItem(axis, "COVERED"),),
+            )
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        list(executor.map(apply_from_separate_connection, ("MEMORY", "REACTION")))
+
+    interview.refresh_from_db()
+    assert interview.coverage["MEMORY"] == "COVERED"
+    assert interview.coverage["REACTION"] == "COVERED"
+
+
+def test_coverage_same_state_and_empty_patch_are_write_free(completed_reading) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+    applied = apply_interview_coverage_patch(
+        user=completed_reading.user,
+        interview=interview,
+        patch=(CoveragePatchItem("MEMORY", "PARTIAL"),),
+    )
+
+    for patch in ((CoveragePatchItem("MEMORY", "PARTIAL"),), ()):
+        with CaptureQueriesContext(connection) as queries:
+            repeated = apply_interview_coverage_patch(
+                user=completed_reading.user, interview=interview, patch=patch
+            )
+
+        assert not repeated.changed
+        assert repeated.snapshot == applied.snapshot
+        assert not any(
+            query["sql"].lstrip().upper().startswith("UPDATE") for query in queries
+        )
+
+
+def test_coverage_invalid_status_and_mixed_patch_are_atomic(completed_reading) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+    original = interview.coverage.copy()
+
+    for patch in (
+        (CoveragePatchItem("MEMORY", "INVALID"),),
+        (
+            CoveragePatchItem("MEMORY", "PARTIAL"),
+            CoveragePatchItem("REACTION", "INVALID"),
+        ),
+    ):
+        with pytest.raises(CoveragePolicyError):
+            apply_interview_coverage_patch(
+                user=completed_reading.user, interview=interview, patch=patch
+            )
+
+    interview.refresh_from_db()
+    assert interview.coverage == original
+
+
+def test_coverage_database_failure_rolls_back_entire_patch(
+    completed_reading, monkeypatch
+) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+    original_update = QuerySet.update
+
+    def fail_interview_update(queryset, **kwargs):
+        if queryset.model is Interview and "coverage" in kwargs:
+            raise DatabaseError("coverage write failed")
+        return original_update(queryset, **kwargs)
+
+    monkeypatch.setattr(QuerySet, "update", fail_interview_update)
+    with pytest.raises(DatabaseError):
+        apply_interview_coverage_patch(
+            user=completed_reading.user,
+            interview=interview,
+            patch=(
+                CoveragePatchItem("MEMORY", "PARTIAL"),
+                CoveragePatchItem("REACTION", "COVERED"),
+            ),
+        )
+
+    interview.refresh_from_db()
+    assert interview.coverage == {
+        "MEMORY": "UNCOVERED",
+        "REACTION": "UNCOVERED",
+        "CONNECTION": "UNCOVERED",
+        "AFTERTHOUGHT": "UNCOVERED",
+    }
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_identical_coverage_patches_are_idempotent(
+    completed_reading,
+) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+    barrier = Barrier(2)
+
+    def apply_from_separate_connection() -> bool:
+        close_old_connections()
+        try:
+            barrier.wait()
+            return apply_interview_coverage_patch(
+                user=completed_reading.user,
+                interview=interview,
+                patch=(CoveragePatchItem("MEMORY", "PARTIAL"),),
+            ).changed
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        changed = list(
+            executor.map(lambda _: apply_from_separate_connection(), range(2))
+        )
+
+    assert sorted(changed) == [False, True]
+    interview.refresh_from_db()
+    assert interview.coverage["MEMORY"] == "PARTIAL"
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_coverage_levels_preserve_highest_state(completed_reading) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+    barrier = Barrier(2)
+
+    def apply_from_separate_connection(status: str) -> str:
+        close_old_connections()
+        try:
+            barrier.wait()
+            try:
+                apply_interview_coverage_patch(
+                    user=completed_reading.user,
+                    interview=interview,
+                    patch=(CoveragePatchItem("MEMORY", status),),
+                )
+            except CoveragePolicyError:
+                return "stale-lower-rejected"
+            return status
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(
+            executor.map(apply_from_separate_connection, ("PARTIAL", "COVERED"))
+        )
+
+    interview.refresh_from_db()
+    assert interview.coverage["MEMORY"] == "COVERED"
+    assert "COVERED" in outcomes
+
+
+def test_coverage_is_isolated_by_interview(completed_reading) -> None:
+    first = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=first, sequence=1, question="첫 질문?", answer="첫 답변"
+    )
+    other_book = Book.objects.create(isbn13="9788937834894", title="격리할 책")
+    other_reading = Reading.objects.create(
+        user=completed_reading.user,
+        book=other_book,
+        status=Reading.Status.COMPLETED,
+        completed_on=date.today(),
+    )
+    second = start_interview(
+        user=completed_reading.user, reading=other_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=second, sequence=1, question="둘째 질문?", answer="둘째 답변"
+    )
+
+    apply_interview_coverage_patch(
+        user=completed_reading.user,
+        interview=first,
+        patch=(CoveragePatchItem("MEMORY", "COVERED"),),
+    )
+
+    second.refresh_from_db()
+    assert second.coverage["MEMORY"] == "UNCOVERED"
+
+
+@pytest.mark.parametrize(
+    "status", [Interview.Status.REFLECTION_READY, Interview.Status.COMPLETED]
+)
+def test_completed_stage_coverage_is_readable_but_not_mutable(
+    completed_reading, status
+) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+    interview.status = status
+    interview.save(update_fields=("status", "updated_at"))
+
+    assert get_interview_coverage(user=completed_reading.user, interview=interview)
+    with pytest.raises(CoveragePolicyError):
+        apply_interview_coverage_patch(
+            user=completed_reading.user,
+            interview=interview,
+            patch=(CoveragePatchItem("MEMORY", "PARTIAL"),),
+        )
+
+
+def test_coverage_rejects_unsaved_and_broken_book_targets(
+    completed_reading,
+) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+    other_book = Book.objects.create(isbn13="9788937834895", title="잘못 연결된 책")
+    Interview.objects.filter(pk=interview.pk).update(book=other_book)
+
+    for target in (Interview(), interview):
+        with pytest.raises(CoveragePolicyError):
+            get_interview_coverage(user=completed_reading.user, interview=target)
+        with pytest.raises(CoveragePolicyError):
+            apply_interview_coverage_patch(
+                user=completed_reading.user,
+                interview=target,
+                patch=(CoveragePatchItem("MEMORY", "PARTIAL"),),
+            )
+
+
+def test_coverage_patch_accepts_sequences_and_rejects_non_sequences(
+    completed_reading,
+) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+
+    result = apply_interview_coverage_patch(
+        user=completed_reading.user,
+        interview=interview,
+        patch=[CoveragePatchItem("MEMORY", "PARTIAL")],
+    )
+
+    assert result.changed
+    for invalid in ("MEMORY", {"MEMORY": "COVERED"}):
+        with pytest.raises(CoveragePolicyError):
+            apply_interview_coverage_patch(
+                user=completed_reading.user, interview=interview, patch=invalid
+            )
+
+
+def test_coverage_query_and_update_counts(completed_reading) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="답변"
+    )
+
+    with CaptureQueriesContext(connection) as read_queries:
+        get_interview_coverage(user=completed_reading.user, interview=interview)
+    assert len(read_queries) == 1
+
+    with CaptureQueriesContext(connection) as write_queries:
+        apply_interview_coverage_patch(
+            user=completed_reading.user,
+            interview=interview,
+            patch=(CoveragePatchItem("MEMORY", "PARTIAL"),),
+        )
+    interview_updates = [
+        query
+        for query in write_queries
+        if query["sql"].lstrip().upper().startswith('UPDATE "REFLECTIONS_INTERVIEW"')
+    ]
+    assert len(interview_updates) == 1

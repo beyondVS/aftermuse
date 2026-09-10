@@ -63,3 +63,4 @@
   영역을 교체하고 입력 보존·오류 focus 계약을 유지하도록 강화
 - 첫 질문의 소유권·관계·상태 검증과 기존 Turn 재사용 이후에만 Provider를 생성하도록 호출
   순서를 변경해 저장된 질문과 정책 충돌 응답이 Provider 설정에 의존하지 않도록 개선
+- Interview별 Core Coverage JSONB 상태와 단방향·원자적 patch Service를 추가하고, 소유권·답변·진행 상태 경계를 검증

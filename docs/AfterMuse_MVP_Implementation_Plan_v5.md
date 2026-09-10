@@ -286,11 +286,12 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 #### Bundle 07A — Coverage 상태
 
-- [ ] **IMP-070 — Coverage 기본 구조 구현**
+- [X] **IMP-070 — Coverage 기본 구조 구현**
   - **선행 작업:** IMP-064
   - MEMORY / REACTION / CONNECTION / AFTERTHOUGHT 중심의 Core Coverage를 저장한다.
   - 초기에는 UNCOVERED / PARTIAL / COVERED 정도로 단순화한다.
-  - **완료 조건:** 답변 후 Coverage 상태를 갱신할 수 있다.
+  - **완료 조건:** 답변 후 Coverage 상태를 갱신할 수 있다. PostgreSQL migration round-trip,
+    상태 전환·소유권·동시성 회귀 테스트와 `scripts/verify.py`로 검증했다.
 
 #### Bundle 07B — 답변 분석 계약
 

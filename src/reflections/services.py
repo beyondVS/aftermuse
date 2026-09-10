@@ -1,8 +1,10 @@
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
 
 from django.db import DatabaseError, IntegrityError, transaction
+from django.utils import timezone
 
 from integrations.llm.contracts import (
     QuestionGenerationRejected,
@@ -10,7 +12,13 @@ from integrations.llm.contracts import (
 )
 from knowledge.services import BookKnowledgeReadiness, get_book_knowledge_readiness
 from readings.models import Reading
-from reflections.models import Interview, InterviewTurn
+from reflections.models import (
+    CoreCoverageAxis,
+    CoverageStatus,
+    Interview,
+    InterviewTurn,
+    is_canonical_coverage,
+)
 
 _READING_UNIQUE_CONSTRAINT = "reflections_interview_reading_id_key"
 _QUESTION_PROHIBITED_PATTERNS = (
@@ -34,6 +42,10 @@ class InterviewDestination(StrEnum):
 
 class InterviewPolicyError(Exception):
     """시작 흐름에서 안전하게 표시할 수 있는 정책 오류다."""
+
+
+class CoveragePolicyError(Exception):
+    """Coverage 대상, 입력 또는 상태 전환이 계약을 위반했다."""
 
 
 class FirstAnswerValidationError(Exception):
@@ -66,6 +78,41 @@ class InterviewStartResult:
     interview: Interview
     created: bool
     destination: InterviewDestination
+
+
+@dataclass(frozen=True, slots=True)
+class CoveragePatchItem:
+    """한 Core Coverage 축에 적용할 목표 상태다."""
+
+    axis: CoreCoverageAxis | str
+    status: CoverageStatus | str
+
+
+@dataclass(frozen=True, slots=True)
+class CoverageSnapshot:
+    """호출자와 저장 객체를 공유하지 않는 canonical Coverage 조회 결과다."""
+
+    memory: CoverageStatus
+    reaction: CoverageStatus
+    connection: CoverageStatus
+    afterthought: CoverageStatus
+
+    def as_dict(self) -> dict[str, str]:
+        """외부 변경이 내부 저장 상태에 영향을 주지 않는 복사본을 반환한다."""
+        return {
+            CoreCoverageAxis.MEMORY.value: self.memory.value,
+            CoreCoverageAxis.REACTION.value: self.reaction.value,
+            CoreCoverageAxis.CONNECTION.value: self.connection.value,
+            CoreCoverageAxis.AFTERTHOUGHT.value: self.afterthought.value,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class CoveragePatchResult:
+    """Coverage patch 적용 뒤 최신 snapshot과 실제 변경 여부다."""
+
+    snapshot: CoverageSnapshot
+    changed: bool
 
 
 def get_interview_destination(interview: Interview) -> InterviewDestination:
@@ -290,3 +337,101 @@ def _validate_first_answer(answer: object) -> str:
     if not isinstance(answer, str) or not answer.strip() or len(answer) > 2000:
         raise FirstAnswerValidationError()
     return answer
+
+
+def get_interview_coverage(*, user, interview: Interview) -> CoverageSnapshot:
+    """소유자가 유효한 Interview의 Coverage snapshot을 읽는다."""
+    prepared = _get_coverage_interview(user=user, interview=interview, lock=False)
+    return _coverage_snapshot(prepared.coverage)
+
+
+def apply_interview_coverage_patch(
+    *, user, interview: Interview, patch: Sequence[CoveragePatchItem]
+) -> CoveragePatchResult:
+    """답변이 있는 진행 중 Interview에 단방향 Coverage patch를 원자 적용한다."""
+    validated_patch = _validate_coverage_patch(patch)
+    with transaction.atomic():
+        locked = _get_coverage_interview(user=user, interview=interview, lock=True)
+        if locked.status != Interview.Status.IN_PROGRESS:
+            raise CoveragePolicyError()
+        if not InterviewTurn.objects.filter(
+            interview=locked, answer__isnull=False
+        ).exists():
+            raise CoveragePolicyError()
+        current = locked.coverage
+        updated = current.copy()
+        changed = False
+        for axis, target in validated_patch.items():
+            current_status = CoverageStatus(current[axis])
+            if _coverage_rank(target) < _coverage_rank(current_status):
+                raise CoveragePolicyError()
+            if target != current_status:
+                updated[axis] = target.value
+                changed = True
+        if changed:
+            Interview.objects.filter(pk=locked.pk).update(
+                coverage=updated, updated_at=timezone.now()
+            )
+        return CoveragePatchResult(
+            snapshot=_coverage_snapshot(updated), changed=changed
+        )
+
+
+def _get_coverage_interview(*, user, interview: Interview, lock: bool) -> Interview:
+    """소유권, 관계 및 canonical 저장 shape를 공통 검증한다."""
+    if not isinstance(interview, Interview) or interview.pk is None:
+        raise CoveragePolicyError()
+    queryset = Interview.objects.select_related("reading")
+    if lock:
+        queryset = queryset.select_for_update()
+    prepared = queryset.filter(pk=interview.pk, reading__user=user).first()
+    if (
+        prepared is None
+        or prepared.book_id != prepared.reading.book_id
+        or not is_canonical_coverage(prepared.coverage)
+    ):
+        raise CoveragePolicyError()
+    return prepared
+
+
+def _validate_coverage_patch(
+    patch: Sequence[CoveragePatchItem],
+) -> MappingProxyType:
+    """순서 있는 patch의 허용 enum과 축 중복을 DB 접근 전에 검증한다."""
+    if not isinstance(patch, Sequence) or isinstance(patch, (str, bytes)):
+        raise CoveragePolicyError()
+    validated: dict[str, CoverageStatus] = {}
+    for item in patch:
+        if not isinstance(item, CoveragePatchItem):
+            raise CoveragePolicyError()
+        try:
+            axis = CoreCoverageAxis(item.axis)
+            status = CoverageStatus(item.status)
+        except (TypeError, ValueError) as error:
+            raise CoveragePolicyError() from error
+        if axis.value in validated:
+            raise CoveragePolicyError()
+        validated[axis.value] = status
+    return MappingProxyType(validated)
+
+
+def _coverage_snapshot(coverage: object) -> CoverageSnapshot:
+    """검증된 JSON object를 read-only Coverage 값으로 변환한다."""
+    if not is_canonical_coverage(coverage):
+        raise CoveragePolicyError()
+    return CoverageSnapshot(
+        memory=CoverageStatus(coverage[CoreCoverageAxis.MEMORY.value]),
+        reaction=CoverageStatus(coverage[CoreCoverageAxis.REACTION.value]),
+        connection=CoverageStatus(coverage[CoreCoverageAxis.CONNECTION.value]),
+        afterthought=CoverageStatus(coverage[CoreCoverageAxis.AFTERTHOUGHT.value]),
+    )
+
+
+def _coverage_rank(status: CoverageStatus) -> int:
+    """단방향 전환 비교에만 사용하는 Coverage 상태 순서다."""
+    statuses = (
+        CoverageStatus.UNCOVERED,
+        CoverageStatus.PARTIAL,
+        CoverageStatus.COVERED,
+    )
+    return statuses.index(status)

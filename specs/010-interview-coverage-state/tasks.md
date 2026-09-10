@@ -24,7 +24,7 @@ description: "Interview Coverage 상태 구현 작업 목록"
 
 **목적**: 기존 reflections migration과 검증 경계를 확정한다.
 
-- [ ] T001 `src/reflections/migrations/0001_initial.py`와 `tests/reflections/test_migrations.py`에서 현재 migration leaf, 기존 Interview 데이터 보존 방식과 PostgreSQL 전용 migration test 패턴을 확인하고 신규 `0002`/`0003` dependency를 확정한다.
+- [X] T001 `src/reflections/migrations/0001_initial.py`와 `tests/reflections/test_migrations.py`에서 현재 migration leaf, 기존 Interview 데이터 보존 방식과 PostgreSQL 전용 migration test 패턴을 확인하고 신규 `0002`/`0003` dependency를 확정한다.
 
 ---
 
@@ -37,14 +37,14 @@ description: "Interview Coverage 상태 구현 작업 목록"
 
 ### 기반 테스트
 
-- [ ] T002 [P] `tests/reflections/test_models.py`에 네 축 callable 기본값의 독립성, canonical JSON shape와 허용 상태 검증 테스트를 작성하고 구현 전 실패를 확인한다.
-- [ ] T003 [P] `tests/reflections/test_migrations.py`에 기존 Interview backfill, ORM/DB default insert, canonical CHECK 거부, forward/reverse 데이터 보존을 검증하는 `0001`→`0003` migration 테스트를 작성하고 구현 전 실패를 확인한다.
+- [X] T002 [P] `tests/reflections/test_models.py`에 네 축 callable 기본값의 독립성, canonical JSON shape와 허용 상태 검증 테스트를 작성하고 구현 전 실패를 확인한다.
+- [X] T003 [P] `tests/reflections/test_migrations.py`에 기존 Interview backfill, ORM/DB default insert, canonical CHECK 거부, forward/reverse 데이터 보존을 검증하는 `0001`→`0003` migration 테스트를 작성하고 구현 전 실패를 확인한다.
 
 ### 기반 구현
 
-- [ ] T004 `src/reflections/models.py`에 Core Coverage 축·상태, 매 호출마다 새 canonical dict를 반환하는 기본값, non-null `Interview.coverage` JSONField와 application shape 검증을 구현한다.
-- [ ] T005 `src/reflections/migrations/0002_interview_coverage.py`에 canonical `db_default`를 가진 non-null JSONB column을 추가하고 transaction-local `lock_timeout`으로 column DDL 대기를 제한하는 가역 migration을 구현한다.
-- [ ] T006 `src/reflections/migrations/0003_interview_coverage_constraint.py`에 canonical object CHECK를 `NOT VALID`로 추가한 뒤 별도 transaction에서 `VALIDATE CONSTRAINT`하고 Django migration state를 일치시키는 가역 migration을 구현한다.
+- [X] T004 `src/reflections/models.py`에 Core Coverage 축·상태, 매 호출마다 새 canonical dict를 반환하는 기본값, non-null `Interview.coverage` JSONField와 application shape 검증을 구현한다.
+- [X] T005 `src/reflections/migrations/0002_interview_coverage.py`에 canonical `db_default`를 가진 non-null JSONB column을 추가하고 transaction-local `lock_timeout`으로 column DDL 대기를 제한하는 가역 migration을 구현한다.
+- [X] T006 `src/reflections/migrations/0003_interview_coverage_constraint.py`에 canonical object CHECK를 `NOT VALID`로 추가한 뒤 별도 transaction에서 `VALIDATE CONSTRAINT`하고 Django migration state를 일치시키는 가역 migration을 구현한다.
 
 **체크포인트**: 모든 기존·신규 Interview가 canonical Coverage를 가지며 invalid JSON은 model과
 DB 경계에서 거부되고 rolling deploy 중 구버전 insert도 유효해야 한다.
@@ -61,11 +61,11 @@ Coverage snapshot을 다시 조회한다.
 
 ### 사용자 스토리 1 테스트
 
-- [ ] T007 [US1] `tests/reflections/test_services.py`에 Coverage 조회, 최초 단일 축 상승, 다중 축 상승, 지정하지 않은 축 보존, Interview·Turn·답변 side-effect 금지와 조회당 단일 Interview query·변경당 단일 update 계약 테스트를 작성하고 구현 전 실패를 확인한다.
+- [X] T007 [US1] `tests/reflections/test_services.py`에 Coverage 조회, 최초 단일 축 상승, 다중 축 상승, 지정하지 않은 축 보존, Interview·Turn·답변 side-effect 금지와 조회당 단일 Interview query·변경당 단일 update 계약 테스트를 작성하고 구현 전 실패를 확인한다.
 
 ### 사용자 스토리 1 구현
 
-- [ ] T008 [US1] `src/reflections/services.py`에 read-only Coverage snapshot/result 값과 `get_interview_coverage`를 구현하고, 사용자 소유·Reading/Book 연결·canonical 저장 shape를 공통 검증한다. 조회는 소유자에게 진행 상태와 관계없이 허용하고, 단일·다중 축 patch는 `IN_PROGRESS`와 답변 존재까지 추가 검증한 뒤 원자적으로 적용해 T007을 통과시킨다.
+- [X] T008 [US1] `src/reflections/services.py`에 read-only Coverage snapshot/result 값과 `get_interview_coverage`를 구현하고, 사용자 소유·Reading/Book 연결·canonical 저장 shape를 공통 검증한다. 조회는 소유자에게 진행 상태와 관계없이 허용하고, 단일·다중 축 patch는 `IN_PROGRESS`와 답변 존재까지 추가 검증한 뒤 원자적으로 적용해 T007을 통과시킨다.
 
 **체크포인트**: 사용자 스토리 1만으로 답변 이후 Coverage를 저장·재조회할 수 있고 Answer
 Analysis나 다음 질문 없이 독립 검증 가능해야 한다.
@@ -82,12 +82,12 @@ DB 실패와 실제 PostgreSQL 경쟁 요청을 각각 재현해 최종 snapshot
 
 ### 사용자 스토리 2 테스트
 
-- [ ] T009 [US2] `tests/reflections/test_services.py`에 동일 상태 no-op, 빈 patch, 직접 상승, 하락·알 수 없는 값·중복 축·mixed-validity patch 전체 거부와 DB 오류 rollback 테스트를 작성하고 구현 전 실패를 확인한다.
-- [ ] T010 [US2] `tests/reflections/test_services.py`에 thread별 DB connection과 barrier를 사용해 서로 다른 축, 같은 축 동일 상태, `PARTIAL`/`COVERED` 경쟁이 최고 상태로 수렴하는 PostgreSQL 동시성 테스트를 작성하고 구현 전 실패를 확인한다.
+- [X] T009 [US2] `tests/reflections/test_services.py`에 동일 상태 no-op, 빈 patch, 직접 상승, 하락·알 수 없는 값·중복 축·mixed-validity patch 전체 거부와 DB 오류 rollback 테스트를 작성하고 구현 전 실패를 확인한다.
+- [X] T010 [US2] `tests/reflections/test_services.py`에 thread별 DB connection과 barrier를 사용해 서로 다른 축, 같은 축 동일 상태, `PARTIAL`/`COVERED` 경쟁이 최고 상태로 수렴하는 PostgreSQL 동시성 테스트를 작성하고 구현 전 실패를 확인한다.
 
 ### 사용자 스토리 2 구현
 
-- [ ] T011 [US2] `src/reflections/services.py`에 순서 있는 patch 항목 전체 검증, 중복 검출, 상태 순서 비교, Interview row lock, 최신 상태 재검증, changed/no-op 결과와 원자적 오류 변환을 구현해 T009와 T010을 통과시킨다.
+- [X] T011 [US2] `src/reflections/services.py`에 순서 있는 patch 항목 전체 검증, 중복 검출, 상태 순서 비교, Interview row lock, 최신 상태 재검증, changed/no-op 결과와 원자적 오류 변환을 구현해 T009와 T010을 통과시킨다.
 
 **체크포인트**: 모든 유효한 경쟁은 축별 최고 상태로 수렴하고 invalid 또는 실패 patch는 어떤
 축도 부분 저장하지 않아야 한다.
@@ -105,11 +105,11 @@ DB 실패와 실제 PostgreSQL 경쟁 요청을 각각 재현해 최종 snapshot
 
 ### 사용자 스토리 3 테스트
 
-- [ ] T012 [US3] `tests/reflections/test_services.py`에 Interview별 격리, 다른 사용자와 미저장 대상의 동일 오류, 답변 없음과 Reading·Book 불일치 시 변경 거부 테스트를 작성하고 T008의 소유권·상태 경계가 이를 충족하는지 확인한다.
+- [X] T012 [US3] `tests/reflections/test_services.py`에 Interview별 격리, 다른 사용자와 미저장 대상의 동일 오류, 답변 없음과 Reading·Book 불일치 시 변경 거부 테스트를 작성하고 T008의 소유권·상태 경계가 이를 충족하는지 확인한다.
 
 ### 사용자 스토리 3 상태별 계약 테스트
 
-- [ ] T013 [US3] `tests/reflections/test_services.py`에 소유자의 `REFLECTION_READY`·`COMPLETED` Coverage 조회 허용, 비진행 Interview 변경 거부와 다른 사용자 대상 정보 비노출 회귀 테스트를 추가해 T008의 조회·변경 경계가 상태별 계약을 충족하는지 확인한다.
+- [X] T013 [US3] `tests/reflections/test_services.py`에 소유자의 `REFLECTION_READY`·`COMPLETED` Coverage 조회 허용, 비진행 Interview 변경 거부와 다른 사용자 대상 정보 비노출 회귀 테스트를 추가해 T008의 조회·변경 경계가 상태별 계약을 충족하는지 확인한다.
 
 **체크포인트**: 다른 사용자와 invalid Interview는 대상 존재 여부나 Coverage를 확인할 수 없고,
 어떤 거부 경로도 기존 상태를 변경하지 않아야 한다.
@@ -120,9 +120,9 @@ DB 실패와 실제 PostgreSQL 경쟁 요청을 각각 재현해 최종 snapshot
 
 **목적**: migration SQL, 전체 회귀와 구현 계획 상태를 증거에 맞춰 동기화한다.
 
-- [ ] T014 `specs/010-interview-coverage-state/quickstart.md`의 `makemigrations --check --dry-run`, `sqlmigrate` 0002/0003, migration/model/service 테스트를 실행하고 `lock_timeout`, `db_default`, `NOT VALID`/`VALIDATE`, reverse SQL과 migration state가 설계 계약과 일치하는지 확인한다.
-- [ ] T015 `uv run python scripts/verify.py`로 Django system check, Ruff format/lint, 전체 pytest와 migration drift를 검증하고 Bundle 06A 첫 질문·답변 회귀가 유지되는지 확인한다.
-- [ ] T016 T014와 T015가 성공한 뒤 `docs/AfterMuse_MVP_Implementation_Plan_v5.md`의 IMP-070 완료 상태·검증 근거와 `CHANGELOG.md`의 Unreleased 변경 내역을 실제 구현 결과에 맞춰 수술적으로 갱신한다.
+- [X] T014 `specs/010-interview-coverage-state/quickstart.md`의 `makemigrations --check --dry-run`, `sqlmigrate` 0002/0003, migration/model/service 테스트를 실행하고 `lock_timeout`, `db_default`, `NOT VALID`/`VALIDATE`, reverse SQL과 migration state가 설계 계약과 일치하는지 확인한다.
+- [X] T015 `uv run python scripts/verify.py`로 Django system check, Ruff format/lint, 전체 pytest와 migration drift를 검증하고 Bundle 06A 첫 질문·답변 회귀가 유지되는지 확인한다.
+- [X] T016 T014와 T015가 성공한 뒤 `docs/AfterMuse_MVP_Implementation_Plan_v5.md`의 IMP-070 완료 상태·검증 근거와 `CHANGELOG.md`의 Unreleased 변경 내역을 실제 구현 결과에 맞춰 수술적으로 갱신한다.
 
 ---
 
@@ -195,3 +195,17 @@ Task: "tests/reflections/test_migrations.py에 backfill·DB default·CHECK·reve
 - `ACCESS EXCLUSIVE` DDL의 `lock_timeout` 값은 migration 작성 시 프로젝트 배포 정책과 확인한다.
 - test double은 DB 자체가 아닌 영속 실패 같은 현재 테스트 대상 밖의 경계에만 사용한다.
 - 각 사용자 스토리는 해당 체크포인트에서 독립 검증한 뒤 다음 단계로 진행한다.
+
+## Phase 7: Convergence
+
+- [X] T017 `tests/reflections/test_services.py`에 동일 상태 재적용과 빈 patch가 같은 snapshot, `changed=False`, Coverage 무-write로 끝나는 회귀 테스트를 추가한다 per FR-007 및 예외 상황 (partial)
+- [X] T018 `tests/reflections/test_services.py`에 알 수 없는 상태, 유효·무효 축이 섞인 patch와 Coverage update 실패가 전체 rollback되고 기존 snapshot을 보존하는 테스트를 추가한다 per FR-008, FR-009, SC-003 (partial)
+- [X] T019 `tests/reflections/test_services.py`에 thread별 DB connection과 barrier로 같은 축의 동일 상태 경쟁 및 `PARTIAL`/`COVERED` 경쟁이 상위 상태를 보존하는 테스트를 추가한다 per FR-010, SC-004 (partial)
+- [X] T020 `tests/reflections/test_services.py`에 서로 다른 Interview 격리, 미저장 대상과 다른 사용자 대상의 동일 오류, Reading·Book 연결 손상, `REFLECTION_READY` 조회 허용·변경 거부를 검증한다 per FR-011, FR-012, FR-013, SC-005 (partial)
+- [X] T021 `src/reflections/services.py`의 Coverage patch 입력을 중복 순서를 보존하는 일반 `Sequence[CoveragePatchItem]` 계약으로 확장하고 tuple과 list 입력 및 문자열·mapping 오용 거부 테스트를 추가한다 per plan: ordered sequence input (contradicts)
+- [X] T022 `tests/reflections/test_services.py`에 Coverage 조회가 단일 Interview query이고 실제 변경이 잠금 조회 뒤 단일 Interview update만 수행하며 no-op은 update하지 않는 query 계수 테스트를 추가한다 per plan: 성능 목표 및 T007 (partial)
+- [X] T023 `tests/reflections/test_migrations.py`에 ORM default 생성과 DB CHECK의 비-object·누락 키·추가 키·허용되지 않은 상태 거부를 각각 검증하는 migration 회귀 테스트를 추가한다 per plan: migration strategy 및 T003 (partial)
+
+## Phase 8: Convergence
+
+- [X] T024 `tests/reflections/test_services.py`에 답변이 확정된 Interview의 Coverage patch를 다른 사용자가 요청할 때 미저장 대상과 동일한 `CoveragePolicyError`로 거부되고 Coverage 및 관련 domain 상태가 불변임을 검증한다 per US3/AC2, FR-012, SC-005 (partial)

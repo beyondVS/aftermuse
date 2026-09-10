@@ -7,7 +7,13 @@ from django.db.models import ProtectedError
 
 from books.models import Book
 from readings.models import Reading
-from reflections.models import Interview, InterviewTurn
+from reflections.models import (
+    CORE_COVERAGE,
+    CoverageStatus,
+    Interview,
+    InterviewTurn,
+    default_coverage,
+)
 
 
 @pytest.fixture
@@ -89,3 +95,32 @@ def test_turn_answer_validation_preserves_first_confirmed_value(interview) -> No
         InterviewTurn(
             interview=interview, sequence=2, question="두 번째 질문", answer=" \n"
         ).full_clean()
+
+
+def test_coverage_defaults_are_independent_and_canonical(interview) -> None:
+    other = Interview(
+        reading=interview.reading,
+        book=interview.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+    )
+
+    assert default_coverage() == dict.fromkeys(CORE_COVERAGE, CoverageStatus.UNCOVERED)
+    assert interview.coverage == other.coverage
+    assert interview.coverage is not other.coverage
+    assert set(interview.coverage) == set(CORE_COVERAGE)
+
+
+@pytest.mark.parametrize(
+    "coverage",
+    [
+        [],
+        {"MEMORY": "UNCOVERED"},
+        dict.fromkeys((*CORE_COVERAGE, "EXTRA"), "UNCOVERED"),
+        dict.fromkeys(CORE_COVERAGE, "INVALID"),
+    ],
+)
+def test_interview_rejects_noncanonical_coverage(coverage, interview) -> None:
+    interview.coverage = coverage
+
+    with pytest.raises(ValidationError):
+        interview.full_clean()
