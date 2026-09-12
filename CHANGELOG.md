@@ -9,6 +9,8 @@
 
 ### Added
 
+- Gemini API와 로컬 Ollama의 Interview 세 작업 Adapter, 명시적 Provider·모델·timeout 설정 및 opt-in live smoke test
+
 - Python 3.14와 uv 기반의 런타임 및 의존성 관리 환경
 - Django 6.1과 Psycopg 3 기반의 최소 Django 프로젝트
 - PostgreSQL 18 개발 데이터베이스용 Docker Compose 구성
@@ -51,8 +53,8 @@
 
 ### Changed
 
-- 후속 Interview 질문을 검증된 답변 인용과 Coverage 축으로 구성하고, 질문 생략에는
-  완료된 네 축과 답변의 명시적 마무리 신호를 요구하도록 안전 경계를 강화
+- 후속 질문을 LLM의 검증된 원문으로 저장하고, 예약된 답변 마무리 문구 없이 Coverage와 추가 탐색 근거로 질문 생략을 검증
+
 - 남은 MVP 구현 계획의 Bundle을 사용자 결과와 상태·LLM·트랜잭션·신뢰·복구·UI 검증 경계에 맞게 재구성
 - 기본 도서 Metadata Provider를 Aladin에서 Kakao 도서 검색 API로 전환
 - 기본 pytest 실행에서 실제 외부 연결이 필요한 `live` marker 테스트를 제외하고, 명시적인

@@ -7,9 +7,11 @@ from django.urls import reverse
 
 from books.models import Book
 from integrations.llm.contracts import (
+    ProposedNextQuestion,
     QuestionGenerationConfigurationError,
     QuestionGenerationTimeout,
 )
+from integrations.llm.fake import FakeNextQuestionProvider
 from readings.models import Reading
 from reflections.models import Interview, InterviewTurn
 from reflections.services import FirstAnswerPersistenceError, InterviewPolicyError
@@ -580,7 +582,9 @@ def test_skipped_next_question_is_distinct_from_retryable_error(
     assert turn.next_question_skipped_at is None
 
 
-def test_skipped_question_reentry_shows_waiting_without_retry(client, reading) -> None:
+def test_skipped_question_reentry_shows_waiting_without_retry(
+    client, reading, monkeypatch
+) -> None:
     interview = Interview.objects.create(
         reading=reading,
         book=reading.book,
@@ -596,6 +600,18 @@ def test_skipped_question_reentry_shows_waiting_without_retry(client, reading) -
         answer="생각이 남았지만 더 할 말이 없어요",
     )
     client.force_login(reading.user)
+    monkeypatch.setattr(
+        "integrations.llm.factory.get_next_question_provider",
+        lambda: FakeNextQuestionProvider(
+            result=ProposedNextQuestion(
+                "skip",
+                None,
+                None,
+                None,
+                "네 방향은 다뤘고 지금 답변에서 더 탐색할 근거가 없습니다.",
+            )
+        ),
+    )
     next_url = reverse("reflections:next_turn", args=[interview.pk, 1])
 
     result = client.post(next_url, HTTP_HX_REQUEST="true")

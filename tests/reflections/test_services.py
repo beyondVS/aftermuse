@@ -1211,7 +1211,15 @@ def test_last_answer_commits_coverage_and_skip_marker(completed_reading) -> None
             coverage_patch=(ProposedCoverageChange("MEMORY", "COVERED", answer),),
         )
     )
-    next_provider = FakeNextQuestionProvider()
+    next_provider = FakeNextQuestionProvider(
+        result=ProposedNextQuestion(
+            "skip",
+            None,
+            None,
+            None,
+            "네 방향은 다뤘고 직전 답변에는 구체적인 추가 탐색 근거가 없습니다.",
+        )
+    )
     result = process_next_turn(
         user=completed_reading.user,
         interview=interview,
@@ -1284,7 +1292,7 @@ def test_low_information_answer_changes_question_direction(completed_reading) ->
     assert all(status == "UNCOVERED" for status in interview.coverage.values())
 
 
-def test_invalid_skip_is_rejected_and_ungrounded_question_is_replaced(
+def test_invalid_skip_and_ungrounded_question_are_rejected(
     completed_reading,
 ) -> None:
     interview, turn = _answered_interview(completed_reading)
@@ -1315,24 +1323,23 @@ def test_invalid_skip_is_rejected_and_ungrounded_question_is_replaced(
         )
     assert interview.turns.count() == 1
 
-    result = process_next_turn(
-        user=completed_reading.user,
-        interview=interview,
-        turn=turn,
-        analysis_provider=FakeAnswerAnalysisProvider(),
-        next_provider=FakeNextQuestionProvider(
-            result=ProposedNextQuestion(
-                "question",
-                "주인공이 마법으로 떠난 이유는 무엇인가요?",
-                "MEMORY",
-                turn.answer,
-                None,
-            )
-        ),
-    )
-    assert "주인공" not in result.turn.question
-    assert "마법" not in result.turn.question
-    assert turn.answer.rstrip(".") in result.turn.question
+    with pytest.raises(QuestionGenerationRejected):
+        process_next_turn(
+            user=completed_reading.user,
+            interview=interview,
+            turn=turn,
+            analysis_provider=FakeAnswerAnalysisProvider(),
+            next_provider=FakeNextQuestionProvider(
+                result=ProposedNextQuestion(
+                    "question",
+                    "주인공이 마법으로 떠난 이유는 무엇인가요?",
+                    "MEMORY",
+                    turn.answer,
+                    None,
+                )
+            ),
+        )
+    assert interview.turns.count() == 1
 
 
 def test_all_covered_with_open_answer_keeps_a_question(completed_reading) -> None:
@@ -1435,3 +1442,77 @@ def test_concurrent_next_turn_requests_converge(completed_reading) -> None:
 
     assert results[0] == results[1]
     assert list(interview.turns.values_list("sequence", flat=True)) == [1, 2]
+
+
+def test_llm_question_wording_is_saved_verbatim(completed_reading) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    wording = "제 선택을 돌아보게 된 계기가 된 장면은 무엇이었나요?"
+    result = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(
+            result=ProposedNextQuestion(
+                "question",
+                wording,
+                "MEMORY",
+                "제 선택을 돌아보게",
+                None,
+            )
+        ),
+    )
+    assert result.turn.question == wording
+    assert InterviewTurn.objects.get(pk=result.turn.pk).question == wording
+
+
+def test_limited_question_rejects_added_book_fact_despite_valid_quote(
+    completed_reading,
+) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    with pytest.raises(QuestionGenerationRejected):
+        process_next_turn(
+            user=completed_reading.user,
+            interview=interview,
+            turn=turn,
+            analysis_provider=FakeAnswerAnalysisProvider(),
+            next_provider=FakeNextQuestionProvider(
+                result=ProposedNextQuestion(
+                    "question",
+                    "제 선택을 돌아보게 한 주인공의 마법은 무엇인가요?",
+                    "MEMORY",
+                    "제 선택을 돌아보게",
+                    None,
+                )
+            ),
+        )
+    assert interview.turns.count() == 1
+
+
+@pytest.mark.parametrize(
+    "answer", ("여기까지가 제 생각의 전부예요.", "이 이상 덧붙일 이야기는 없네요.")
+)
+def test_natural_closing_variants_allow_skip_without_reserved_phrase(
+    completed_reading, answer
+) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    InterviewTurn.objects.filter(pk=turn.pk).update(answer=answer)
+    Interview.objects.filter(pk=interview.pk).update(
+        coverage=dict.fromkeys(interview.coverage, "COVERED")
+    )
+    result = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(
+            result=ProposedNextQuestion(
+                "skip",
+                None,
+                None,
+                None,
+                "네 방향은 충분히 다뤘고 답변에서 더 탐색할 내용이 없습니다.",
+            )
+        ),
+    )
+    assert result.skipped

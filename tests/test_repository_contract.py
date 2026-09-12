@@ -24,6 +24,12 @@ def test_example_environment_has_required_names() -> None:
         "OPENAI_MODEL",
         "OPENAI_API_KEY",
         "OPENAI_TIMEOUT_SECONDS",
+        "GEMINI_MODEL",
+        "GEMINI_API_KEY",
+        "GEMINI_TIMEOUT_SECONDS",
+        "OLLAMA_MODEL",
+        "OLLAMA_BASE_URL",
+        "OLLAMA_TIMEOUT_SECONDS",
     }
 
     configured_names = {

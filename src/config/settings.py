@@ -20,6 +20,12 @@ env = environ.Env(
     OPENAI_MODEL=str,
     OPENAI_API_KEY=str,
     OPENAI_TIMEOUT_SECONDS=float,
+    GEMINI_MODEL=str,
+    GEMINI_API_KEY=str,
+    GEMINI_TIMEOUT_SECONDS=float,
+    OLLAMA_MODEL=str,
+    OLLAMA_BASE_URL=str,
+    OLLAMA_TIMEOUT_SECONDS=float,
 )
 
 if ENV_FILE.is_file():
@@ -37,6 +43,12 @@ LLM_PROVIDER = env("LLM_PROVIDER", default="fake")
 OPENAI_MODEL = env("OPENAI_MODEL", default="gpt-5.4-mini-2026-03-17")
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 OPENAI_TIMEOUT_SECONDS = env("OPENAI_TIMEOUT_SECONDS", default=30.0)
+GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-2.5-flash-lite")
+GEMINI_API_KEY = env("GEMINI_API_KEY", default="")
+GEMINI_TIMEOUT_SECONDS = env("GEMINI_TIMEOUT_SECONDS", default=30.0)
+OLLAMA_MODEL = env("OLLAMA_MODEL", default="gemma4:12b-it-qat")
+OLLAMA_BASE_URL = env("OLLAMA_BASE_URL", default="http://127.0.0.1:11434")
+OLLAMA_TIMEOUT_SECONDS = env("OLLAMA_TIMEOUT_SECONDS", default=120.0)
 
 INSTALLED_APPS = [
     "accounts.apps.AccountsConfig",
