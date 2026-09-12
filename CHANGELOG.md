@@ -9,6 +9,8 @@
 
 ### Added
 
+- Gemini API와 로컬 Ollama의 Interview 세 작업 Adapter, 명시적 Provider·모델·timeout 설정 및 opt-in live smoke test
+
 - Python 3.14와 uv 기반의 런타임 및 의존성 관리 환경
 - Django 6.1과 Psycopg 3 기반의 최소 Django 프로젝트
 - PostgreSQL 18 개발 데이터베이스용 Docker Compose 구성
@@ -44,8 +46,16 @@
 - 첫 질문·답변 Web 계약 및 network·credential 없는 Provider 회귀 테스트
 - 생성 질문의 금지 지시·상태 변경·허용되지 않은 참조를 저장 전에 거부하는 안전성 검사
 - HTMX 정책 충돌을 내부 정보 비노출 안내와 Interview 영역 전체 교체로 복구하는 fragment
+- 확정 답변의 의미·low-information 여부와 원문 근거 기반 Core Coverage 상승 후보를 반환하는
+  비영속 Answer Analysis 계약, fake·OpenAI Adapter 및 Application 검증 경계
+- 답변 분석과 Core Coverage를 반영한 적응형 다음 질문, 여러 Turn의 답변 저장 및 검증된
+  질문 생략 기록과 실패 후 답변 보존·재시도 흐름
 
 ### Changed
+
+- Interview LLM의 공통 structured 요청·decode를 Provider 중립 모듈로 통합하고 OpenAI·Gemini·Ollama transport를 각각 분리
+
+- 후속 질문을 LLM의 검증된 원문으로 저장하고, 예약된 답변 마무리 문구 없이 Coverage와 추가 탐색 근거로 질문 생략을 검증
 
 - 남은 MVP 구현 계획의 Bundle을 사용자 결과와 상태·LLM·트랜잭션·신뢰·복구·UI 검증 경계에 맞게 재구성
 - 기본 도서 Metadata Provider를 Aladin에서 Kakao 도서 검색 API로 전환
@@ -63,3 +73,4 @@
   영역을 교체하고 입력 보존·오류 focus 계약을 유지하도록 강화
 - 첫 질문의 소유권·관계·상태 검증과 기존 Turn 재사용 이후에만 Provider를 생성하도록 호출
   순서를 변경해 저장된 질문과 정책 충돌 응답이 Provider 설정에 의존하지 않도록 개선
+- Interview별 Core Coverage JSONB 상태와 단방향·원자적 patch Service를 추가하고, 소유권·답변·진행 상태 경계를 검증

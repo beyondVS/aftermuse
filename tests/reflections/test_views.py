@@ -7,9 +7,11 @@ from django.urls import reverse
 
 from books.models import Book
 from integrations.llm.contracts import (
+    ProposedNextQuestion,
     QuestionGenerationConfigurationError,
     QuestionGenerationTimeout,
 )
+from integrations.llm.fake import FakeNextQuestionProvider
 from readings.models import Reading
 from reflections.models import Interview, InterviewTurn
 from reflections.services import FirstAnswerPersistenceError, InterviewPolicyError
@@ -286,7 +288,7 @@ def test_question_state_exposes_accessible_answer_form(client, reading) -> None:
         reverse("reflections:interview_detail", args=[interview.pk])
     ).content.decode()
 
-    assert 'id="first-question-title"' in content
+    assert 'id="current-question-title"' in content
     assert "무엇이 가장 오래 남았나요?" in content
     assert 'for="id_answer"' in content
     assert 'id="id_answer"' in content
@@ -321,7 +323,7 @@ def test_first_answer_post_returns_saved_fragment_or_detail_redirect(
 
     assert fragment.status_code == 200
     assert "답변을 저장했습니다" in fragment.content.decode()
-    assert "다음 질문" not in fragment.content.decode()
+    assert "다음 질문을 준비하고 있어요" in fragment.content.decode()
     assert redirected.status_code == 302
     assert redirected.url == detail_url
 
@@ -516,3 +518,156 @@ def test_policy_conflicts_replace_htmx_interview_region_safely(
         assert "현재 단계를 아직 사용할 수 없습니다" in content
         assert "internal-policy-detail" not in content
         assert "보존 대상이 아닌 입력" not in content
+
+
+def test_answer_next_question_and_second_answer_flow(client, reading) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?"
+    )
+    client.force_login(reading.user)
+    first_answer_url = reverse("reflections:first_answer", args=[interview.pk])
+    client.post(first_answer_url, {"answer": "한 장면이 남았습니다"})
+
+    next_url = reverse("reflections:next_turn", args=[interview.pk, 1])
+    fragment = client.post(next_url, HTTP_HX_REQUEST="true")
+    detail = client.get(reverse("reflections:interview_detail", args=[interview.pk]))
+
+    assert fragment.status_code == 200
+    assert "2번째 질문" in fragment.content.decode()
+    assert "2번째 질문" in detail.content.decode()
+    assert "한 장면이 남았습니다" in detail.content.decode()
+    assert (
+        "<blockquote>한 장면이 남았습니다</blockquote>" not in detail.content.decode()
+    )
+    second_answer_url = reverse("reflections:turn_answer", args=[interview.pk, 2])
+    saved = client.post(second_answer_url, {"answer": "그 장면이 저를 떠올리게 했어요"})
+    assert saved.status_code == 302
+    assert InterviewTurn.objects.get(interview=interview, sequence=2).answer == (
+        "그 장면이 저를 떠올리게 했어요"
+    )
+
+
+def test_skipped_next_question_is_distinct_from_retryable_error(
+    client, reading, monkeypatch
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="무엇이 남았나요?",
+        answer="생각이 남았어요",
+    )
+    client.force_login(reading.user)
+    next_url = reverse("reflections:next_turn", args=[interview.pk, 1])
+
+    def unavailable(**kwargs):
+        raise QuestionGenerationTimeout()
+
+    monkeypatch.setattr("reflections.views.process_next_turn", unavailable)
+    failed = client.post(next_url, HTTP_HX_REQUEST="true")
+    assert failed.status_code == 503
+    assert "작성한 답변은 저장되어 있습니다" in failed.content.decode()
+    assert "다음 질문 다시 준비하기" in failed.content.decode()
+    turn.refresh_from_db()
+    assert turn.answer == "생각이 남았어요"
+    assert turn.next_question_skipped_at is None
+
+
+def test_skipped_question_reentry_shows_waiting_without_retry(
+    client, reading, monkeypatch
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+        coverage=dict.fromkeys(
+            ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "COVERED"
+        ),
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="무엇이 남았나요?",
+        answer="생각이 남았지만 더 할 말이 없어요",
+    )
+    client.force_login(reading.user)
+    monkeypatch.setattr(
+        "integrations.llm.factory.get_next_question_provider",
+        lambda: FakeNextQuestionProvider(
+            result=ProposedNextQuestion(
+                "skip",
+                None,
+                None,
+                None,
+                "네 방향은 다뤘고 지금 답변에서 더 탐색할 근거가 없습니다.",
+            )
+        ),
+    )
+    next_url = reverse("reflections:next_turn", args=[interview.pk, 1])
+
+    result = client.post(next_url, HTTP_HX_REQUEST="true")
+    detail = client.get(reverse("reflections:interview_detail", args=[interview.pk]))
+    repeated = client.post(next_url, HTTP_HX_REQUEST="true")
+
+    assert result.status_code == 200
+    assert "생각이 충분히 정리되었습니다" in result.content.decode()
+    assert "다음 질문 다시 준비하기" not in detail.content.decode()
+    assert "생각이 충분히 정리되었습니다" in detail.content.decode()
+    assert repeated.status_code == 200
+    turn.refresh_from_db()
+    assert turn.next_question_skipped_at is not None
+    assert interview.turns.count() == 1
+
+
+def test_next_turn_rejects_invalid_answer_without_server_error(client, reading) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="원문"
+    )
+    InterviewTurn.objects.filter(pk=turn.pk).update(answer="")
+    client.force_login(reading.user)
+
+    response = client.post(
+        reverse("reflections:next_turn", args=[interview.pk, 1]),
+        HTTP_HX_REQUEST="true",
+    )
+
+    assert response.status_code == 409
+    assert "현재 단계를 사용할 수 없습니다" in response.content.decode()
+
+
+def test_new_turn_routes_hide_other_users_interview(
+    client, reading, django_user_model
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="내 답변"
+    )
+    other = django_user_model.objects.create_user(username="other-interview-user")
+    answer_url = reverse("reflections:turn_answer", args=[interview.pk, 1])
+    next_url = reverse("reflections:next_turn", args=[interview.pk, 1])
+
+    for url in (answer_url, next_url):
+        assert client.post(url).status_code == 302
+    client.force_login(other)
+    for url in (answer_url, next_url):
+        response = client.post(url, {"answer": "훔친 답변"})
+        assert response.status_code == 404
+        assert "내 답변" not in response.content.decode()

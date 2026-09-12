@@ -286,31 +286,45 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 #### Bundle 07A — Coverage 상태
 
-- [ ] **IMP-070 — Coverage 기본 구조 구현**
+- [X] **IMP-070 — Coverage 기본 구조 구현**
   - **선행 작업:** IMP-064
   - MEMORY / REACTION / CONNECTION / AFTERTHOUGHT 중심의 Core Coverage를 저장한다.
   - 초기에는 UNCOVERED / PARTIAL / COVERED 정도로 단순화한다.
-  - **완료 조건:** 답변 후 Coverage 상태를 갱신할 수 있다.
+  - **완료 조건:** 답변 후 Coverage 상태를 갱신할 수 있다. PostgreSQL migration round-trip,
+    상태 전환·소유권·동시성 회귀 테스트와 `scripts/verify.py`로 검증했다.
 
 #### Bundle 07B — 답변 분석 계약
 
-- [ ] **IMP-071 — Answer Analysis 최소 구현**
+- [x] **IMP-071 — Answer Analysis 최소 구현**
   - **선행 작업:** IMP-060, IMP-070
   - LLM 또는 fake provider를 통해 답변의 의미, low-information 여부, coverage patch를 얻는다.
-  - **완료 조건:** 정상 답변과 low-information 답변이 구분된다.
+  - **완료 조건:** 정상/low-information 답변, 원문 근거, strict Coverage 상승 후보와
+    Provider 오류 경계를 fake·OpenAI Adapter 및 Service 회귀 테스트와 `scripts/verify.py`로
+    검증했다.
 
 #### Bundle 07C — 적응형 다음 Turn
 
-- [ ] **IMP-072 — 다음 질문 생성 구현**
+- [x] **IMP-072 — 다음 질문 생성 구현**
   - **선행 작업:** IMP-071
   - 기존 답변과 Coverage를 반영해 다음 질문을 생성한다.
   - LLM은 질문을 제안하고, Application이 상태를 갱신한다.
-  - **완료 조건:** 답변 내용이 다음 질문에 반영된다.
+  - **완료 조건:** 답변·Coverage 기반 질문과 검증된 질문 생략을 fake·OpenAI Adapter,
+    Service 및 `scripts/verify.py`로 검증했다.
 
-- [ ] **IMP-073 — Interview Step 통합**
+- [x] **IMP-073 — Interview Step 통합**
   - **선행 작업:** IMP-064, IMP-070, IMP-071, IMP-072
   - 답변 저장 → 분석 → Coverage 갱신 → 다음 질문 저장 흐름을 연결한다.
-  - **완료 조건:** 최소 3턴 이상 인터뷰가 이어진다.
+  - **완료 조건:** 답변 선저장, Coverage·다음 Turn 원자성, 3답변→4번째 질문,
+    생략·실패·동시성·소유권·재접속을 PostgreSQL 회귀 테스트와 `scripts/verify.py`로 검증했다.
+
+#### Bundle 07D — LLM Provider 확장
+
+- [x] **IMP-074 — Gemini / Local Ollama Provider Adapter**
+  - **선행 작업:** IMP-073
+  - 기존 세 Interview capability 계약을 유지하며 Gemini와 로컬 Ollama를 명시적으로 선택한다.
+  - Provider별 credential, 모델, timeout을 환경변수로 지정하고 외부 결과는 Application 검증 경계를 통과한다.
+  - 기본 자동 테스트는 외부 연결 없이 실행하며 실제 Provider의 세 작업 smoke는 명시적으로만 실행한다.
+  - **완료 조건:** factory 선택·설정 오류, 세 작업의 구조화 요청·오류 매핑을 단위 테스트로 확인한다.
 
 ### Day 08 — Soft Stop과 Interview UX가 연결된다
 

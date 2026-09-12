@@ -10,9 +10,13 @@
   <div>
     {% if question_error %}
       {% include "reflections/_interview_error.html" %}
+    {% elif next_error %}
+      {% include "reflections/_interview_next_error.html" %}
     {% elif turn %}
       {% if turn.answer is None %}
         {% include "reflections/_interview_question.html" %}
+      {% elif turn.next_question_skipped_at %}
+        {% include "reflections/_interview_question_skipped.html" %}
       {% else %}
         {% include "reflections/_interview_answer_saved.html" %}
       {% endif %}
