@@ -1,5 +1,9 @@
 <section id="interview-turn-region" aria-labelledby="answer-saved-title">
   <h2 id="answer-saved-title">답변을 저장했습니다</h2>
-  <p role="status">첫 답변이 안전하게 보존되었어요.</p>
+  <p role="status">답변이 안전하게 보존되었어요. 다음 질문을 준비하고 있어요.</p>
   <blockquote>{{ turn.answer }}</blockquote>
+  <form method="post" action="{% url 'reflections:next_turn' turn.interview_id turn.sequence %}" hx-post="{% url 'reflections:next_turn' turn.interview_id turn.sequence %}" hx-target="#interview-turn-region" hx-swap="outerHTML" hx-trigger="load delay:100ms">
+    {% csrf_token %}
+    <button type="submit">다음 질문 준비하기</button>
+  </form>
 </section>

@@ -8,6 +8,35 @@ from django.db.migrations.executor import MigrationExecutor
 
 
 @pytest.mark.django_db(transaction=True)
+def test_next_question_skip_marker_migration_round_trip() -> None:
+    """기존 Turn을 보존하며 nullable 생략 표식을 추가·제거한다."""
+    connection = transaction.get_connection()
+    previous = [("reflections", "0003_interview_coverage_constraint")]
+    target = [("reflections", "0004_turn_next_question_skipped_at")]
+    try:
+        MigrationExecutor(connection).migrate(previous)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'reflections_interviewturn' "
+                "AND column_name = 'next_question_skipped_at'"
+            )
+            assert cursor.fetchone() is None
+        MigrationExecutor(connection).migrate(target)
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT is_nullable FROM information_schema.columns "
+                "WHERE table_name = 'reflections_interviewturn' "
+                "AND column_name = 'next_question_skipped_at'"
+            )
+            assert cursor.fetchone()[0] == "YES"
+        MigrationExecutor(connection).migrate(previous)
+    finally:
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
+
+@pytest.mark.django_db(transaction=True)
 def test_initial_migration_is_additive_and_has_no_turn_fk_index() -> None:
     """Interview 초기 DDL이 신규 table·제약만 생성하는지 확인한다."""
     output = StringIO()

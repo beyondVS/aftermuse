@@ -12,12 +12,18 @@ from integrations.llm.contracts import (
     AnswerAnalysisUnavailable,
     CurrentCoverageItem,
     InterviewQuestionContext,
+    NextQuestionContext,
+    PreviousTurn,
     QuestionGenerationRejected,
     QuestionGenerationTimeout,
     QuestionGenerationUnavailable,
     QuestionPolicy,
 )
-from integrations.llm.openai import OpenAIAnswerAnalysisProvider, OpenAIQuestionProvider
+from integrations.llm.openai import (
+    OpenAIAnswerAnalysisProvider,
+    OpenAINextQuestionProvider,
+    OpenAIQuestionProvider,
+)
 
 
 class RecordingClient:
@@ -378,3 +384,39 @@ def test_adapter_rejects_refusal_and_uses_fixed_timeout_without_retries(
 
     assert captured["timeout"] == 30
     assert captured["max_retries"] == 0
+
+
+def test_next_question_adapter_keeps_policy_separate_and_validates_shape() -> None:
+    analysis = _analysis_context()
+    context = NextQuestionContext(
+        question_context=analysis.question_context,
+        previous_turns=(PreviousTurn("무엇이 남았나요?", "한 장면이 남았어요"),),
+        question=analysis.question,
+        answer=analysis.answer,
+        meaning="허무함을 느꼈다",
+        low_information=False,
+        coverage=analysis.current_coverage,
+    )
+    client = FixedResponseClient(
+        SimpleNamespace(
+            status="completed",
+            output_text=(
+                '{"kind":"question","question":"그 반응은 왜 들었나요?",'
+                '"focus_axis":"REACTION","grounding_quote":"결말이 허무했어요",'
+                '"skip_reason":null}'
+            ),
+        )
+    )
+    proposal = OpenAINextQuestionProvider(
+        api_key="test-key", model="pinned-model", timeout=30, client=client
+    ).generate_next_question(context)
+
+    request = client.calls[0]
+    assert proposal.focus_axis == "REACTION"
+    assert proposal.grounding_quote == "결말이 허무했어요"
+    assert request["store"] is False
+    assert "tools" not in request
+    assert request["text"]["format"]["strict"] is True
+    assert "결말이 허무했어요" in request["input"]
+    assert "결말이 허무했어요" not in request["instructions"]
+    assert request["text"]["format"]["schema"]["additionalProperties"] is False

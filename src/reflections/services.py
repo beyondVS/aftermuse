@@ -9,8 +9,13 @@ from django.utils import timezone
 from integrations.llm.contracts import (
     AnswerAnalysisProvider,
     AnswerAnalysisRejected,
+    CurrentCoverageItem,
+    NextQuestionContext,
+    NextQuestionProvider,
+    PreviousTurn,
     ProposedAnswerAnalysis,
     ProposedCoverageChange,
+    ProposedNextQuestion,
     QuestionGenerationRejected,
     QuestionProvider,
 )
@@ -78,6 +83,14 @@ class FirstAnswerConflict(Exception):
 
     def __init__(self, turn: InterviewTurn) -> None:
         self.turn = turn
+
+
+class NextTurnPersistenceError(Exception):
+    """후속 상태 확정 실패를 답변 보존과 분리한다."""
+
+
+class NextTurnStaleError(Exception):
+    """Provider 호출 중 Interview 상태가 바뀌어 재시도가 필요하다."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +161,14 @@ class AnswerAnalysisResult:
     meaning: str | None
     low_information: bool
     coverage_patch: tuple[AnalyzedCoverageChange, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class NextTurnResult:
+    """확정된 다음 질문 또는 질문 생략 상태다."""
+
+    turn: InterviewTurn
+    skipped: bool
 
 
 def get_interview_destination(interview: Interview) -> InterviewDestination:
@@ -334,7 +355,18 @@ def save_first_answer(
     *, user, interview: Interview, answer: object
 ) -> FirstAnswerSaveResult:
     """첫 답변을 한 번만 확정하고 같은 재제출은 멱등 처리한다."""
+    return save_turn_answer(user=user, interview=interview, sequence=1, answer=answer)
+
+
+def save_turn_answer(
+    *, user, interview: Interview, sequence: int, answer: object
+) -> FirstAnswerSaveResult:
+    """현재 마지막 Turn의 답변을 먼저 확정하고 재제출을 멱등 처리한다."""
     validated_answer = _validate_first_answer(answer)
+    if not isinstance(interview, Interview) or interview.pk is None:
+        raise InterviewPolicyError()
+    if not isinstance(sequence, int) or isinstance(sequence, bool) or sequence < 1:
+        raise InterviewPolicyError()
     try:
         with transaction.atomic():
             locked_interview = (
@@ -348,19 +380,22 @@ def save_first_answer(
             _validate_interview_state(locked_interview)
             turn = (
                 InterviewTurn.objects.select_for_update()
-                .filter(interview=locked_interview, sequence=1)
+                .filter(interview=locked_interview, sequence=sequence)
                 .first()
             )
             if turn is None:
                 raise InterviewPolicyError()
-            if turn.answer is None:
-                turn.answer = validated_answer
-                turn.full_clean()
-                turn.save(update_fields=("answer", "updated_at"))
-                return FirstAnswerSaveResult(turn=turn, saved=True)
-            if turn.answer == validated_answer:
-                return FirstAnswerSaveResult(turn=turn, saved=False)
-            raise FirstAnswerConflict(turn)
+            if turn.answer is not None:
+                if turn.answer == validated_answer:
+                    return FirstAnswerSaveResult(turn=turn, saved=False)
+                raise FirstAnswerConflict(turn)
+            latest = InterviewTurn.objects.filter(interview=locked_interview).last()
+            if latest is None or latest.pk != turn.pk:
+                raise InterviewPolicyError()
+            turn.answer = validated_answer
+            turn.full_clean()
+            turn.save(update_fields=("answer", "updated_at"))
+            return FirstAnswerSaveResult(turn=turn, saved=True)
     except FirstAnswerConflict:
         raise
     except DatabaseError as error:
@@ -400,6 +435,177 @@ def analyze_interview_answer(
     context = build_answer_analysis_context(interview=prepared, turn=prepared_turn)
     proposed = provider.analyze_answer(context)
     return _validate_answer_analysis(proposed, context.answer, prepared.coverage)
+
+
+def process_next_turn(
+    *,
+    user,
+    interview: Interview,
+    turn: InterviewTurn,
+    analysis_provider: AnswerAnalysisProvider | None = None,
+    next_provider: NextQuestionProvider | None = None,
+) -> NextTurnResult:
+    """확정 답변 뒤 검증된 Coverage와 다음 Turn 또는 생략을 함께 확정한다."""
+    prepared, answered = _get_answer_analysis_target(
+        user=user, interview=interview, turn=turn
+    )
+    existing = InterviewTurn.objects.filter(
+        interview=prepared, sequence=answered.sequence + 1
+    ).first()
+    if existing is not None:
+        return NextTurnResult(existing, skipped=False)
+    if answered.next_question_skipped_at is not None:
+        return NextTurnResult(answered, skipped=True)
+    if InterviewTurn.objects.filter(
+        interview=prepared, sequence__gt=answered.sequence
+    ).exists():
+        raise InterviewPolicyError()
+    before = prepared.coverage.copy()
+    analysis = analyze_interview_answer(
+        user=user, interview=prepared, turn=answered, provider=analysis_provider
+    )
+    projected = before.copy()
+    for change in analysis.coverage_patch:
+        projected[change.axis.value] = change.status.value
+
+    from reflections.context import build_interview_question_context
+
+    question_context = build_interview_question_context(interview=prepared)
+    history = tuple(
+        PreviousTurn(question=item.question, answer=item.answer)
+        for item in InterviewTurn.objects.filter(
+            interview=prepared, sequence__lt=answered.sequence, answer__isnull=False
+        ).order_by("-sequence")[:5]
+    )
+    context = NextQuestionContext(
+        question_context=question_context,
+        previous_turns=tuple(reversed(history)),
+        question=answered.question,
+        answer=answered.answer,
+        meaning=analysis.meaning,
+        low_information=analysis.low_information,
+        coverage=tuple(
+            CurrentCoverageItem(axis=axis.value, status=projected[axis.value])
+            for axis in CoreCoverageAxis
+        ),
+    )
+    if next_provider is None:
+        from integrations.llm.factory import get_next_question_provider
+
+        next_provider = get_next_question_provider()
+    proposal = next_provider.generate_next_question(context)
+    question = _validate_next_question(proposal, context)
+    return _commit_next_turn(
+        user=user,
+        prepared=prepared,
+        answered=answered,
+        before=before,
+        projected=projected,
+        question=question,
+    )
+
+
+def _commit_next_turn(
+    *,
+    user,
+    prepared: Interview,
+    answered: InterviewTurn,
+    before: dict[str, str],
+    projected: dict[str, str],
+    question: str | None,
+) -> NextTurnResult:
+    """Provider 호출 뒤 상태 재검증과 영속 변경을 짧은 잠금으로 묶는다."""
+    try:
+        with transaction.atomic():
+            locked = (
+                Interview.objects.select_for_update()
+                .select_related("reading", "book")
+                .filter(pk=prepared.pk, reading__user=user)
+                .first()
+            )
+            if locked is None:
+                raise InterviewPolicyError()
+            _validate_interview_state(locked)
+            current = InterviewTurn.objects.select_for_update().get(pk=answered.pk)
+            existing = InterviewTurn.objects.filter(
+                interview=locked, sequence=current.sequence + 1
+            ).first()
+            if existing is not None:
+                return NextTurnResult(existing, skipped=False)
+            if current.next_question_skipped_at is not None:
+                return NextTurnResult(current, skipped=True)
+            if (
+                current.interview_id != locked.pk
+                or current.answer != answered.answer
+                or locked.coverage != before
+            ):
+                raise NextTurnStaleError()
+            if projected != before:
+                Interview.objects.filter(pk=locked.pk).update(
+                    coverage=projected, updated_at=timezone.now()
+                )
+            if question is None:
+                current.next_question_skipped_at = timezone.now()
+                current.save(update_fields=("next_question_skipped_at", "updated_at"))
+                return NextTurnResult(current, skipped=True)
+            created = InterviewTurn.objects.create(
+                interview=locked, sequence=current.sequence + 1, question=question
+            )
+            return NextTurnResult(created, skipped=False)
+    except DatabaseError as error:
+        raise NextTurnPersistenceError() from error
+
+
+def _validate_next_question(
+    proposal: object, context: NextQuestionContext
+) -> str | None:
+    """질문·생략 제안을 전체 검증하고 실행 가능한 결과로 변환한다."""
+    if not isinstance(proposal, ProposedNextQuestion):
+        raise QuestionGenerationRejected()
+    if proposal.kind == "skip":
+        if (
+            proposal.question is not None
+            or proposal.focus_axis is not None
+            or proposal.grounding_quote is not None
+            or any(item.status != CoverageStatus.COVERED for item in context.coverage)
+            or not isinstance(proposal.skip_reason, str)
+            or not 1 <= len(proposal.skip_reason.strip()) <= 500
+            or any(
+                pattern in proposal.skip_reason
+                for pattern in _QUESTION_PROHIBITED_PATTERNS
+            )
+        ):
+            raise QuestionGenerationRejected()
+        return None
+    if proposal.kind != "question" or proposal.skip_reason is not None:
+        raise QuestionGenerationRejected()
+    try:
+        axis = CoreCoverageAxis(proposal.focus_axis)
+    except (TypeError, ValueError) as error:
+        raise QuestionGenerationRejected() from error
+    if proposal.grounding_quote is not None:
+        if (
+            not isinstance(proposal.grounding_quote, str)
+            or not 1 <= len(proposal.grounding_quote.strip()) <= 500
+            or proposal.grounding_quote.strip() not in context.answer
+        ):
+            raise QuestionGenerationRejected()
+    elif (
+        next(item.status for item in context.coverage if item.axis == axis.value)
+        == CoverageStatus.COVERED
+    ):
+        raise QuestionGenerationRejected()
+    question = _validate_first_question(proposal.question)
+    if (
+        context.question_context.knowledge_readiness
+        == Interview.KnowledgeReadiness.READY_LIMITED
+        and any(
+            word in question and word not in (proposal.grounding_quote or "")
+            for word in ("주인공", "결말", "작가의 주장")
+        )
+    ):
+        raise QuestionGenerationRejected()
+    return question
 
 
 def _get_answer_analysis_target(

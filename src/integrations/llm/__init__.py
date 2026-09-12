@@ -11,8 +11,12 @@ from integrations.llm.contracts import (
     CurrentCoverageItem,
     GeneratedQuestion,
     InterviewQuestionContext,
+    NextQuestionContext,
+    NextQuestionProvider,
+    PreviousTurn,
     ProposedAnswerAnalysis,
     ProposedCoverageChange,
+    ProposedNextQuestion,
     QuestionGenerationConfigurationError,
     QuestionGenerationError,
     QuestionGenerationRejected,
@@ -21,7 +25,11 @@ from integrations.llm.contracts import (
     QuestionPolicy,
     QuestionProvider,
 )
-from integrations.llm.factory import get_answer_analysis_provider, get_question_provider
+from integrations.llm.factory import (
+    get_answer_analysis_provider,
+    get_next_question_provider,
+    get_question_provider,
+)
 
 __all__ = [
     "AnswerAnalysisConfigurationError",
@@ -34,8 +42,12 @@ __all__ = [
     "CurrentCoverageItem",
     "GeneratedQuestion",
     "InterviewQuestionContext",
+    "NextQuestionContext",
+    "NextQuestionProvider",
+    "PreviousTurn",
     "ProposedAnswerAnalysis",
     "ProposedCoverageChange",
+    "ProposedNextQuestion",
     "QuestionGenerationConfigurationError",
     "QuestionGenerationError",
     "QuestionGenerationRejected",
@@ -44,5 +56,6 @@ __all__ = [
     "QuestionPolicy",
     "QuestionProvider",
     "get_answer_analysis_provider",
+    "get_next_question_provider",
     "get_question_provider",
 ]

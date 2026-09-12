@@ -137,6 +137,7 @@ class InterviewTurn(models.Model):
     sequence = models.PositiveIntegerField()
     question = models.CharField(max_length=2000)
     answer = models.TextField(null=True, blank=True)  # noqa: DJ001
+    next_question_skipped_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -178,6 +179,10 @@ class InterviewTurn(models.Model):
                 or len(self.answer) > 2000
             ):
                 raise ValidationError({"answer": "답변은 1~2,000자여야 합니다."})
+        if self.next_question_skipped_at is not None and self.answer is None:
+            raise ValidationError(
+                {"next_question_skipped_at": "확정된 답변이 필요합니다."}
+            )
         if self.pk is not None:
             original_answer = type(self).objects.only("answer").get(pk=self.pk).answer
             if original_answer is not None and self.answer != original_answer:

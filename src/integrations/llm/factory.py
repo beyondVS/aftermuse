@@ -5,12 +5,18 @@ from django.conf import settings
 from integrations.llm.contracts import (
     AnswerAnalysisConfigurationError,
     AnswerAnalysisProvider,
+    NextQuestionProvider,
     QuestionGenerationConfigurationError,
     QuestionProvider,
 )
-from integrations.llm.fake import FakeAnswerAnalysisProvider, FakeQuestionProvider
+from integrations.llm.fake import (
+    FakeAnswerAnalysisProvider,
+    FakeNextQuestionProvider,
+    FakeQuestionProvider,
+)
 from integrations.llm.openai import (
     OpenAIAnswerAnalysisProvider,
+    OpenAINextQuestionProvider,
     OpenAIQuestionProvider,
 )
 
@@ -41,3 +47,17 @@ def get_answer_analysis_provider() -> AnswerAnalysisProvider:
             timeout=settings.OPENAI_TIMEOUT_SECONDS,
         )
     raise AnswerAnalysisConfigurationError
+
+
+def get_next_question_provider() -> NextQuestionProvider:
+    """현재 설정으로 후속 질문 Provider를 선택한다."""
+    provider_name = settings.LLM_PROVIDER.strip().lower()
+    if provider_name == "fake":
+        return FakeNextQuestionProvider()
+    if provider_name == "openai":
+        return OpenAINextQuestionProvider(
+            api_key=settings.OPENAI_API_KEY,
+            model=settings.OPENAI_MODEL,
+            timeout=settings.OPENAI_TIMEOUT_SECONDS,
+        )
+    raise QuestionGenerationConfigurationError

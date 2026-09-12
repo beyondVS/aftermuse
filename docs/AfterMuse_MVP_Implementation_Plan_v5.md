@@ -304,16 +304,18 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 #### Bundle 07C — 적응형 다음 Turn
 
-- [ ] **IMP-072 — 다음 질문 생성 구현**
+- [x] **IMP-072 — 다음 질문 생성 구현**
   - **선행 작업:** IMP-071
   - 기존 답변과 Coverage를 반영해 다음 질문을 생성한다.
   - LLM은 질문을 제안하고, Application이 상태를 갱신한다.
-  - **완료 조건:** 답변 내용이 다음 질문에 반영된다.
+  - **완료 조건:** 답변·Coverage 기반 질문과 검증된 질문 생략을 fake·OpenAI Adapter,
+    Service 및 `scripts/verify.py`로 검증했다.
 
-- [ ] **IMP-073 — Interview Step 통합**
+- [x] **IMP-073 — Interview Step 통합**
   - **선행 작업:** IMP-064, IMP-070, IMP-071, IMP-072
   - 답변 저장 → 분석 → Coverage 갱신 → 다음 질문 저장 흐름을 연결한다.
-  - **완료 조건:** 최소 3턴 이상 인터뷰가 이어진다.
+  - **완료 조건:** 답변 선저장, Coverage·다음 Turn 원자성, 3답변→4번째 질문,
+    생략·실패·동시성·소유권·재접속을 PostgreSQL 회귀 테스트와 `scripts/verify.py`로 검증했다.
 
 ### Day 08 — Soft Stop과 Interview UX가 연결된다
 

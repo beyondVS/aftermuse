@@ -30,4 +30,14 @@ urlpatterns = [
         views.first_answer,
         name="first_answer",
     ),
+    path(
+        "interviews/<int:interview_id>/turns/<int:sequence>/answer/",
+        views.turn_answer,
+        name="turn_answer",
+    ),
+    path(
+        "interviews/<int:interview_id>/turns/<int:sequence>/next/",
+        views.next_turn,
+        name="next_turn",
+    ),
 ]

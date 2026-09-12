@@ -86,6 +86,47 @@ class AnswerAnalysisProvider(Protocol):
         """주어진 Context에서 구조화된 답변 분석 후보를 생성한다."""
 
 
+@dataclass(frozen=True, slots=True)
+class PreviousTurn:
+    """후속 질문의 반복을 피하기 위해 허용된 이전 질문·답변이다."""
+
+    question: str
+    answer: str
+
+
+@dataclass(frozen=True, slots=True)
+class NextQuestionContext:
+    """검증된 분석과 적용 예정 Coverage를 포함하는 읽기 전용 입력이다."""
+
+    question_context: InterviewQuestionContext
+    previous_turns: tuple[PreviousTurn, ...]
+    question: str
+    answer: str
+    meaning: str | None
+    low_information: bool
+    coverage: tuple[CurrentCoverageItem, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProposedNextQuestion:
+    """질문 또는 명시적 질문 생략에 대한 신뢰되지 않은 제안이다."""
+
+    kind: object
+    question: object
+    focus_axis: object
+    grounding_quote: object
+    skip_reason: object
+
+
+class NextQuestionProvider(Protocol):
+    """Interview 상태를 변경하지 않고 다음 질문만 제안한다."""
+
+    def generate_next_question(
+        self, context: NextQuestionContext
+    ) -> ProposedNextQuestion:
+        """질문 또는 질문 생략 제안 하나를 생성한다."""
+
+
 class QuestionGenerationError(Exception):
     """질문 생성 실패를 안전한 사용자 상태로 변환하는 상위 오류다."""
 

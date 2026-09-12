@@ -58,6 +58,8 @@ Claim만 사용하고 `READY_LIMITED`는 기억·인상 중심으로 묻습니�
 Analysis 계약으로 의미와 low-information 여부, 현재 상태보다 높은 Core Coverage 후보를 얻을
 수 있습니다. 후보별 근거 인용은 답변 원문과 대조하고 Provider 출력 전체를 Application에서
 재검증하며, 분석 성공·실패 모두 답변·Turn·Coverage를 직접 변경하지 않습니다.
+확정 답변 뒤에는 분석과 Coverage를 반영해 다음 질문 하나를 이어가며, 충분히 다룬 경우
+검증된 질문 생략을 기록합니다. 질문 준비에 실패해도 답변 원문은 유지되고 재시도할 수 있습니다.
 
 ## 기술 스택
 

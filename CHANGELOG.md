@@ -46,6 +46,8 @@
 - HTMX 정책 충돌을 내부 정보 비노출 안내와 Interview 영역 전체 교체로 복구하는 fragment
 - 확정 답변의 의미·low-information 여부와 원문 근거 기반 Core Coverage 상승 후보를 반환하는
   비영속 Answer Analysis 계약, fake·OpenAI Adapter 및 Application 검증 경계
+- 답변 분석과 Core Coverage를 반영한 적응형 다음 질문, 여러 Turn의 답변 저장 및 검증된
+  질문 생략 기록과 실패 후 답변 보존·재시도 흐름
 
 ### Changed
 

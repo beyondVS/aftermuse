@@ -13,10 +13,15 @@ from integrations.llm.contracts import (
     GeneratedQuestion,
     ProposedAnswerAnalysis,
     ProposedCoverageChange,
+    ProposedNextQuestion,
     QuestionGenerationRejected,
     QuestionGenerationUnavailable,
 )
-from integrations.llm.fake import FakeAnswerAnalysisProvider, FakeQuestionProvider
+from integrations.llm.fake import (
+    FakeAnswerAnalysisProvider,
+    FakeNextQuestionProvider,
+    FakeQuestionProvider,
+)
 from knowledge.models import BookKnowledge, KnowledgeKind
 from readings.models import Reading
 from readings.services import ReadingLockedError, update_completion_date
@@ -30,12 +35,15 @@ from reflections.services import (
     FirstAnswerPersistenceError,
     InterviewDestination,
     InterviewPolicyError,
+    NextTurnPersistenceError,
     analyze_interview_answer,
     apply_interview_coverage_patch,
     ensure_first_question,
     get_interview_coverage,
     get_interview_destination,
+    process_next_turn,
     save_first_answer,
+    save_turn_answer,
     start_interview,
 )
 
@@ -1114,3 +1122,240 @@ def test_answer_analysis_is_read_only(completed_reading) -> None:
     assert not any(
         statement.startswith(("INSERT", "UPDATE", "DELETE")) for statement in statements
     )
+
+
+def test_three_answers_create_four_ordered_questions(completed_reading) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    turn = ensure_first_question(
+        user=completed_reading.user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+    for sequence in range(1, 4):
+        saved = save_turn_answer(
+            user=completed_reading.user,
+            interview=interview,
+            sequence=sequence,
+            answer=f"{sequence}번째 생각이 남았습니다",
+        )
+        assert saved.turn.pk == turn.pk
+        generated = process_next_turn(
+            user=completed_reading.user,
+            interview=interview,
+            turn=saved.turn,
+            analysis_provider=FakeAnswerAnalysisProvider(),
+            next_provider=FakeNextQuestionProvider(),
+        )
+        assert not generated.skipped
+        turn = generated.turn
+        assert turn.sequence == sequence + 1
+    assert list(interview.turns.values_list("sequence", flat=True)) == [1, 2, 3, 4]
+    assert list(interview.turns.values_list("answer", flat=True)) == [
+        "1번째 생각이 남았습니다",
+        "2번째 생각이 남았습니다",
+        "3번째 생각이 남았습니다",
+        None,
+    ]
+    repeated = save_turn_answer(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=1,
+        answer="1번째 생각이 남았습니다",
+    )
+    assert not repeated.saved
+    assert interview.turns.count() == 4
+
+
+def test_next_question_commits_validated_coverage_with_turn(completed_reading) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    analysis = FakeAnswerAnalysisProvider(
+        result=ProposedAnswerAnalysis(
+            meaning=turn.answer,
+            low_information=False,
+            coverage_patch=(ProposedCoverageChange("MEMORY", "PARTIAL", turn.answer),),
+        )
+    )
+    next_provider = FakeNextQuestionProvider()
+
+    result = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        analysis_provider=analysis,
+        next_provider=next_provider,
+    )
+
+    interview.refresh_from_db()
+    assert not result.skipped
+    assert result.turn.sequence == 2
+    assert interview.coverage["MEMORY"] == "PARTIAL"
+    assert next_provider.contexts[0].coverage[0].status == "PARTIAL"
+
+
+def test_last_answer_commits_coverage_and_skip_marker(completed_reading) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    initial = dict.fromkeys(interview.coverage, "COVERED")
+    initial["MEMORY"] = "PARTIAL"
+    Interview.objects.filter(pk=interview.pk).update(coverage=initial)
+    answer = turn.answer
+    analysis = FakeAnswerAnalysisProvider(
+        result=ProposedAnswerAnalysis(
+            meaning=answer,
+            low_information=False,
+            coverage_patch=(ProposedCoverageChange("MEMORY", "COVERED", answer),),
+        )
+    )
+    next_provider = FakeNextQuestionProvider()
+    result = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        analysis_provider=analysis,
+        next_provider=next_provider,
+    )
+    assert result.skipped
+    interview.refresh_from_db()
+    turn.refresh_from_db()
+    assert interview.coverage["MEMORY"] == "COVERED"
+    assert turn.next_question_skipped_at is not None
+    assert interview.turns.count() == 1
+    again = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        analysis_provider=FakeAnswerAnalysisProvider(error=AnswerAnalysisRejected()),
+    )
+    assert again.skipped
+    assert again.turn.pk == turn.pk
+
+
+def test_next_question_failure_preserves_answer_and_coverage(completed_reading) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    before = interview.coverage.copy()
+    analysis = FakeAnswerAnalysisProvider(
+        result=ProposedAnswerAnalysis(
+            meaning=turn.answer,
+            low_information=False,
+            coverage_patch=(ProposedCoverageChange("MEMORY", "PARTIAL", turn.answer),),
+        )
+    )
+    with pytest.raises(QuestionGenerationUnavailable):
+        process_next_turn(
+            user=completed_reading.user,
+            interview=interview,
+            turn=turn,
+            analysis_provider=analysis,
+            next_provider=FakeNextQuestionProvider(
+                error=QuestionGenerationUnavailable()
+            ),
+        )
+    interview.refresh_from_db()
+    turn.refresh_from_db()
+    assert interview.coverage == before
+    assert turn.answer is not None
+    assert turn.next_question_skipped_at is None
+    assert interview.turns.count() == 1
+
+
+def test_low_information_answer_changes_question_direction(completed_reading) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    InterviewTurn.objects.filter(pk=turn.pk).update(answer="잘 모르겠어요")
+    analysis = FakeAnswerAnalysisProvider(result=ProposedAnswerAnalysis(None, True, ()))
+    next_provider = FakeNextQuestionProvider()
+
+    result = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        analysis_provider=analysis,
+        next_provider=next_provider,
+    )
+
+    assert result.turn.sequence == 2
+    assert next_provider.contexts[0].low_information
+    assert "어떤 반응" in result.turn.question
+    interview.refresh_from_db()
+    assert all(status == "UNCOVERED" for status in interview.coverage.values())
+
+
+def test_invalid_skip_and_ungrounded_limited_question_are_rejected(
+    completed_reading,
+) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    for proposal in (
+        ProposedNextQuestion("skip", None, None, None, "충분합니다"),
+        ProposedNextQuestion(
+            "question", "주인공의 결말은 왜 그랬나요?", "MEMORY", None, None
+        ),
+    ):
+        with pytest.raises(QuestionGenerationRejected):
+            process_next_turn(
+                user=completed_reading.user,
+                interview=interview,
+                turn=turn,
+                analysis_provider=FakeAnswerAnalysisProvider(),
+                next_provider=FakeNextQuestionProvider(result=proposal),
+            )
+    assert interview.turns.count() == 1
+
+
+def test_next_turn_insert_failure_rolls_back_coverage(
+    completed_reading, monkeypatch
+) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    before = interview.coverage.copy()
+    analysis = FakeAnswerAnalysisProvider(
+        result=ProposedAnswerAnalysis(
+            meaning=turn.answer,
+            low_information=False,
+            coverage_patch=(ProposedCoverageChange("MEMORY", "PARTIAL", turn.answer),),
+        )
+    )
+
+    def fail_insert(*args, **kwargs):
+        raise DatabaseError("simulated")
+
+    monkeypatch.setattr(InterviewTurn.objects, "create", fail_insert)
+    with pytest.raises(NextTurnPersistenceError):
+        process_next_turn(
+            user=completed_reading.user,
+            interview=interview,
+            turn=turn,
+            analysis_provider=analysis,
+            next_provider=FakeNextQuestionProvider(),
+        )
+    interview.refresh_from_db()
+    assert interview.coverage == before
+    assert interview.turns.count() == 1
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_next_turn_requests_converge(completed_reading) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    barrier = Barrier(2)
+
+    class WaitingProvider(FakeNextQuestionProvider):
+        def generate_next_question(self, context):
+            barrier.wait(timeout=10)
+            return super().generate_next_question(context)
+
+    def process_from_separate_connection() -> int:
+        close_old_connections()
+        try:
+            return process_next_turn(
+                user=completed_reading.user,
+                interview=interview,
+                turn=turn,
+                analysis_provider=FakeAnswerAnalysisProvider(),
+                next_provider=WaitingProvider(),
+            ).turn.pk
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: process_from_separate_connection(), range(2)))
+
+    assert results[0] == results[1]
+    assert list(interview.turns.values_list("sequence", flat=True)) == [1, 2]

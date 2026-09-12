@@ -4,7 +4,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
-from integrations.llm.contracts import QuestionGenerationError
+from integrations.llm.contracts import AnswerAnalysisError, QuestionGenerationError
 from integrations.llm.factory import get_question_provider
 from knowledge.services import get_book_knowledge_readiness
 from readings.models import Reading
@@ -15,9 +15,13 @@ from reflections.services import (
     FirstAnswerPersistenceError,
     InterviewDestination,
     InterviewPolicyError,
+    NextTurnPersistenceError,
+    NextTurnStaleError,
     ensure_first_question,
     get_interview_destination,
+    process_next_turn,
     save_first_answer,
+    save_turn_answer,
     start_interview,
 )
 
@@ -137,21 +141,38 @@ def first_question(request: HttpRequest, interview_id: int) -> HttpResponse:
 @login_required
 def first_answer(request: HttpRequest, interview_id: int) -> HttpResponse:
     """첫 답변을 확정하고 성공 상태 또는 보존된 입력 오류를 반환한다."""
+    return _answer_for_sequence(request, interview_id, sequence=1)
+
+
+@require_POST
+@login_required
+def turn_answer(request: HttpRequest, interview_id: int, sequence: int) -> HttpResponse:
+    """현재 Turn의 답변을 원문 그대로 확정한다."""
+    return _answer_for_sequence(request, interview_id, sequence=sequence)
+
+
+def _answer_for_sequence(
+    request: HttpRequest, interview_id: int, *, sequence: int
+) -> HttpResponse:
     interview = get_object_or_404(
         Interview.objects.select_related("reading", "book"),
         pk=interview_id,
         reading__user=request.user,
     )
-    turn = get_object_or_404(interview.turns, sequence=1)
+    turn = get_object_or_404(interview.turns, sequence=sequence)
     form = FirstAnswerForm(request.POST)
     if not form.is_valid():
         return _question_response(request, interview, turn, form, status=400)
     try:
-        result = save_first_answer(
-            user=request.user,
-            interview=interview,
-            answer=form.cleaned_data["answer"],
-        )
+        save = save_first_answer if sequence == 1 else save_turn_answer
+        kwargs = {
+            "user": request.user,
+            "interview": interview,
+            "answer": form.cleaned_data["answer"],
+        }
+        if sequence != 1:
+            kwargs["sequence"] = sequence
+        result = save(**kwargs)
     except InterviewPolicyError:
         return _policy_conflict_response(request)
     except FirstAnswerPersistenceError:
@@ -164,6 +185,64 @@ def first_answer(request: HttpRequest, interview_id: int) -> HttpResponse:
             request,
             "reflections/_interview_answer_saved.html",
             {"turn": result.turn},
+        )
+    return redirect("reflections:interview_detail", interview_id=interview.pk)
+
+
+@require_POST
+@login_required
+def next_turn(request: HttpRequest, interview_id: int, sequence: int) -> HttpResponse:
+    """확정 답변의 후속 단계를 처리하고 현재 상태를 반환한다."""
+    interview = get_object_or_404(
+        Interview.objects.select_related("reading", "book"),
+        pk=interview_id,
+        reading__user=request.user,
+    )
+    turn = get_object_or_404(interview.turns, sequence=sequence)
+    try:
+        process_next_turn(user=request.user, interview=interview, turn=turn)
+    except InterviewPolicyError:
+        return _policy_conflict_response(request)
+    except (
+        AnswerAnalysisError,
+        QuestionGenerationError,
+        NextTurnPersistenceError,
+        NextTurnStaleError,
+    ):
+        template = (
+            "reflections/_interview_next_error.html"
+            if request.headers.get("HX-Request") == "true"
+            else "reflections/interview_detail.html"
+        )
+        return _interview_turn_response(
+            request,
+            template,
+            {"interview": interview, "turn": turn, "next_error": True},
+            status=503,
+            focus_error=True,
+        )
+    if request.headers.get("HX-Request") == "true":
+        current = interview.turns.order_by("-sequence").first()
+        if current.next_question_skipped_at is not None:
+            return render(
+                request,
+                "reflections/_interview_question_skipped.html",
+                {"turn": current},
+            )
+        if current.answer is not None:
+            return render(
+                request,
+                "reflections/_interview_answer_saved.html",
+                {"turn": current},
+            )
+        return render(
+            request,
+            "reflections/_interview_question.html",
+            {
+                "interview": interview,
+                "turn": current,
+                "answer_form": FirstAnswerForm(),
+            },
         )
     return redirect("reflections:interview_detail", interview_id=interview.pk)
 
@@ -189,7 +268,7 @@ def _destination_response(
         )
     if destination is InterviewDestination.INTERVIEW:
         if detail:
-            turn = interview.turns.filter(sequence=1).first()
+            turn = interview.turns.order_by("-sequence").first()
             return render(
                 request,
                 "reflections/interview_detail.html",
