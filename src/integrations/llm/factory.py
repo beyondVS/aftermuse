@@ -9,17 +9,14 @@ from integrations.llm.contracts import (
     QuestionGenerationConfigurationError,
     QuestionProvider,
 )
-from integrations.llm.extra import GeminiInterviewProvider, OllamaInterviewProvider
 from integrations.llm.fake import (
     FakeAnswerAnalysisProvider,
     FakeNextQuestionProvider,
     FakeQuestionProvider,
 )
-from integrations.llm.openai import (
-    OpenAIAnswerAnalysisProvider,
-    OpenAINextQuestionProvider,
-    OpenAIQuestionProvider,
-)
+from integrations.llm.gemini import GeminiInterviewProvider
+from integrations.llm.ollama import OllamaInterviewProvider
+from integrations.llm.openai import OpenAIInterviewProvider
 
 
 def get_question_provider() -> QuestionProvider:
@@ -28,7 +25,7 @@ def get_question_provider() -> QuestionProvider:
     if provider_name == "fake":
         return FakeQuestionProvider()
     if provider_name == "openai":
-        return OpenAIQuestionProvider(
+        return OpenAIInterviewProvider(
             api_key=settings.OPENAI_API_KEY,
             model=settings.OPENAI_MODEL,
             timeout=settings.OPENAI_TIMEOUT_SECONDS,
@@ -54,11 +51,14 @@ def get_answer_analysis_provider() -> AnswerAnalysisProvider:
     if provider_name == "fake":
         return FakeAnswerAnalysisProvider()
     if provider_name == "openai":
-        return OpenAIAnswerAnalysisProvider(
-            api_key=settings.OPENAI_API_KEY,
-            model=settings.OPENAI_MODEL,
-            timeout=settings.OPENAI_TIMEOUT_SECONDS,
-        )
+        try:
+            return OpenAIInterviewProvider(
+                api_key=settings.OPENAI_API_KEY,
+                model=settings.OPENAI_MODEL,
+                timeout=settings.OPENAI_TIMEOUT_SECONDS,
+            )
+        except QuestionGenerationConfigurationError as error:
+            raise AnswerAnalysisConfigurationError() from error
     if provider_name == "gemini":
         try:
             return GeminiInterviewProvider(
@@ -86,7 +86,7 @@ def get_next_question_provider() -> NextQuestionProvider:
     if provider_name == "fake":
         return FakeNextQuestionProvider()
     if provider_name == "openai":
-        return OpenAINextQuestionProvider(
+        return OpenAIInterviewProvider(
             api_key=settings.OPENAI_API_KEY,
             model=settings.OPENAI_MODEL,
             timeout=settings.OPENAI_TIMEOUT_SECONDS,

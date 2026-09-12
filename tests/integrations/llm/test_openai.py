@@ -19,11 +19,7 @@ from integrations.llm.contracts import (
     QuestionGenerationUnavailable,
     QuestionPolicy,
 )
-from integrations.llm.openai import (
-    OpenAIAnswerAnalysisProvider,
-    OpenAINextQuestionProvider,
-    OpenAIQuestionProvider,
-)
+from integrations.llm.openai import OpenAIInterviewProvider
 
 
 class RecordingClient:
@@ -92,7 +88,7 @@ def test_answer_analysis_adapter_uses_strict_schema_and_untrusted_payload() -> N
         )
     )
 
-    result = OpenAIAnswerAnalysisProvider(
+    result = OpenAIInterviewProvider(
         api_key="test-key", model="pinned-model", timeout=30, client=client
     ).analyze_answer(_analysis_context())
 
@@ -124,7 +120,7 @@ def test_answer_analysis_adapter_uses_strict_schema_and_untrusted_payload() -> N
 def test_answer_analysis_adapter_rejects_incomplete_or_malformed_output(
     response,
 ) -> None:
-    provider = OpenAIAnswerAnalysisProvider(
+    provider = OpenAIInterviewProvider(
         api_key="test-key",
         model="pinned-model",
         timeout=30,
@@ -169,7 +165,7 @@ def test_answer_analysis_adapter_maps_sdk_errors_without_detail(
     client.create = lambda **kwargs: (_ for _ in ()).throw(provider_error)
 
     with pytest.raises(expected_error) as error:
-        OpenAIAnswerAnalysisProvider(
+        OpenAIInterviewProvider(
             api_key="test-key", model="pinned-model", timeout=30, client=client
         ).analyze_answer(_analysis_context())
 
@@ -189,7 +185,7 @@ def test_responses_adapter_uses_strict_schema_and_policy_boundary() -> None:
         policy=QuestionPolicy.KNOWLEDGE_GROUNDED,
     )
 
-    result = OpenAIQuestionProvider(
+    result = OpenAIInterviewProvider(
         api_key="test-key", model="pinned-model", timeout=30, client=client
     ).generate_first_question(context)
 
@@ -228,7 +224,7 @@ def test_limited_policy_does_not_promote_knowledge_claims_to_prompt() -> None:
         policy=QuestionPolicy.MEMORY_CENTERED,
     )
 
-    OpenAIQuestionProvider(
+    OpenAIInterviewProvider(
         api_key="test-key", model="pinned-model", timeout=30, client=client
     ).generate_first_question(context)
 
@@ -259,7 +255,7 @@ def test_adapter_rejects_incomplete_empty_or_invalid_output(response) -> None:
     )
 
     with pytest.raises(QuestionGenerationRejected):
-        OpenAIQuestionProvider(
+        OpenAIInterviewProvider(
             api_key="test-key",
             model="pinned-model",
             timeout=30,
@@ -280,7 +276,7 @@ def test_adapter_converts_unexpected_provider_failure_without_detail_leakage() -
     )
 
     with pytest.raises(QuestionGenerationUnavailable) as error:
-        OpenAIQuestionProvider(
+        OpenAIInterviewProvider(
             api_key="test-key",
             model="pinned-model",
             timeout=30,
@@ -344,7 +340,7 @@ def test_adapter_converts_sdk_errors_without_provider_detail(
     client.create = lambda **kwargs: (_ for _ in ()).throw(provider_error)
 
     with pytest.raises(expected_error) as error:
-        OpenAIQuestionProvider(
+        OpenAIInterviewProvider(
             api_key="test-key", model="pinned-model", timeout=30, client=client
         ).generate_first_question(context)
 
@@ -362,7 +358,7 @@ def test_adapter_rejects_refusal_and_uses_fixed_timeout_without_retries(
             super().__init__()
 
     monkeypatch.setattr("integrations.llm.openai.OpenAI", CapturingClient)
-    provider = OpenAIQuestionProvider(
+    provider = OpenAIInterviewProvider(
         api_key="test-key", model="pinned-model", timeout=30
     )
     context = InterviewQuestionContext(
@@ -407,7 +403,7 @@ def test_next_question_adapter_keeps_policy_separate_and_validates_shape() -> No
             ),
         )
     )
-    proposal = OpenAINextQuestionProvider(
+    proposal = OpenAIInterviewProvider(
         api_key="test-key", model="pinned-model", timeout=30, client=client
     ).generate_next_question(context)
 

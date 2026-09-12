@@ -11,7 +11,8 @@ from integrations.llm.contracts import (
     NextQuestionContext,
     QuestionPolicy,
 )
-from integrations.llm.extra import GeminiInterviewProvider, OllamaInterviewProvider
+from integrations.llm.gemini import GeminiInterviewProvider
+from integrations.llm.ollama import OllamaInterviewProvider
 
 pytestmark = pytest.mark.live
 

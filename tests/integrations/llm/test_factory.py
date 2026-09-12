@@ -49,10 +49,13 @@ def test_unknown_provider_rejected_for_all_capabilities():
             get_next_question_provider()
 
 
-@pytest.mark.parametrize("name", ["gemini", "ollama"])
+@pytest.mark.parametrize("name", ["openai", "gemini", "ollama"])
 def test_analysis_factory_maps_configuration_error(name):
     with override_settings(
-        LLM_PROVIDER=name, GEMINI_API_KEY="", OLLAMA_BASE_URL="http://remote:11434"
+        LLM_PROVIDER=name,
+        OPENAI_API_KEY="",
+        GEMINI_API_KEY="",
+        OLLAMA_BASE_URL="http://remote:11434",
     ):
         with pytest.raises(AnswerAnalysisConfigurationError):
             get_answer_analysis_provider()

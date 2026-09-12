@@ -1,9 +1,17 @@
 """Provider 공통 Interview wire schema, prompt 및 payload 계약이다."""
 
+import json
+
 from integrations.llm.contracts import (
     AnswerAnalysisContext,
+    AnswerAnalysisRejected,
+    GeneratedQuestion,
     InterviewQuestionContext,
     NextQuestionContext,
+    ProposedAnswerAnalysis,
+    ProposedCoverageChange,
+    ProposedNextQuestion,
+    QuestionGenerationRejected,
     QuestionPolicy,
 )
 
@@ -179,3 +187,87 @@ def _answer_analysis_payload(context: AnswerAnalysisContext) -> dict[str, object
             for item in context.current_coverage
         ],
     }
+
+
+def _decode(payload: object, task: str):
+    """SDK의 구조화 출력도 필수 키와 타입을 로컬에서 다시 확인한다."""
+    rejected = (
+        AnswerAnalysisRejected if task == "analysis" else QuestionGenerationRejected
+    )
+    try:
+        value = json.loads(payload)
+        if not isinstance(value, dict):
+            raise ValueError
+        if task == "first":
+            if not isinstance(value["question"], str):
+                raise ValueError
+            return GeneratedQuestion(value["question"])
+        if task == "analysis":
+            if not isinstance(value["low_information"], bool):
+                raise ValueError
+            if value["meaning"] is not None and not isinstance(value["meaning"], str):
+                raise ValueError
+            patch = value["coverage_patch"]
+            if not isinstance(patch, list):
+                raise ValueError
+            changes = tuple(
+                ProposedCoverageChange(item["axis"], item["status"], item["evidence"])
+                for item in patch
+            )
+            return ProposedAnswerAnalysis(
+                value["meaning"], value["low_information"], changes
+            )
+        return ProposedNextQuestion(
+            value["kind"],
+            value["question"],
+            value["focus_axis"],
+            value["grounding_quote"],
+            value["skip_reason"],
+        )
+    except (ValueError, TypeError, KeyError, AttributeError) as error:
+        raise rejected() from error
+
+
+class StructuredInterviewProvider:
+    """세 capability의 공통 prompt, payload, schema와 wire decode를 소유한다."""
+
+    def _request(self, *, task, instructions, payload, schema):
+        """Provider API로 구조화 요청을 보내고 JSON 문자열을 반환한다."""
+        raise NotImplementedError
+
+    def generate_first_question(
+        self, context: InterviewQuestionContext
+    ) -> GeneratedQuestion:
+        return _decode(
+            self._request(
+                task="first",
+                instructions=_instructions_for(context),
+                payload=_untrusted_payload(context),
+                schema=_QUESTION_SCHEMA,
+            ),
+            "first",
+        )
+
+    def analyze_answer(self, context: AnswerAnalysisContext) -> ProposedAnswerAnalysis:
+        return _decode(
+            self._request(
+                task="analysis",
+                instructions=_answer_analysis_instructions(),
+                payload=_answer_analysis_payload(context),
+                schema=_ANSWER_ANALYSIS_SCHEMA,
+            ),
+            "analysis",
+        )
+
+    def generate_next_question(
+        self, context: NextQuestionContext
+    ) -> ProposedNextQuestion:
+        return _decode(
+            self._request(
+                task="next",
+                instructions=_next_question_instructions(context.question_context),
+                payload=_next_question_payload(context),
+                schema=_NEXT_QUESTION_SCHEMA,
+            ),
+            "next",
+        )

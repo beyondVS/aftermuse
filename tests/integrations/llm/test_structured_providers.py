@@ -19,7 +19,8 @@ from integrations.llm.contracts import (
     QuestionGenerationUnavailable,
     QuestionPolicy,
 )
-from integrations.llm.extra import GeminiInterviewProvider, OllamaInterviewProvider
+from integrations.llm.gemini import GeminiInterviewProvider
+from integrations.llm.ollama import OllamaInterviewProvider
 
 
 def _context():

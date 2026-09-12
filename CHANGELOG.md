@@ -53,6 +53,8 @@
 
 ### Changed
 
+- Interview LLM의 공통 structured 요청·decode를 Provider 중립 모듈로 통합하고 OpenAI·Gemini·Ollama transport를 각각 분리
+
 - 후속 질문을 LLM의 검증된 원문으로 저장하고, 예약된 답변 마무리 문구 없이 Coverage와 추가 탐색 근거로 질문 생략을 검증
 
 - 남은 MVP 구현 계획의 Bundle을 사용자 결과와 상태·LLM·트랜잭션·신뢰·복구·UI 검증 경계에 맞게 재구성
