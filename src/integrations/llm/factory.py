@@ -59,9 +59,22 @@ def get_answer_analysis_provider() -> AnswerAnalysisProvider:
             model=settings.OPENAI_MODEL,
             timeout=settings.OPENAI_TIMEOUT_SECONDS,
         )
-    if provider_name in {"gemini", "ollama"}:
+    if provider_name == "gemini":
         try:
-            return get_question_provider()
+            return GeminiInterviewProvider(
+                api_key=settings.GEMINI_API_KEY,
+                model=settings.GEMINI_MODEL,
+                timeout=settings.GEMINI_TIMEOUT_SECONDS,
+            )
+        except QuestionGenerationConfigurationError as error:
+            raise AnswerAnalysisConfigurationError() from error
+    if provider_name == "ollama":
+        try:
+            return OllamaInterviewProvider(
+                base_url=settings.OLLAMA_BASE_URL,
+                model=settings.OLLAMA_MODEL,
+                timeout=settings.OLLAMA_TIMEOUT_SECONDS,
+            )
         except QuestionGenerationConfigurationError as error:
             raise AnswerAnalysisConfigurationError() from error
     raise AnswerAnalysisConfigurationError
@@ -78,6 +91,16 @@ def get_next_question_provider() -> NextQuestionProvider:
             model=settings.OPENAI_MODEL,
             timeout=settings.OPENAI_TIMEOUT_SECONDS,
         )
-    if provider_name in {"gemini", "ollama"}:
-        return get_question_provider()
+    if provider_name == "gemini":
+        return GeminiInterviewProvider(
+            api_key=settings.GEMINI_API_KEY,
+            model=settings.GEMINI_MODEL,
+            timeout=settings.GEMINI_TIMEOUT_SECONDS,
+        )
+    if provider_name == "ollama":
+        return OllamaInterviewProvider(
+            base_url=settings.OLLAMA_BASE_URL,
+            model=settings.OLLAMA_MODEL,
+            timeout=settings.OLLAMA_TIMEOUT_SECONDS,
+        )
     raise QuestionGenerationConfigurationError

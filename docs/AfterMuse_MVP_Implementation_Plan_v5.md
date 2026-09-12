@@ -317,6 +317,15 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - **완료 조건:** 답변 선저장, Coverage·다음 Turn 원자성, 3답변→4번째 질문,
     생략·실패·동시성·소유권·재접속을 PostgreSQL 회귀 테스트와 `scripts/verify.py`로 검증했다.
 
+#### Bundle 07D — LLM Provider 확장
+
+- [x] **IMP-074 — Gemini / Local Ollama Provider Adapter**
+  - **선행 작업:** IMP-073
+  - 기존 세 Interview capability 계약을 유지하며 Gemini와 로컬 Ollama를 명시적으로 선택한다.
+  - Provider별 credential, 모델, timeout을 환경변수로 지정하고 외부 결과는 Application 검증 경계를 통과한다.
+  - 기본 자동 테스트는 외부 연결 없이 실행하며 실제 Provider의 세 작업 smoke는 명시적으로만 실행한다.
+  - **완료 조건:** factory 선택·설정 오류, 세 작업의 구조화 요청·오류 매핑을 단위 테스트로 확인한다.
+
 ### Day 08 — Soft Stop과 Interview UX가 연결된다
 
 #### Bundle 08A — 인터뷰 종료 정책

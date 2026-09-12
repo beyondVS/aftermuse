@@ -22,7 +22,7 @@ from integrations.llm.contracts import (
     QuestionGenerationTimeout,
     QuestionGenerationUnavailable,
 )
-from integrations.llm.openai import (
+from integrations.llm.interview import (
     _ANSWER_ANALYSIS_SCHEMA,
     _NEXT_QUESTION_SCHEMA,
     _QUESTION_SCHEMA,
@@ -147,7 +147,7 @@ class GeminiInterviewProvider(_InterviewAdapter):
                     else QuestionGenerationRejected
                 )()
             return response.text
-        except AnswerAnalysisRejected, QuestionGenerationRejected:
+        except (AnswerAnalysisRejected, QuestionGenerationRejected):
             raise
         except (TimeoutError, httpx.TimeoutException) as error:
             raise (
