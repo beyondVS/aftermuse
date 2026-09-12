@@ -89,10 +89,26 @@ class FakeNextQuestionProvider:
         if self._result is not None:
             return self._result
         gaps = tuple(item for item in context.coverage if item.status != "COVERED")
-        if not gaps:
+        if not gaps and (
+            context.low_information
+            or context.answer.strip()
+            .rstrip(" .!。！")
+            .endswith(
+                (
+                    "더 할 말이 없어요",
+                    "더 할 말이 없습니다",
+                    "더 떠오르지 않아요",
+                    "더 생각나지 않아요",
+                    "더 이야기할 내용이 없어요",
+                    "더 말할 게 없어요",
+                )
+            )
+        ):
             return ProposedNextQuestion(
                 "skip", None, None, None, "네 방향이 충분히 다뤄졌습니다."
             )
+        if not gaps:
+            gaps = context.coverage
         gap = (
             gaps[(len(context.previous_turns) + 1) % len(gaps)]
             if context.low_information

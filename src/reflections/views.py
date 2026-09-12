@@ -11,6 +11,7 @@ from readings.models import Reading
 from reflections.forms import FirstAnswerForm
 from reflections.models import Interview
 from reflections.services import (
+    AnswerAnalysisPolicyError,
     FirstAnswerConflict,
     FirstAnswerPersistenceError,
     InterviewDestination,
@@ -201,7 +202,7 @@ def next_turn(request: HttpRequest, interview_id: int, sequence: int) -> HttpRes
     turn = get_object_or_404(interview.turns, sequence=sequence)
     try:
         process_next_turn(user=request.user, interview=interview, turn=turn)
-    except InterviewPolicyError:
+    except InterviewPolicyError, AnswerAnalysisPolicyError:
         return _policy_conflict_response(request)
     except (
         AnswerAnalysisError,

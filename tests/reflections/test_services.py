@@ -1196,6 +1196,10 @@ def test_next_question_commits_validated_coverage_with_turn(completed_reading) -
 
 def test_last_answer_commits_coverage_and_skip_marker(completed_reading) -> None:
     interview, turn = _answered_interview(completed_reading)
+    InterviewTurn.objects.filter(pk=turn.pk).update(
+        answer="그 장면이 남았지만 더 할 말이 없어요"
+    )
+    turn.refresh_from_db()
     initial = dict.fromkeys(interview.coverage, "COVERED")
     initial["MEMORY"] = "PARTIAL"
     Interview.objects.filter(pk=interview.pk).update(coverage=initial)
@@ -1280,24 +1284,96 @@ def test_low_information_answer_changes_question_direction(completed_reading) ->
     assert all(status == "UNCOVERED" for status in interview.coverage.values())
 
 
-def test_invalid_skip_and_ungrounded_limited_question_are_rejected(
+def test_invalid_skip_is_rejected_and_ungrounded_question_is_replaced(
     completed_reading,
 ) -> None:
     interview, turn = _answered_interview(completed_reading)
-    for proposal in (
-        ProposedNextQuestion("skip", None, None, None, "충분합니다"),
-        ProposedNextQuestion(
-            "question", "주인공의 결말은 왜 그랬나요?", "MEMORY", None, None
-        ),
-    ):
-        with pytest.raises(QuestionGenerationRejected):
-            process_next_turn(
-                user=completed_reading.user,
-                interview=interview,
-                turn=turn,
-                analysis_provider=FakeAnswerAnalysisProvider(),
-                next_provider=FakeNextQuestionProvider(result=proposal),
+    Interview.objects.filter(pk=interview.pk).update(
+        coverage=dict.fromkeys(interview.coverage, "COVERED")
+    )
+    with pytest.raises(QuestionGenerationRejected):
+        process_next_turn(
+            user=completed_reading.user,
+            interview=interview,
+            turn=turn,
+            analysis_provider=FakeAnswerAnalysisProvider(),
+            next_provider=FakeNextQuestionProvider(
+                result=ProposedNextQuestion("skip", None, None, None, "충분합니다")
+            ),
+        )
+    with pytest.raises(QuestionGenerationRejected):
+        process_next_turn(
+            user=completed_reading.user,
+            interview=interview,
+            turn=turn,
+            analysis_provider=FakeAnswerAnalysisProvider(),
+            next_provider=FakeNextQuestionProvider(
+                result=ProposedNextQuestion(
+                    "question", "무엇이 남았나요?", "MEMORY", None, None
+                )
+            ),
+        )
+    assert interview.turns.count() == 1
+
+    result = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(
+            result=ProposedNextQuestion(
+                "question",
+                "주인공이 마법으로 떠난 이유는 무엇인가요?",
+                "MEMORY",
+                turn.answer,
+                None,
             )
+        ),
+    )
+    assert "주인공" not in result.turn.question
+    assert "마법" not in result.turn.question
+    assert turn.answer.rstrip(".") in result.turn.question
+
+
+def test_all_covered_with_open_answer_keeps_a_question(completed_reading) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    Interview.objects.filter(pk=interview.pk).update(
+        coverage=dict.fromkeys(interview.coverage, "COVERED")
+    )
+
+    result = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    )
+
+    assert not result.skipped
+    assert result.turn.sequence == 2
+    turn.refresh_from_db()
+    assert turn.next_question_skipped_at is None
+
+
+def test_negated_closing_phrase_does_not_allow_skip(completed_reading) -> None:
+    interview, turn = _answered_interview(completed_reading)
+    InterviewTurn.objects.filter(pk=turn.pk).update(
+        answer="더 할 말이 없어요? 아니요, 아직 궁금한 점이 있어요"
+    )
+    Interview.objects.filter(pk=interview.pk).update(
+        coverage=dict.fromkeys(interview.coverage, "COVERED")
+    )
+
+    with pytest.raises(QuestionGenerationRejected):
+        process_next_turn(
+            user=completed_reading.user,
+            interview=interview,
+            turn=turn,
+            analysis_provider=FakeAnswerAnalysisProvider(),
+            next_provider=FakeNextQuestionProvider(
+                result=ProposedNextQuestion("skip", None, None, None, "충분합니다")
+            ),
+        )
     assert interview.turns.count() == 1
 
 

@@ -593,7 +593,7 @@ def test_skipped_question_reentry_shows_waiting_without_retry(client, reading) -
         interview=interview,
         sequence=1,
         question="무엇이 남았나요?",
-        answer="생각이 남았어요",
+        answer="생각이 남았지만 더 할 말이 없어요",
     )
     client.force_login(reading.user)
     next_url = reverse("reflections:next_turn", args=[interview.pk, 1])
@@ -610,6 +610,27 @@ def test_skipped_question_reentry_shows_waiting_without_retry(client, reading) -
     turn.refresh_from_db()
     assert turn.next_question_skipped_at is not None
     assert interview.turns.count() == 1
+
+
+def test_next_turn_rejects_invalid_answer_without_server_error(client, reading) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="무엇이 남았나요?", answer="원문"
+    )
+    InterviewTurn.objects.filter(pk=turn.pk).update(answer="")
+    client.force_login(reading.user)
+
+    response = client.post(
+        reverse("reflections:next_turn", args=[interview.pk, 1]),
+        HTTP_HX_REQUEST="true",
+    )
+
+    assert response.status_code == 409
+    assert "현재 단계를 사용할 수 없습니다" in response.content.decode()
 
 
 def test_new_turn_routes_hide_other_users_interview(

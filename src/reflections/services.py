@@ -48,6 +48,26 @@ _ANALYSIS_PROHIBITED_PATTERNS = (
 )
 _ANSWER_MEANING_MAX_LENGTH = 1000
 _ANSWER_EVIDENCE_MAX_LENGTH = 500
+_CLOSING_ANSWER_CUES = (
+    "더 할 말이 없어요",
+    "더 할 말이 없습니다",
+    "더 떠오르지 않아요",
+    "더 생각나지 않아요",
+    "더 이야기할 내용이 없어요",
+    "더 말할 게 없어요",
+)
+_FOLLOW_UP_BY_AXIS = {
+    CoreCoverageAxis.MEMORY: "그 내용이 기억에 남은 이유는 무엇인가요?",
+    CoreCoverageAxis.REACTION: "그 내용에 대해 어떤 반응이 들었나요?",
+    CoreCoverageAxis.CONNECTION: "그 내용이 자신의 경험과 닿는 지점이 있나요?",
+    CoreCoverageAxis.AFTERTHOUGHT: "그 내용에 대해 책을 덮은 뒤 남은 생각이 있나요?",
+}
+_OPEN_QUESTION_BY_AXIS = {
+    CoreCoverageAxis.MEMORY: "특히 기억에 남은 부분은 무엇인가요?",
+    CoreCoverageAxis.REACTION: "읽으면서 어떤 반응이 들었나요?",
+    CoreCoverageAxis.CONNECTION: "자신의 경험과 닿는 지점이 있나요?",
+    CoreCoverageAxis.AFTERTHOUGHT: "책을 덮은 뒤에도 남은 생각은 무엇인가요?",
+}
 
 
 class InterviewDestination(StrEnum):
@@ -563,19 +583,7 @@ def _validate_next_question(
     if not isinstance(proposal, ProposedNextQuestion):
         raise QuestionGenerationRejected()
     if proposal.kind == "skip":
-        if (
-            proposal.question is not None
-            or proposal.focus_axis is not None
-            or proposal.grounding_quote is not None
-            or any(item.status != CoverageStatus.COVERED for item in context.coverage)
-            or not isinstance(proposal.skip_reason, str)
-            or not 1 <= len(proposal.skip_reason.strip()) <= 500
-            or any(
-                pattern in proposal.skip_reason
-                for pattern in _QUESTION_PROHIBITED_PATTERNS
-            )
-        ):
-            raise QuestionGenerationRejected()
+        _validate_skip_proposal(proposal, context)
         return None
     if proposal.kind != "question" or proposal.skip_reason is not None:
         raise QuestionGenerationRejected()
@@ -583,6 +591,8 @@ def _validate_next_question(
         axis = CoreCoverageAxis(proposal.focus_axis)
     except (TypeError, ValueError) as error:
         raise QuestionGenerationRejected() from error
+    if not context.low_information and proposal.grounding_quote is None:
+        raise QuestionGenerationRejected()
     if proposal.grounding_quote is not None:
         if (
             not isinstance(proposal.grounding_quote, str)
@@ -595,17 +605,49 @@ def _validate_next_question(
         == CoverageStatus.COVERED
     ):
         raise QuestionGenerationRejected()
-    question = _validate_first_question(proposal.question)
+    _validate_first_question(proposal.question)
+    return _render_next_question(
+        axis, proposal.grounding_quote, context.low_information
+    )
+
+
+def _validate_skip_proposal(
+    proposal: ProposedNextQuestion, context: NextQuestionContext
+) -> None:
+    """생략은 완료된 네 축과 답변의 명시적 마무리 신호가 함께 있을 때만 허용한다."""
     if (
-        context.question_context.knowledge_readiness
-        == Interview.KnowledgeReadiness.READY_LIMITED
-        and any(
-            word in question and word not in (proposal.grounding_quote or "")
-            for word in ("주인공", "결말", "작가의 주장")
+        proposal.question is not None
+        or proposal.focus_axis is not None
+        or proposal.grounding_quote is not None
+        or any(item.status != CoverageStatus.COVERED for item in context.coverage)
+        or not (
+            context.low_information
+            or context.answer.strip().rstrip(" .!。！").endswith(_CLOSING_ANSWER_CUES)
+        )
+        or not isinstance(proposal.skip_reason, str)
+        or not 1 <= len(proposal.skip_reason.strip()) <= 500
+        or any(
+            pattern in proposal.skip_reason for pattern in _QUESTION_PROHIBITED_PATTERNS
         )
     ):
         raise QuestionGenerationRejected()
-    return question
+
+
+def _render_next_question(
+    axis: CoreCoverageAxis, grounding_quote: str | None, low_information: bool
+) -> str:
+    """검증 가능한 축·인용으로만 질문을 구성해 자유 텍스트의 사실 전제를 배제한다."""
+    if grounding_quote is None or low_information:
+        question = _OPEN_QUESTION_BY_AXIS[axis]
+    else:
+        excerpt = " ".join(grounding_quote.split())[:80]
+        excerpt = "".join(
+            " " if char in ".!?。！？" else char for char in excerpt
+        ).strip()
+        if not excerpt:
+            raise QuestionGenerationRejected()
+        question = f"‘{excerpt}’라고 하셨는데, {_FOLLOW_UP_BY_AXIS[axis]}"
+    return _validate_first_question(question)
 
 
 def _get_answer_analysis_target(
