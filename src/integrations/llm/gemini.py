@@ -51,7 +51,7 @@ class GeminiInterviewProvider(StructuredInterviewProvider):
                     else QuestionGenerationRejected
                 )()
             return response.text
-        except AnswerAnalysisRejected, QuestionGenerationRejected:
+        except (AnswerAnalysisRejected, QuestionGenerationRejected):
             raise
         except (TimeoutError, httpx.TimeoutException) as error:
             raise (
