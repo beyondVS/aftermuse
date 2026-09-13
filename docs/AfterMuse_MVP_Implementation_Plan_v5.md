@@ -1,7 +1,7 @@
 # AfterMuse MVP Implementation Plan v5
 
-> 상태: 구현 실행 계획 (2026-09-10 Bundle 재구성)
-> 목적: AfterMuse를 LLM 코딩 에이전트(Codex 등)로 구현할 때, 작업을 **한 번에 맡기기 적절한 체크 가능한 단위**로 나누고, 2주 Core MVP와 이후 Full MVP Backlog를 분리한다.
+> 상태: 구현 실행 계획 (2026-09-13 일정 재배치)
+> 목적: AfterMuse 구현 작업을 실제 하루 작업량에 맞게 배치하고, 2주 Core MVP와 이후 보완·Full MVP Backlog를 분리한다.
 >
 > 이 문서는 PRD/Architecture를 반복하지 않는다. 각 항목은 구현 범위를 통제하기 위한 실행 단위다.
 
@@ -17,16 +17,11 @@
 
 ## 1. 사용 원칙
 
-- 각 체크 항목은 LLM 에이전트에게 맡길 수 있는 작업 단위다.
-- `Day`는 일정 강제가 아니라 **오늘 볼 작업 묶음**이다.
-- **Day는 진행 순서와 작업량을 관리하는 단위, Bundle은 Spec Kit 의사결정·Context 단위, IMP는 실제 구현·검증 단위다.** Bundle은 하나의 논리적 기능 목표와 동일한 요구사항·설계 Context를 공유하며 specify→clarify→plan→tasks→analyze→implement→converge를 함께 진행할 수 있다. 같은 Domain 또는 기능 흐름을 공유하는 IMP를 묶되, 같은 화면 영역이나 상위 기능명이라는 이유만으로 묶지 않는다. IMP는 한 번의 호출에서 모두 구현할 필요가 없고, 서로 다른 제품·아키텍처·트랜잭션·보안 Context는 별도 Bundle로 나눈다. Day에는 여러 Bundle이 들어갈 수 있으며 Bundle이 Day와 1:1로 대응할 필요는 없다. Full MVP Day 계획은 의존성과 작업량을 기준으로 한 초안이며 Core MVP 이후 재배치할 수 있다.
-- 하루 안에 끝나지 않은 항목은 다음 작업일로 이월한다.
-- `IMP-xxx` 번호와 선행 관계는 유지한다.
-- 한 번의 에이전트 작업에서 너무 많은 IMP를 묶지 않는다.
-- 가벼운 CRUD/화면 작업은 2~4개 IMP를 묶을 수 있다.
-- AI Interview, Reflection 생성, Book Knowledge 관련 작업은 가능하면 1~2개 IMP씩 작게 진행한다.
-- 구현 중 세부 설계가 필요하면 필요한 만큼만 결정한다.
-- 중요한 결정은 `Architecture Decisions`에 반영한다.
+- `Day`는 실제 하루에 함께 처리할 구현 작업 묶음이다.
+- `IMP`는 독립적으로 완료 여부를 판단할 수 있는 구현·검증 단위다.
+- 하나의 Day에는 작업량과 선행 관계에 따라 하나 이상의 IMP가 들어갈 수 있다.
+- `IMP-xxx` 번호와 선행 관계는 일정 변경과 무관하게 유지한다.
+- 하루 안에 완료하지 못한 작업은 다음 작업일로 이월한다.
 - 구현 완료 후 관련 테스트 또는 수동 확인을 수행한 뒤 `[x]`로 변경한다.
 
 완료 표시:
@@ -50,9 +45,7 @@ Blocker: 없음
 
 ## 2. 2-Week Core MVP Critical Path
 
-> 2026-09-03 재기준화: 알라딘 OpenAPI 종료 대응을 Critical Path에 추가하면서 Core MVP는
-> 10개에서 11개의 Day 작업 묶음으로 조정한다. `Day`는 달력상의 고정 마감이 아니며,
-> Provider 교체 검증을 생략해 기존 10개 묶음에 억지로 압축하지 않는다.
+> 알라딘 OpenAPI 종료 대응을 포함한 기존 Day 01~07 구현을 유지하고, Day 08~14를 핵심 제품 가설 검증에 필요한 작업으로 배치한다.
 
 2주 Core MVP의 목표는 전체 Full MVP를 끝내는 것이 아니라 다음 핵심 제품 가설을 검증하는 것이다.
 
@@ -96,6 +89,8 @@ Custom Backoffice
 14일 Restart
 공개 Reflection / Share Card / Time Capsule 등 Growth 기능
 Production-grade 운영/모니터링
+Low-information 조기 종료 고도화 / 이전 답변 보기
+Mobile 핵심 흐름 별도 검증 / Demo 데이터와 실행 가이드 정리
 ```
 
 단, 2주 Core MVP라도 다음은 유지한다.
@@ -113,8 +108,6 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 # Part A. 2-Week Core MVP
 
 ### Day 01 — 프로젝트가 실행된다
-
-#### Bundle 01A — 프로젝트 기반 구성
 
 - [x] **IMP-001 — Django 프로젝트 Bootstrap**
   - **선행 작업:** 없음
@@ -140,14 +133,10 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 ### Day 02 — 사용자가 로그인하고 책을 찾는다
 
-#### Bundle 02A — 사용자 인증
-
 - [x] **IMP-010 — 최소 사용자 인증 구현**
   - **선행 작업:** IMP-002, IMP-004
   - 회원가입, 로그인, 로그아웃의 MVP 흐름을 구현한다.
   - **완료 조건:** 신규 사용자가 가입 → 로그인 → 로그아웃을 수행할 수 있다.
-
-#### Bundle 02B — 도서 검색 기반
 
 - [x] **IMP-020 — Book 기본 모델 구현**
   - **선행 작업:** IMP-002
@@ -174,8 +163,6 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 ### Day 03 — 도서 검색을 복구하고 선택한 책을 등록할 수 있다
 
-#### Bundle 03A — 도서 검색 복구 및 선택
-
 - [x] **IMP-025 — 도서 Metadata Provider 교체 및 검색 복구**
   - **선행 작업:** IMP-003, IMP-021, IMP-022, IMP-023
   - 알라딘 OpenAPI의 신규 key 발급 및 서비스 종료에 대응해 기본 Metadata Provider를 Kakao 도서 검색 API로 교체한다.
@@ -190,8 +177,6 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - **검증 (2026-09-06):** session 후보 ID·CSRF POST·기존 Book 재사용·동시 선택의 PostgreSQL 회귀 테스트를 통과했으며, 1280px Desktop과 375px Mobile에서 키보드만으로 검색·선택·등록 완료 흐름을 각각 2회 확인했다.
 
 ### Day 04 — Reading을 만들고 완독 상태를 관리할 수 있다
-
-#### Bundle 04A — Reading 흐름
 
 - [x] **IMP-030 — Reading 기본 도메인 구현**
   - **선행 작업:** IMP-010, IMP-020
@@ -217,8 +202,6 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 ### Day 05 — 최소 Book Knowledge와 Interview 시작 준비
 
-#### Bundle 05A — 최소 Book Knowledge
-
 - [x] **IMP-040 — BookKnowledge 최소 저장 구조 구현**
   - **선행 작업:** IMP-020
   - 2주 Core MVP에 필요한 최소 Claim 기반 BookKnowledge를 저장할 수 있게 한다.
@@ -236,8 +219,6 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 자동 Research는 구현하지 않는다.
   - **완료 조건:** Book별 준비 상태가 구분된다.
 
-#### Bundle 05B — 인터뷰 시작
-
 - [x] **IMP-050 — Interview / Turn 기본 모델 구현**
   - **선행 작업:** IMP-030, IMP-042
   - Interview와 질문/답변 Turn을 저장할 수 있게 한다.
@@ -250,8 +231,6 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - **완료 조건:** 완독 Reading에서 Interview를 시작할 수 있다.
 
 ### Day 06 — 첫 질문과 답변 저장이 동작한다
-
-#### Bundle 06A — 첫 인터뷰 Turn
 
 - [x] **IMP-060 — LLM Provider Adapter 최소 구현**
   - **선행 작업:** IMP-003
@@ -284,8 +263,6 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 ### Day 07 — 답변에 따라 다음 질문이 이어진다
 
-#### Bundle 07A — Coverage 상태
-
 - [X] **IMP-070 — Coverage 기본 구조 구현**
   - **선행 작업:** IMP-064
   - MEMORY / REACTION / CONNECTION / AFTERTHOUGHT 중심의 Core Coverage를 저장한다.
@@ -293,16 +270,12 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - **완료 조건:** 답변 후 Coverage 상태를 갱신할 수 있다. PostgreSQL migration round-trip,
     상태 전환·소유권·동시성 회귀 테스트와 `scripts/verify.py`로 검증했다.
 
-#### Bundle 07B — 답변 분석 계약
-
 - [x] **IMP-071 — Answer Analysis 최소 구현**
   - **선행 작업:** IMP-060, IMP-070
   - LLM 또는 fake provider를 통해 답변의 의미, low-information 여부, coverage patch를 얻는다.
   - **완료 조건:** 정상/low-information 답변, 원문 근거, strict Coverage 상승 후보와
     Provider 오류 경계를 fake·OpenAI Adapter 및 Service 회귀 테스트와 `scripts/verify.py`로
     검증했다.
-
-#### Bundle 07C — 적응형 다음 Turn
 
 - [x] **IMP-072 — 다음 질문 생성 구현**
   - **선행 작업:** IMP-071
@@ -317,8 +290,6 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - **완료 조건:** 답변 선저장, Coverage·다음 Turn 원자성, 3답변→4번째 질문,
     생략·실패·동시성·소유권·재접속을 PostgreSQL 회귀 테스트와 `scripts/verify.py`로 검증했다.
 
-#### Bundle 07D — LLM Provider 확장
-
 - [x] **IMP-074 — Gemini / Local Ollama Provider Adapter**
   - **선행 작업:** IMP-073
   - 기존 세 Interview capability 계약을 유지하며 Gemini와 로컬 Ollama를 명시적으로 선택한다.
@@ -326,9 +297,7 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 기본 자동 테스트는 외부 연결 없이 실행하며 실제 Provider의 세 작업 smoke는 명시적으로만 실행한다.
   - **완료 조건:** factory 선택·설정 오류, 세 작업의 구조화 요청·오류 매핑을 단위 테스트로 확인한다.
 
-### Day 08 — Soft Stop과 Interview UX가 연결된다
-
-#### Bundle 08A — 인터뷰 종료 정책
+### Day 08 — 질문 상한과 Soft Stop을 연결한다
 
 - [ ] **IMP-080 — 질문 Budget / Safety Cap 구현**
   - **선행 작업:** IMP-073
@@ -340,29 +309,13 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - Coverage가 충분하면 독서노트 만들기 / 조금 더 이야기하기 선택지를 보여준다.
   - **완료 조건:** Soft Stop에서 사용자가 종료 또는 계속을 선택할 수 있다.
 
-- [ ] **IMP-082 — Low-information 조기 종료 처리**
-  - **선행 작업:** IMP-071, IMP-080
-  - low-information 답변이 반복되면 무리한 꼬리질문을 중단한다.
-  - **완료 조건:** 연속 low-information 답변 후 짧은 Reflection 생성 흐름으로 이동한다.
-
-#### Bundle 08B — 이전 답변 확인
-
-- [ ] **IMP-083 — 이전 답변 보기 최소 구현**
-  - **선행 작업:** IMP-073
-  - 사용자가 이전 질문/답변을 확인할 수 있게 한다.
-  - 수정 기능은 Full MVP 이후로 미룰 수 있다.
-  - **완료 조건:** Interview 화면에서 이전 Turn을 확인할 수 있다.
-
-#### Bundle 08C — Interview 오류 복구
-
-- [ ] **IMP-084 — Interview 오류/재시도 UX 구현**
+- [x] **IMP-084 — Interview 오류/재시도 UX 구현**
   - **선행 작업:** IMP-073
   - LLM 실패, timeout, 잘못된 응답에서 답변이 보존되며 재시도할 수 있게 한다.
   - **완료 조건:** 다음 질문 생성 실패 후에도 사용자가 복구할 수 있다.
+  - **현재 구현 확인:** next_turn 실패 시 저장된 답변을 보존하고 오류 화면에서 동일 endpoint로 재시도한다. 관련 view 테스트에 답변 보존·재시도 표시 검증이 있다.
 
-### Day 09 — Reflection 초안이 생성되고 수정된다
-
-#### Bundle 09A — Reflection 초안 계약
+### Day 09 — Reflection 초안을 생성하고 저장한다
 
 - [ ] **IMP-090 — Reflection 기본 모델 구현**
   - **선행 작업:** IMP-050
@@ -375,14 +328,14 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 사용자가 말하지 않은 생각을 추가하지 않는 규칙을 포함한다.
   - **완료 조건:** fake provider 및 실제 provider에서 Markdown 초안을 생성할 수 있다.
 
-#### Bundle 09B — Reflection 생성 Transition
+### Day 10 — Interview 종료를 Reflection 생성으로 연결한다
 
 - [ ] **IMP-092 — Reflection 생성 Transition 구현**
-  - **선행 작업:** IMP-080, IMP-081, IMP-082, IMP-091
-  - Soft Stop, 질문 budget/safety cap 도달, 또는 low-information 조기 종료 후 Reflection 생성 화면으로 이동한다.
+  - **선행 작업:** IMP-080, IMP-081, IMP-091
+  - Soft Stop에서 종료를 선택하거나 질문 budget/safety cap에 도달하면 Reflection 생성 화면으로 이동한다.
   - **완료 조건:** Interview 완료 → Reflection Draft 생성 흐름이 연결된다.
 
-#### Bundle 09C — Reflection 확인·수정
+### Day 11 — Reflection을 읽고 수정할 수 있다
 
 - [ ] **IMP-093 — Reflection 결과 화면 구현**
   - **선행 작업:** IMP-090, IMP-092
@@ -394,9 +347,7 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 사용자가 생성된 Reflection을 직접 수정할 수 있게 한다.
   - **완료 조건:** 수정한 내용이 저장되고 다시 열어도 유지된다.
 
-### Day 10 — 실제 책으로 품질을 검증한다
-
-#### Bundle 10A — Core MVP E2E 검증
+### Day 12 — 실제 책으로 전체 흐름을 검증한다
 
 실제 책과 전체 사용자 흐름으로 Core MVP의 핵심 제품 가설을 검증한다.
 
@@ -407,50 +358,33 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 - [ ] **IMP-101 — End-to-End 수동 시나리오 검증**
   - **선행 작업:** IMP-094, IMP-100
-  - 가입 → 책 검색 → Reading → Interview → Reflection 수정까지 실제로 수행한다.
-  - **완료 조건:** 팀원이 전체 흐름을 끊김 없이 완료할 수 있다.
+  - 가입 → 책 검색 → Reading → Interview → 종료 → Reflection 생성 → Reflection 수정까지 실제로 수행한다.
+  - **완료 조건:** Desktop에서 팀원이 전체 흐름을 끊김 없이 완료하고 모바일 핵심 화면이 완전히 깨지지 않는지 최소 smoke 확인한다.
 
-- [ ] **IMP-104 — Mobile 핵심 흐름 확인**
-  - **선행 작업:** IMP-101
-  - 모바일 웹에서 책 검색, 인터뷰, Reflection 확인/수정이 가능한지 확인한다.
-  - **완료 조건:** 모바일에서 핵심 루프를 수행할 수 있다.
+### Day 13 — Interview와 Reflection의 핵심 품질을 조정한다
 
-#### Bundle 10B — Core MVP 생성 품질 평가·조정
+제품 가설을 깨는 오류만 수정하며 말투, 미세한 UI polish, 취향 수준의 개선으로 완료를 늦추지 않는다.
 
 - [ ] **IMP-102 — Interview 품질 1차 조정**
   - **선행 작업:** IMP-101
-  - 질문이 너무 일반적이거나 사용자의 답변을 반영하지 않는 문제를 수정한다.
+  - 핵심 제품 가설을 깨는 질문 오류만 수정한다. 말투와 취향 수준의 개선은 이후로 미룬다.
   - **완료 조건:** 최소 3권에서 질문이 사용자의 답변과 책 맥락을 반영한다.
   - **Acceptance Rubric (수동):** 직전 답변을 무시하지 않는다. 이미 충분히 다룬 내용은 불필요하게 반복하지 않는다. Book Knowledge가 사용자 경험보다 우위에 서지 않는다. 검증되지 않은 READY_LIMITED 자료를 사실로 단정하지 않는다.
 
 - [ ] **IMP-103 — Reflection 충실도 1차 조정**
   - **선행 작업:** IMP-101
-  - 사용자가 말하지 않은 내용이 추가되는지, 노트가 사용자 기록처럼 느껴지는지 확인한다.
+  - 사용자가 말하지 않은 내용이 추가되는 등 핵심 제품 가설을 깨는 충실도 오류만 수정한다.
   - **완료 조건:** Reflection이 사용자 답변 기반이라는 기준을 통과한다.
   - **Acceptance Rubric (수동):** 사용자가 말하지 않은 생각·주장을 추가하지 않는다. AI의 질문 문구를 사용자의 생각으로 재구성하지 않는다. 주요 반응·연결·후속 생각을 보존한다.
 
-### Day 11 — Demo 가능한 Core MVP로 정리한다
+### Day 14 — 핵심 오류를 정리하고 진행 여부를 판단한다
 
-#### Bundle 11A — Demo / Release 준비
+회고에서는 계속 진행 / 방향 수정 / 중단 중 하나를 판단한다.
 
 - [ ] **IMP-110 — 핵심 오류 정리 및 Smoke Test 보강**
   - **선행 작업:** IMP-101, IMP-102, IMP-103
-  - 시연을 막는 오류와 가장 중요한 회귀 테스트를 정리한다.
+  - 핵심 흐름을 막는 오류와 가장 중요한 회귀 테스트를 정리한다.
   - **완료 조건:** 핵심 E2E 흐름이 smoke test 또는 명확한 수동 절차로 검증된다.
-
-- [ ] **IMP-111 — Demo 데이터와 시연 흐름 정리**
-  - **선행 작업:** IMP-100, IMP-110
-  - 팀 공유용 시연 책, 계정, 진행 순서를 정리한다.
-  - **완료 조건:** 누가 시연해도 같은 흐름으로 데모 가능하다.
-
-- [ ] **IMP-112 — 2주 Core MVP 배포 또는 로컬 실행 가이드 정리**
-  - **선행 작업:** IMP-110
-  - 배포까지 가능하면 배포하고, 어렵다면 재현 가능한 로컬 실행 가이드를 완성한다.
-  - **완료 조건:** 다른 팀원이 새 환경에서 실행할 수 있다.
-
-#### Bundle 11B — Core MVP Go / No-Go
-
-이는 구현 작업이 아니라 제품 진행 여부를 결정하는 판단이다.
 
 - [ ] **IMP-113 — 2주 회고 및 Full MVP 진행 여부 판단**
   - **선행 작업:** IMP-101, IMP-102, IMP-103
@@ -468,123 +402,130 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 Reading을 완독 처리한다.
 AI Interview를 시작한다.
 사용자 답변에 따라 질문이 이어진다.
-Coverage가 충분하면 Soft Stop이 나온다.
-Reflection 초안이 생성된다.
-사용자가 Reflection을 수정할 수 있다.
-실제 책 몇 권으로 품질을 검증했다.
+Coverage 또는 질문 수가 충분하면 Interview를 종료할 수 있다.
+Interview 답변을 바탕으로 Reflection 초안이 생성된다.
+사용자가 Reflection을 수정하고 다시 열 수 있다.
+실제 책으로 전체 흐름과 생성 품질을 검증한다.
 ```
 
 ---
 
-# Part B. Post-MVP / Full MVP Backlog
+# Part B. Core MVP Hardening
 
-아래 항목은 삭제된 것이 아니라 2주 Core MVP 이후 구현할 Full MVP 항목이다.
-Day 계획은 의존성과 작업량을 기준으로 한 초안이며 Core MVP 이후 재배치할 수 있다.
+Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행한다.
 
-### Day 12 — 독서 Context와 개인 Library를 확장한다
+### Day 15 — Low-information 조기 종료를 보완한다
 
-#### Bundle 12A — Reading Intention
+- [ ] **IMP-082 — Low-information 조기 종료 처리**
+  - **선행 작업:** IMP-071, IMP-080
+  - low-information 답변이 반복되면 무리한 꼬리질문을 중단한다.
+  - **완료 조건:** 연속 low-information 답변 후 짧은 Reflection 생성 흐름으로 이동한다.
+
+### Day 16 — 이전 답변과 모바일 흐름을 확인한다
+
+- [ ] **IMP-083 — 이전 답변 보기 최소 구현**
+  - **선행 작업:** IMP-073
+  - 사용자가 이전 질문/답변을 확인할 수 있게 한다.
+  - 수정 기능은 Full MVP 이후로 미룰 수 있다.
+  - **완료 조건:** Interview 화면에서 이전 Turn을 확인할 수 있다.
+
+- [ ] **IMP-104 — Mobile 핵심 흐름 확인**
+  - **선행 작업:** IMP-101
+  - 모바일 웹에서 책 검색, 인터뷰, Reflection 확인/수정이 가능한지 확인한다.
+  - **완료 조건:** 모바일에서 핵심 루프를 수행할 수 있다.
+
+### Day 17 — Demo와 실행 재현성을 정리한다
+
+- [ ] **IMP-111 — Demo 데이터와 시연 흐름 정리**
+  - **선행 작업:** IMP-100, IMP-110
+  - 팀 공유용 시연 책, 계정, 진행 순서를 정리한다.
+  - **완료 조건:** 누가 시연해도 같은 흐름으로 데모 가능하다.
+
+- [ ] **IMP-112 — 2주 Core MVP 배포 또는 로컬 실행 가이드 정리**
+  - **선행 작업:** IMP-110
+  - 배포까지 가능하면 배포하고, 어렵다면 재현 가능한 로컬 실행 가이드를 완성한다.
+  - **완료 조건:** 다른 팀원이 새 환경에서 실행할 수 있다.
+
+# Part C. Full MVP Backlog
+
+기존 Full MVP 기능을 이어서 구현한다. Day 계획은 Core MVP 이후 작업량에 맞게 다시 조정할 수 있다.
+
+### Day 18 — 독서 Context와 개인 Library를 확장한다
 
 - [ ] **IMP-120 — Reading Intention 입력/수정 고도화**
   - **선행 작업:** IMP-033
   - 읽기 전 기대를 Interview Context에 자연스럽게 반영한다.
   - **완료 조건:** Intention이 첫 질문 또는 후속 질문에 활용된다.
 
-#### Bundle 12B — Reading Entry
-
 - [ ] **IMP-121 — ReadingEntry 작성/수정/삭제 구현**
   - **선행 작업:** IMP-031
   - 읽는 중 짧은 메모를 여러 개 저장하고 수정/삭제할 수 있게 한다.
   - **완료 조건:** Entry가 Interview Context에 활용 가능하다.
-
-#### Bundle 12C — 개인 Library
 
 - [ ] **IMP-122 — Library / Home 기본 화면 고도화**
   - **선행 작업:** IMP-030, IMP-093
   - 읽는 중 / 완독 / Reflection 존재 여부를 책 중심으로 보여준다.
   - **완료 조건:** 사용자가 자신의 Reading과 Reflection을 다시 찾을 수 있다.
 
-### Day 13 — Credit 흐름을 완성한다
-
-#### Bundle 13A — Credit Wallet / Ledger
+### Day 19 — Credit 흐름을 완성한다
 
 - [ ] **IMP-130 — Credit Wallet / Ledger 구현**
   - **선행 작업:** IMP-010
   - available/reserved 수량과 Ledger 이력을 구현한다.
   - **완료 조건:** 관리자 지급, 예약, 소비, 해제가 테스트된다.
 
-#### Bundle 13B — Interview Credit 예약
-
 - [ ] **IMP-131 — Interview 시작 시 Credit 예약 적용**
   - **선행 작업:** IMP-051, IMP-130
   - Full MVP에서는 Interview 시작 시 Credit을 RESERVED 처리한다.
   - **완료 조건:** Credit 부족/성공/실패 시나리오가 검증된다.
-
-#### Bundle 13C — Reflection Credit 소비
 
 - [ ] **IMP-132 — Reflection 완료 시 Credit 소비 적용**
   - **선행 작업:** IMP-094, IMP-131
   - Reflection 최종 완료 시 Credit을 CONSUMED 처리한다.
   - **완료 조건:** 소비와 파생 데이터 commit 경계가 일치한다.
 
-### Day 14 — Book Knowledge 모델을 확장한다
-
-#### Bundle 14A — Knowledge Source / Evidence 모델
+### Day 20 — Book Knowledge 모델을 확장한다
 
 - [ ] **IMP-140 — Source / Evidence / Candidate 모델 확장**
   - **선행 작업:** IMP-040
   - Claim, Source, Evidence, Candidate 구조를 Full MVP 기준으로 확장한다.
   - **완료 조건:** Source 기반 Candidate와 Evidence를 저장할 수 있다.
 
-#### Bundle 14B — Knowledge State / Generation
-
 - [ ] **IMP-141 — Knowledge State / Generation 구현**
   - **선행 작업:** IMP-140
   - EMPTY / PARTIAL / GROUNDED / VERIFIED와 generation을 관리한다.
   - **완료 조건:** 의미 있는 Knowledge 변화에 generation이 증가한다.
-
-#### Bundle 14C — Knowledge Candidate 판정
 
 - [ ] **IMP-142 — Candidate 검토 / 승격 / 중복 처리 구현**
   - **선행 작업:** IMP-140, IMP-141
   - Candidate를 기존 Knowledge와 비교해 Evidence 추가, 신규 Claim, Conflict로 처리한다.
   - **완료 조건:** 세 가지 결과가 테스트된다.
 
-### Day 15 — Knowledge Research 수집 흐름을 만든다
-
-#### Bundle 15A — Knowledge Research Job
+### Day 21 — Knowledge Research 수집 흐름을 만든다
 
 - [ ] **IMP-150 — KnowledgeResearchJob 구현**
   - **선행 작업:** IMP-141
   - Book 단위 Research Job을 기록하고 중복 실행을 방지한다.
   - **완료 조건:** 같은 Book에 동시 PREPARING 요청이 하나의 Job으로 병합된다.
 
-#### Bundle 15B — Knowledge 수집 Pipeline
-
 - [ ] **IMP-151 — Search / Fetch / Extraction Pipeline 구현**
   - **선행 작업:** IMP-150
   - 제한된 query/source budget으로 외부 자료를 수집한다.
   - **완료 조건:** Source 수집과 실패 처리가 검증된다.
 
-### Day 16 — 안전한 Knowledge 추출 경계를 만든다
-
-#### Bundle 16A — 외부 문서 신뢰 경계
+### Day 22 — 안전한 Knowledge 추출 경계를 만든다
 
 - [ ] **IMP-152 — Prompt Injection Guard 삽입 지점 구현**
   - **선행 작업:** IMP-151
   - 외부 문서를 Untrusted Input으로 검사하고 위험한 문서를 차단/보류한다.
   - **완료 조건:** 악성 지시문 포함 문서가 Knowledge로 바로 승격되지 않는다.
 
-#### Bundle 16B — Knowledge Extractor 계약
-
 - [ ] **IMP-153 — Knowledge Extractor LLM 구현**
   - **선행 작업:** IMP-152
   - Tool 권한 없이 Structured Candidate만 생성한다.
   - **완료 조건:** Source에서 Candidate가 생성되고 Application Validation을 통과한다.
 
-### Day 17 — 인터뷰 연속성과 Grounding을 보강한다
-
-#### Bundle 17A — 인터뷰 재개·초기화
+### Day 23 — 인터뷰 연속성과 Grounding을 보강한다
 
 - [ ] **IMP-160 — Interview Resume 구현**
   - **선행 작업:** IMP-073
@@ -596,64 +537,48 @@ Day 계획은 의존성과 작업량을 기준으로 한 초안이며 Core MVP �
   - IN_PROGRESS Interview를 14일 이후 같은 책에 한해 초기화할 수 있게 한다.
   - **완료 조건:** 정책 조건과 기존 답변 삭제 안내가 검증된다.
 
-#### Bundle 17B — Interview Grounding
-
 - [ ] **IMP-162 — Grounding 관계 저장 및 검증**
   - **선행 작업:** IMP-073, IMP-140
   - BookKnowledge 기반 질문의 grounding을 저장하고 잘못된 grounding_id를 검증한다.
   - **완료 조건:** 질문에 사용된 Knowledge를 추적할 수 있다.
 
-### Day 18 — Reflection 완료 처리를 구현한다
-
-#### Bundle 18A — Reflection 완료 처리
+### Day 24 — Reflection 완료 처리를 구현한다
 
 - [ ] **IMP-170 — Reflection 완료 상태와 Commit Boundary 구현**
   - **선행 작업:** IMP-094, IMP-132
   - DRAFT → FINALIZING → COMPLETED 흐름을 구현한다.
   - **완료 조건:** 완료 시점에만 파생 데이터가 반영된다.
 
-### Day 19 — Reader Insight와 Backoffice 기반을 준비한다
-
-#### Bundle 19A — Evaluation Signal 추출
+### Day 25 — Reader Insight와 Backoffice 기반을 준비한다
 
 - [ ] **IMP-171 — Evaluation Dimension / Score 추출 구현**
   - **선행 작업:** IMP-170
   - Reflection에서 구조화된 Evaluation Signal을 추출한다.
   - **완료 조건:** 언급된 항목만 sparse하게 저장된다.
 
-#### Bundle 19B — Reader Insight 집계
-
 - [ ] **IMP-172 — Reader Insight Aggregate 구현**
   - **선행 작업:** IMP-171
   - 책별 평가 신호를 집계하고 표본 수와 신뢰도를 함께 보여준다.
   - **완료 조건:** 사용자가 완성한 책의 Reader Insight를 볼 수 있다.
-
-#### Bundle 19C — Backoffice 기반
 
 - [ ] **IMP-180 — Backoffice 기본 Shell 구현**
   - **선행 작업:** IMP-004, IMP-010
   - Staff 전용 Layout과 접근 제어를 구현한다.
   - **완료 조건:** 비관리자는 접근할 수 없다.
 
-### Day 20 — Backoffice 운영 화면을 완성한다
-
-#### Bundle 20A — 관리자 Credit 지급
+### Day 26 — Backoffice 운영 화면을 완성한다
 
 - [ ] **IMP-181 — 관리자 Credit 지급 화면 구현**
   - **선행 작업:** IMP-130, IMP-180
   - 관리자가 테스트 목적으로 Credit을 지급/조정할 수 있게 한다.
   - **완료 조건:** Wallet과 Ledger가 함께 반영된다.
 
-#### Bundle 20B — Knowledge Candidate 검토
-
 - [ ] **IMP-182 — Knowledge Candidate 검토 화면 구현**
   - **선행 작업:** IMP-142, IMP-180
   - Candidate를 승인/거절/병합할 수 있게 한다.
   - **완료 조건:** 관리자가 LLM 결과를 확정 전 수정할 수 있다.
 
-### Day 21 — Full MVP 품질을 평가한다
-
-#### Bundle 21A — Full MVP 품질 평가
+### Day 27 — Full MVP 품질을 평가한다
 
 - [ ] **IMP-190 — 유명 책 5권 / 비주류 책 5권 평가 세트 구축**
   - **선행 작업:** IMP-153, IMP-172
@@ -666,18 +591,14 @@ Day 계획은 의존성과 작업량을 기준으로 한 초안이며 Core MVP �
   - **완료 조건:** 질문이 책과 사용자 답변을 안정적으로 반영한다.
   - **Acceptance Rubric (수동):** 직전 답변을 무시하지 않는다. 이미 충분히 다룬 내용은 불필요하게 반복하지 않는다. Book Knowledge가 사용자 경험보다 우위에 서지 않는다. 검증되지 않은 READY_LIMITED 자료를 사실로 단정하지 않는다.
 
-### Day 22 — Release 회귀를 검증한다
-
-#### Bundle 22A — Release Verification
+### Day 28 — Release 회귀를 검증한다
 
 - [ ] **IMP-192 — Full MVP E2E / Regression Test 정리**
   - **선행 작업:** IMP-172, IMP-182, IMP-191
   - 핵심 사용자 흐름과 주요 실패 시나리오를 테스트한다.
   - **완료 조건:** 배포 전 회귀 테스트가 통과한다.
 
-### Day 23 — Production Readiness를 정리한다
-
-#### Bundle 23A — Production Readiness
+### Day 29 — Production Readiness를 정리한다
 
 - [ ] **IMP-193 — 배포 / 운영 최소 설정**
   - **선행 작업:** IMP-192
@@ -686,7 +607,7 @@ Day 계획은 의존성과 작업량을 기준으로 한 초안이며 Core MVP �
 
 ---
 
-# Part C. Post-MVP Growth / Retention Backlog
+# Part D. Post-MVP Growth / Retention Backlog
 
 아래는 Product Planning에 반영된 장기 아이디어이며 Full MVP 이후 별도 계획에서 다룬다.
 
