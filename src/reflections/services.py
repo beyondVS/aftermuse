@@ -3,7 +3,9 @@ from dataclasses import dataclass
 from enum import StrEnum
 from types import MappingProxyType
 
+from django.conf import settings
 from django.db import DatabaseError, IntegrityError, transaction
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from integrations.llm.contracts import (
@@ -25,6 +27,7 @@ from reflections.models import (
     CoreCoverageAxis,
     CoverageStatus,
     Interview,
+    InterviewProgressDecision,
     InterviewTurn,
     is_canonical_coverage,
 )
@@ -170,6 +173,50 @@ class NextTurnResult:
 
     turn: InterviewTurn
     skipped: bool
+
+
+@dataclass(frozen=True, slots=True)
+class InterviewBudget:
+    """미답변 질문과 완료 답변을 구분한 현재 Interview의 질문 수다."""
+
+    question_count: int
+    answered_count: int
+
+
+def _all_covered(coverage: dict[str, str]) -> bool:
+    """네 Core 방향이 모두 충분히 다뤄졌는지 판정한다."""
+    return all(value == CoverageStatus.COVERED for value in coverage.values())
+
+
+def _has_uncovered(coverage: dict[str, str]) -> bool:
+    """일반 상한 예외를 고려할 미탐색 방향이 있는지 판정한다."""
+    return CoverageStatus.UNCOVERED in coverage.values()
+
+
+def _validated_budget(interview: Interview, answered: InterviewTurn) -> InterviewBudget:
+    """현재 마지막 Turn이 연속된 확정 답변인지 확인하고 실제 행 수를 반환한다."""
+    counts = InterviewTurn.objects.filter(interview=interview).aggregate(
+        question_count=Count("id"),
+        answered_count=Count("id", filter=Q(answer__isnull=False)),
+    )
+    budget = InterviewBudget(**counts)
+    if (
+        budget.question_count != answered.sequence
+        or budget.answered_count != budget.question_count
+    ):
+        raise InterviewPolicyError()
+    return budget
+
+
+def _budget_action(budget: InterviewBudget, coverage: dict[str, str]) -> str:
+    """답변 수에 따른 우선순위를 적용하며 목표 범위는 종료 조건으로 쓰지 않는다."""
+    if budget.question_count >= settings.INTERVIEW_QUESTION_ABSOLUTE_CAP:
+        return "ready"
+    if budget.answered_count >= settings.INTERVIEW_QUESTION_NORMAL_CAP:
+        return "cap" if _has_uncovered(coverage) else "ready"
+    if budget.answered_count >= 4 and _all_covered(coverage):
+        return "soft"
+    return "normal"
 
 
 def get_interview_destination(interview: Interview) -> InterviewDestination:
@@ -438,7 +485,7 @@ def analyze_interview_answer(
     return _validate_answer_analysis(proposed, context.answer, prepared.coverage)
 
 
-def process_next_turn(
+def process_next_turn(  # noqa: C901
     *,
     user,
     interview: Interview,
@@ -447,6 +494,16 @@ def process_next_turn(
     next_provider: NextQuestionProvider | None = None,
 ) -> NextTurnResult:
     """확정 답변 뒤 검증된 Coverage와 다음 Turn 또는 생략을 함께 확정한다."""
+    if not isinstance(interview, Interview) or interview.pk is None:
+        raise AnswerAnalysisPolicyError()
+    persisted = Interview.objects.filter(pk=interview.pk, reading__user=user).first()
+    if persisted is None:
+        raise AnswerAnalysisPolicyError()
+    if persisted.status == Interview.Status.REFLECTION_READY:
+        latest = InterviewTurn.objects.filter(interview=persisted).last()
+        if latest is not None and latest.pk == turn.pk and latest.answer is not None:
+            return NextTurnResult(latest, skipped=True)
+        raise InterviewPolicyError()
     prepared, answered = _get_answer_analysis_target(
         user=user, interview=interview, turn=turn
     )
@@ -456,11 +513,14 @@ def process_next_turn(
     if existing is not None:
         return NextTurnResult(existing, skipped=False)
     if answered.next_question_skipped_at is not None:
-        return NextTurnResult(answered, skipped=True)
+        return _commit_legacy_skip(user=user, interview=prepared, answered=answered)
+    if InterviewProgressDecision.objects.filter(turn=answered).exists():
+        return NextTurnResult(answered, skipped=False)
     if InterviewTurn.objects.filter(
         interview=prepared, sequence__gt=answered.sequence
     ).exists():
         raise InterviewPolicyError()
+    budget = _validated_budget(prepared, answered)
     before = prepared.coverage.copy()
     analysis = analyze_interview_answer(
         user=user, interview=prepared, turn=answered, provider=analysis_provider
@@ -468,6 +528,33 @@ def process_next_turn(
     projected = before.copy()
     for change in analysis.coverage_patch:
         projected[change.axis.value] = change.status.value
+
+    action = _budget_action(budget, projected)
+    if (
+        action == "cap"
+        and budget.answered_count > settings.INTERVIEW_QUESTION_NORMAL_CAP
+    ):
+        granted = InterviewProgressDecision.objects.filter(
+            turn__interview=prepared,
+            turn__sequence=settings.INTERVIEW_QUESTION_NORMAL_CAP,
+            kind=InterviewProgressDecision.Kind.CAP_EXTENSION,
+            selection=InterviewProgressDecision.Selection.CONTINUE,
+        ).exists()
+        if not granted:
+            raise InterviewPolicyError()
+        action = "extended"
+    if action == "ready":
+        return _commit_next_turn(
+            user=user,
+            prepared=prepared,
+            answered=answered,
+            before=before,
+            projected=projected,
+            question=None,
+            action=action,
+            budget_before=budget,
+            candidate_focus_axis=None,
+        )
 
     from reflections.context import build_interview_question_context
 
@@ -489,6 +576,7 @@ def process_next_turn(
             CurrentCoverageItem(axis=axis.value, status=projected[axis.value])
             for axis in CoreCoverageAxis
         ),
+        budget_mode="CAP_EXTENSION" if action in ("cap", "extended") else "NORMAL",
     )
     if next_provider is None:
         from integrations.llm.factory import get_next_question_provider
@@ -496,6 +584,20 @@ def process_next_turn(
         next_provider = get_next_question_provider()
     proposal = next_provider.generate_next_question(context)
     question = _validate_next_question(proposal, context)
+    candidate_focus_axis = (
+        CoreCoverageAxis(proposal.focus_axis) if question is not None else None
+    )
+    if action in ("cap", "extended") and question is not None:
+        if (
+            proposal.focus_axis
+            not in (
+                axis
+                for axis, status in projected.items()
+                if status == CoverageStatus.UNCOVERED
+            )
+            or proposal.grounding_quote is None
+        ):
+            raise QuestionGenerationRejected()
     return _commit_next_turn(
         user=user,
         prepared=prepared,
@@ -503,10 +605,132 @@ def process_next_turn(
         before=before,
         projected=projected,
         question=question,
+        action=action,
+        budget_before=budget,
+        candidate_focus_axis=candidate_focus_axis,
     )
 
 
-def _commit_next_turn(
+def _commit_legacy_skip(
+    *, user, interview: Interview, answered: InterviewTurn
+) -> NextTurnResult:
+    """Day 07 생략 표식을 재분석 없이 준비 상태로 확정한다."""
+    try:
+        with transaction.atomic():
+            locked = (
+                Interview.objects.select_for_update()
+                .filter(pk=interview.pk, reading__user=user)
+                .first()
+            )
+            if locked is None:
+                raise InterviewPolicyError()
+            current = InterviewTurn.objects.select_for_update().get(pk=answered.pk)
+            if (
+                current.interview_id != locked.pk
+                or current.next_question_skipped_at is None
+            ):
+                raise InterviewPolicyError()
+            if locked.status == Interview.Status.IN_PROGRESS:
+                locked.status = Interview.Status.REFLECTION_READY
+                locked.save(update_fields=("status", "updated_at"))
+            elif locked.status != Interview.Status.REFLECTION_READY:
+                raise InterviewPolicyError()
+            return NextTurnResult(current, skipped=True)
+    except DatabaseError as error:
+        raise NextTurnPersistenceError() from error
+
+
+def decide_interview_progress(  # noqa: C901
+    *, user, interview: Interview, sequence: int, decision: str
+) -> NextTurnResult:
+    """보류 질문의 종료·계속 선택을 Interview 잠금 아래 한 번만 확정한다."""
+    if (
+        not isinstance(interview, Interview)
+        or interview.pk is None
+        or not isinstance(sequence, int)
+        or isinstance(sequence, bool)
+        or sequence < 1
+        or decision not in ("end", "continue")
+    ):
+        raise InterviewPolicyError()
+    selection = (
+        InterviewProgressDecision.Selection.END
+        if decision == "end"
+        else InterviewProgressDecision.Selection.CONTINUE
+    )
+    try:
+        with transaction.atomic():
+            locked = (
+                Interview.objects.select_for_update()
+                .filter(pk=interview.pk, reading__user=user)
+                .first()
+            )
+            if locked is None:
+                raise InterviewPolicyError()
+            turn = (
+                InterviewTurn.objects.select_for_update()
+                .filter(interview=locked, sequence=sequence, answer__isnull=False)
+                .first()
+            )
+            if turn is None:
+                raise InterviewPolicyError()
+            choice = (
+                InterviewProgressDecision.objects.select_for_update()
+                .filter(turn=turn)
+                .first()
+            )
+            if choice is None:
+                raise InterviewPolicyError()
+            if choice.selection is not None:
+                if choice.selection != selection:
+                    raise InterviewPolicyError()
+                if selection == InterviewProgressDecision.Selection.END:
+                    return NextTurnResult(turn, skipped=True)
+                existing = InterviewTurn.objects.filter(
+                    interview=locked, sequence=sequence + 1
+                ).first()
+                if existing is None:
+                    raise InterviewPolicyError()
+                return NextTurnResult(existing, skipped=False)
+            if (
+                locked.status != Interview.Status.IN_PROGRESS
+                or (InterviewTurn.objects.filter(interview=locked).last().pk != turn.pk)
+                or sequence >= settings.INTERVIEW_QUESTION_ABSOLUTE_CAP
+            ):
+                raise InterviewPolicyError()
+            if (
+                choice.kind == InterviewProgressDecision.Kind.CAP_EXTENSION
+                and sequence != settings.INTERVIEW_QUESTION_NORMAL_CAP
+            ):
+                raise InterviewPolicyError()
+            if selection == InterviewProgressDecision.Selection.CONTINUE:
+                budget = _validated_budget(locked, turn)
+                if budget.question_count >= settings.INTERVIEW_QUESTION_ABSOLUTE_CAP:
+                    raise InterviewPolicyError()
+                if choice.kind == InterviewProgressDecision.Kind.CAP_EXTENSION and (
+                    choice.candidate_focus_axis is None
+                    or locked.coverage.get(choice.candidate_focus_axis)
+                    != CoverageStatus.UNCOVERED
+                ):
+                    raise InterviewPolicyError()
+            choice.selection = selection
+            choice.decided_at = timezone.now()
+            choice.save(update_fields=("selection", "decided_at"))
+            if selection == InterviewProgressDecision.Selection.END:
+                locked.status = Interview.Status.REFLECTION_READY
+                locked.save(update_fields=("status", "updated_at"))
+                return NextTurnResult(turn, skipped=True)
+            created = InterviewTurn.objects.create(
+                interview=locked,
+                sequence=sequence + 1,
+                question=choice.candidate_question,
+            )
+            return NextTurnResult(created, skipped=False)
+    except DatabaseError as error:
+        raise NextTurnPersistenceError() from error
+
+
+def _commit_next_turn(  # noqa: C901
     *,
     user,
     prepared: Interview,
@@ -514,6 +738,9 @@ def _commit_next_turn(
     before: dict[str, str],
     projected: dict[str, str],
     question: str | None,
+    action: str = "normal",
+    budget_before: InterviewBudget | None = None,
+    candidate_focus_axis: CoreCoverageAxis | None = None,
 ) -> NextTurnResult:
     """Provider 호출 뒤 상태 재검증과 영속 변경을 짧은 잠금으로 묶는다."""
     try:
@@ -526,8 +753,9 @@ def _commit_next_turn(
             )
             if locked is None:
                 raise InterviewPolicyError()
-            _validate_interview_state(locked)
             current = InterviewTurn.objects.select_for_update().get(pk=answered.pk)
+            if current.interview_id != locked.pk or current.answer != answered.answer:
+                raise NextTurnStaleError()
             existing = InterviewTurn.objects.filter(
                 interview=locked, sequence=current.sequence + 1
             ).first()
@@ -535,20 +763,50 @@ def _commit_next_turn(
                 return NextTurnResult(existing, skipped=False)
             if current.next_question_skipped_at is not None:
                 return NextTurnResult(current, skipped=True)
-            if (
-                current.interview_id != locked.pk
-                or current.answer != answered.answer
-                or locked.coverage != before
+            if InterviewProgressDecision.objects.filter(turn=current).exists():
+                return NextTurnResult(current, skipped=False)
+            if locked.status == Interview.Status.REFLECTION_READY and (
+                InterviewTurn.objects.filter(interview=locked).last().pk == current.pk
             ):
+                return NextTurnResult(current, skipped=True)
+            _validate_interview_state(locked)
+            budget = _validated_budget(locked, current)
+            if budget_before is not None and budget != budget_before:
+                raise NextTurnStaleError()
+            if locked.coverage != before:
                 raise NextTurnStaleError()
             if projected != before:
                 Interview.objects.filter(pk=locked.pk).update(
                     coverage=projected, updated_at=timezone.now()
                 )
             if question is None:
-                current.next_question_skipped_at = timezone.now()
-                current.save(update_fields=("next_question_skipped_at", "updated_at"))
+                if action != "ready":
+                    current.next_question_skipped_at = timezone.now()
+                    current.save(
+                        update_fields=("next_question_skipped_at", "updated_at")
+                    )
+                locked.status = Interview.Status.REFLECTION_READY
+                locked.save(update_fields=("status", "updated_at"))
                 return NextTurnResult(current, skipped=True)
+            if action in ("soft", "cap"):
+                if action == "cap" and (
+                    candidate_focus_axis is None
+                    or projected[candidate_focus_axis.value] != CoverageStatus.UNCOVERED
+                ):
+                    raise NextTurnStaleError()
+                InterviewProgressDecision.objects.create(
+                    turn=current,
+                    kind=(
+                        InterviewProgressDecision.Kind.SOFT_STOP
+                        if action == "soft"
+                        else InterviewProgressDecision.Kind.CAP_EXTENSION
+                    ),
+                    candidate_question=question,
+                    candidate_focus_axis=candidate_focus_axis,
+                )
+                return NextTurnResult(current, skipped=False)
+            if budget.question_count >= settings.INTERVIEW_QUESTION_ABSOLUTE_CAP:
+                raise InterviewPolicyError()
             created = InterviewTurn.objects.create(
                 interview=locked, sequence=current.sequence + 1, question=question
             )
@@ -621,7 +879,10 @@ def _validate_skip_proposal(
         proposal.question is not None
         or proposal.focus_axis is not None
         or proposal.grounding_quote is not None
-        or any(item.status != CoverageStatus.COVERED for item in context.coverage)
+        or (
+            context.budget_mode != "CAP_EXTENSION"
+            and any(item.status != CoverageStatus.COVERED for item in context.coverage)
+        )
         or not isinstance(proposal.skip_reason, str)
         or not 10 <= len(proposal.skip_reason.strip()) <= 500
         or any(

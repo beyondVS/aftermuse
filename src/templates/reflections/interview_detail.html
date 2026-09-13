@@ -15,8 +15,14 @@
     {% elif turn %}
       {% if turn.answer is None %}
         {% include "reflections/_interview_question.html" %}
+      {% elif progress_decision %}
+        {% if progress_decision.kind == "SOFT_STOP" %}
+          {% include "reflections/_interview_soft_stop.html" %}
+        {% else %}
+          {% include "reflections/_interview_cap_extension.html" %}
+        {% endif %}
       {% elif turn.next_question_skipped_at %}
-        {% include "reflections/_interview_question_skipped.html" %}
+        {% include "reflections/_interview_reflection_ready.html" %}
       {% else %}
         {% include "reflections/_interview_answer_saved.html" %}
       {% endif %}

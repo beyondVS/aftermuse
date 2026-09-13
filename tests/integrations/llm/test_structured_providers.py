@@ -48,6 +48,53 @@ def _context():
     )
 
 
+@pytest.mark.parametrize("provider_type", ["gemini", "ollama"])
+def test_cap_extension_structured_skip_preserves_budget_mode(provider_type):
+    output = json.dumps(
+        {
+            "kind": "skip",
+            "question": None,
+            "focus_axis": None,
+            "grounding_quote": None,
+            "skip_reason": "미탐색 방향에 연결할 구체적 답변 근거가 없습니다.",
+        },
+        ensure_ascii=False,
+    )
+    context = _context()
+    context = NextQuestionContext(
+        context.question_context,
+        context.previous_turns,
+        context.question,
+        context.answer,
+        context.meaning,
+        context.low_information,
+        context.coverage,
+        "CAP_EXTENSION",
+    )
+    if provider_type == "gemini":
+        client = GeminiClient(output)
+        provider = GeminiInterviewProvider(
+            api_key="explicit-key",
+            model="exact-model",
+            timeout=4,
+            client=client,
+        )
+        result = provider.generate_next_question(context)
+        payload = client.calls[0]["contents"]
+    else:
+        client = Transport(output)
+        provider = OllamaInterviewProvider(
+            base_url="http://127.0.0.1:11434",
+            model="gemma4:12b-it-qat",
+            timeout=4,
+            transport=client,
+        )
+        result = provider.generate_next_question(context)
+        payload = client.calls[0][0].data.decode()
+    assert result.kind == "skip"
+    assert "CAP_EXTENSION" in payload
+
+
 class GeminiClient:
     def __init__(self, text):
         self.text = text

@@ -9,6 +9,8 @@
 
 ### Added
 
+- 네 Core Coverage 축 완료 후 Soft Stop 선택과 8문항 일반 상한·최대 10문항 예외 진행을 연결하고, 실제 답변 수와 최신 후보 축을 재검증하며 종료 시 답변을 보존한 독서노트 준비 안내를 제공
+
 - Gemini API와 로컬 Ollama의 Interview 세 작업 Adapter, 명시적 Provider·모델·timeout 설정 및 opt-in live smoke test
 
 - Python 3.14와 uv 기반의 런타임 및 의존성 관리 환경

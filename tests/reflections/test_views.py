@@ -4,6 +4,7 @@ import pytest
 from django.db import DatabaseError
 from django.test import Client
 from django.urls import reverse
+from django.utils import timezone
 
 from books.models import Book
 from integrations.llm.contracts import (
@@ -13,8 +14,189 @@ from integrations.llm.contracts import (
 )
 from integrations.llm.fake import FakeNextQuestionProvider
 from readings.models import Reading
-from reflections.models import Interview, InterviewTurn
-from reflections.services import FirstAnswerPersistenceError, InterviewPolicyError
+from reflections.models import Interview, InterviewProgressDecision, InterviewTurn
+from reflections.services import (
+    FirstAnswerPersistenceError,
+    InterviewPolicyError,
+    NextTurnPersistenceError,
+)
+
+
+def test_pending_soft_stop_hides_candidate_and_continue_uses_it(
+    client, reading
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    for sequence in range(1, 4):
+        InterviewTurn.objects.create(
+            interview=interview,
+            sequence=sequence,
+            question=f"{sequence}번째 질문은 무엇인가요?",
+            answer=f"{sequence}번째 답변입니다.",
+        )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=4,
+        question="기억에 남는 것은 무엇인가요?",
+        answer="장면이 기억에 남습니다.",
+    )
+    InterviewProgressDecision.objects.create(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.SOFT_STOP,
+        candidate_question="비공개로 보류한 질문은 무엇인가요?",
+    )
+    client.force_login(reading.user)
+    detail = client.get(reverse("reflections:interview_detail", args=[interview.pk]))
+    assert detail.status_code == 200
+    assert "조금 더 이야기하기" in detail.content.decode()
+    assert "비공개로 보류한" not in detail.content.decode()
+    url = reverse("reflections:interview_decision", args=[interview.pk, 4])
+    continued = client.post(url, {"decision": "continue"}, HTTP_HX_REQUEST="true")
+    assert continued.status_code == 200
+    assert "비공개로 보류한" in continued.content.decode()
+    assert InterviewTurn.objects.filter(interview=interview).count() == 5
+
+
+def test_cap_choice_rejects_stale_continue_but_allows_end(client, reading) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+        coverage={
+            "MEMORY": "COVERED",
+            "REACTION": "COVERED",
+            "CONNECTION": "COVERED",
+            "AFTERTHOUGHT": "UNCOVERED",
+        },
+    )
+    for sequence in range(1, 9):
+        turn = InterviewTurn.objects.create(
+            interview=interview,
+            sequence=sequence,
+            question=f"{sequence}번째 질문은 무엇인가요?",
+            answer=f"{sequence}번째 답변입니다.",
+        )
+    InterviewProgressDecision.objects.create(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.CAP_EXTENSION,
+        candidate_question="다음 질문은 무엇인가요?",
+        candidate_focus_axis="AFTERTHOUGHT",
+    )
+    Interview.objects.filter(pk=interview.pk).update(
+        coverage=dict.fromkeys(interview.coverage, "COVERED")
+    )
+    client.force_login(reading.user)
+    url = reverse("reflections:interview_decision", args=[interview.pk, 8])
+    denied = client.post(url, {"decision": "continue"}, HTTP_HX_REQUEST="true")
+    assert denied.status_code == 409
+    assert "다음 질문은 무엇인가요?" not in denied.content.decode()
+    ended = client.post(url, {"decision": "end"})
+    assert ended.status_code == 302
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.REFLECTION_READY
+
+
+def test_decision_end_ready_and_owner_boundary(
+    client, reading, django_user_model
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=4,
+        question="무엇인가요?",
+        answer="생각입니다.",
+    )
+    InterviewProgressDecision.objects.create(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.SOFT_STOP,
+        candidate_question="다음 질문은 무엇인가요?",
+    )
+    url = reverse("reflections:interview_decision", args=[interview.pk, 4])
+    other = django_user_model.objects.create_user(username="day08-other")
+    client.force_login(other)
+    assert client.post(url, {"decision": "end"}).status_code == 404
+    client.force_login(reading.user)
+    ended = client.post(url, {"decision": "end"})
+    assert ended.status_code == 302
+    ready = client.get(ended.url)
+    assert ready.status_code == 200
+    assert "독서노트를 준비할 수 있어요" in ready.content.decode()
+    assert client.post(url, {"decision": "end"}).status_code == 302
+    assert client.post(url, {"decision": "continue"}).status_code == 409
+
+
+def test_cap_choice_and_legacy_skip_get_is_read_only(client, reading) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=8,
+        question="무엇인가요?",
+        answer="생각입니다.",
+    )
+    InterviewProgressDecision.objects.create(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.CAP_EXTENSION,
+        candidate_question="보류된 다음 질문은 무엇인가요?",
+    )
+    client.force_login(reading.user)
+    detail_url = reverse("reflections:interview_detail", args=[interview.pk])
+    pending = client.get(detail_url)
+    assert "최대 두 문항 더 이야기하기" in pending.content.decode()
+    assert "보류된 다음 질문" not in pending.content.decode()
+    InterviewProgressDecision.objects.filter(turn=turn).delete()
+    turn.next_question_skipped_at = timezone.now()
+    turn.save(update_fields=("next_question_skipped_at", "updated_at"))
+    ready = client.get(detail_url)
+    interview.refresh_from_db()
+    assert ready.status_code == 200
+    assert "독서노트를 준비할 수 있어요" in ready.content.decode()
+    assert interview.status == Interview.Status.IN_PROGRESS
+
+
+def test_decision_failure_keeps_answer_and_retryable_htmx_region(
+    client, reading, monkeypatch
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=4,
+        question="무엇인가요?",
+        answer="보존된 답변",
+    )
+    InterviewProgressDecision.objects.create(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.SOFT_STOP,
+        candidate_question="보류 질문은 무엇인가요?",
+    )
+    client.force_login(reading.user)
+    monkeypatch.setattr(
+        "reflections.views.decide_interview_progress",
+        lambda **kwargs: (_ for _ in ()).throw(NextTurnPersistenceError()),
+    )
+    response = client.post(
+        reverse("reflections:interview_decision", args=[interview.pk, 4]),
+        {"decision": "continue"},
+        HTTP_HX_REQUEST="true",
+    )
+    assert response.status_code == 503
+    assert "작성한 답변은 저장되어 있습니다" in response.content.decode()
+    assert response.headers["HX-Retarget"] == "#interview-turn-region"
+    assert InterviewTurn.objects.get(pk=turn.pk).answer == "보존된 답변"
 
 
 @pytest.fixture
@@ -153,8 +335,12 @@ def test_existing_non_interview_status_is_a_safe_unavailable_response(
 
     response = client.get(reverse("reflections:interview_detail", args=[interview.pk]))
 
-    assert response.status_code == 409
-    assert "아직 사용할 수 없습니다" in response.content.decode()
+    if status == Interview.Status.REFLECTION_READY:
+        assert response.status_code == 200
+        assert "독서노트를 준비할 수 있어요" in response.content.decode()
+    else:
+        assert response.status_code == 409
+        assert "아직 사용할 수 없습니다" in response.content.decode()
 
 
 def test_corrupted_interview_relationship_is_not_routed(client, reading) -> None:
@@ -619,9 +805,9 @@ def test_skipped_question_reentry_shows_waiting_without_retry(
     repeated = client.post(next_url, HTTP_HX_REQUEST="true")
 
     assert result.status_code == 200
-    assert "생각이 충분히 정리되었습니다" in result.content.decode()
+    assert "독서노트를 준비할 수 있어요" in result.content.decode()
     assert "다음 질문 다시 준비하기" not in detail.content.decode()
-    assert "생각이 충분히 정리되었습니다" in detail.content.decode()
+    assert "독서노트를 준비할 수 있어요" in detail.content.decode()
     assert repeated.status_code == 200
     turn.refresh_from_db()
     assert turn.next_question_skipped_at is not None

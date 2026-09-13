@@ -1,0 +1,9 @@
+<section id="interview-turn-region" aria-labelledby="cap-extension-title">
+  <h2 id="cap-extension-title">여덟 개의 질문을 마쳤어요</h2>
+  <p role="status">답변은 저장되어 있습니다. 지금 독서노트를 준비하거나 최대 두 문항 더 이야기할 수 있어요.</p>
+  <form method="post" action="{% url 'reflections:interview_decision' turn.interview_id turn.sequence %}" hx-post="{% url 'reflections:interview_decision' turn.interview_id turn.sequence %}" hx-target="#interview-turn-region" hx-swap="outerHTML">
+    {% csrf_token %}
+    <button type="submit" name="decision" value="end">독서노트 준비하기</button>
+    <button type="submit" name="decision" value="continue">최대 두 문항 더 이야기하기</button>
+  </form>
+</section>
