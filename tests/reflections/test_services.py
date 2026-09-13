@@ -83,6 +83,69 @@ def _process_fake(reading, interview: Interview, turn: InterviewTurn):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("sequence,missing_answer", [(4, 2), (8, 3), (10, 5)])
+def test_budget_rejects_sequence_that_overstates_answer_count(
+    completed_reading, sequence: int, missing_answer: int
+) -> None:
+    coverage = dict.fromkeys(
+        ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "COVERED"
+    )
+    interview, latest = _answered_at(completed_reading, sequence, coverage)
+    InterviewTurn.objects.filter(interview=interview, sequence=missing_answer).update(
+        answer=None
+    )
+    provider = FakeNextQuestionProvider()
+
+    with pytest.raises(InterviewPolicyError):
+        process_next_turn(
+            user=completed_reading.user,
+            interview=interview,
+            turn=latest,
+            analysis_provider=FakeAnswerAnalysisProvider(),
+            next_provider=provider,
+        )
+
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.IN_PROGRESS
+    assert not provider.contexts
+    assert not InterviewProgressDecision.objects.exists()
+
+
+@pytest.mark.django_db
+def test_budget_rejects_noncontiguous_question_sequence(completed_reading) -> None:
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=8,
+        question="질문은 무엇인가요?",
+        answer="기억에 남는 장면입니다.",
+    )
+
+    with pytest.raises(InterviewPolicyError):
+        _process_fake(completed_reading, interview, turn)
+
+    assert InterviewTurn.objects.filter(interview=interview).count() == 1
+
+
+@pytest.mark.django_db
+def test_existing_unanswered_question_does_not_increment_answer_budget(
+    completed_reading,
+) -> None:
+    interview, fourth = _answered_at(completed_reading, 4, default_coverage())
+    fifth = InterviewTurn.objects.create(
+        interview=interview, sequence=5, question="이어지는 질문은 무엇인가요?"
+    )
+    result = _process_fake(completed_reading, interview, fourth)
+    assert result.turn.pk == fifth.pk
+    assert (
+        InterviewTurn.objects.filter(interview=interview, answer__isnull=False).count()
+        == 4
+    )
+
+
+@pytest.mark.django_db
 def test_soft_stop_waits_for_fourth_answer_and_reuses_private_candidate(
     completed_reading,
 ) -> None:
@@ -152,6 +215,49 @@ def test_eighth_answer_cap_and_tenth_answer_terminal(completed_reading) -> None:
     assert final.skipped
     assert interview.status == Interview.Status.REFLECTION_READY
     assert InterviewTurn.objects.filter(interview=interview).count() == 10
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("leave_other_uncovered", [False, True])
+def test_cap_candidate_must_still_target_an_uncovered_axis_on_continue(
+    completed_reading, leave_other_uncovered: bool
+) -> None:
+    coverage = dict.fromkeys(
+        ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "COVERED"
+    )
+    coverage["MEMORY"] = "UNCOVERED"
+    if leave_other_uncovered:
+        coverage["AFTERTHOUGHT"] = "UNCOVERED"
+    interview, eighth = _answered_at(completed_reading, 8, coverage)
+    _process_fake(completed_reading, interview, eighth)
+    choice = InterviewProgressDecision.objects.get(turn=eighth)
+    assert choice.candidate_focus_axis == "MEMORY"
+    apply_interview_coverage_patch(
+        user=completed_reading.user,
+        interview=interview,
+        patch=(CoveragePatchItem("MEMORY", "COVERED"),),
+    )
+
+    with pytest.raises(InterviewPolicyError):
+        decide_interview_progress(
+            user=completed_reading.user,
+            interview=interview,
+            sequence=8,
+            decision="continue",
+        )
+
+    choice.refresh_from_db()
+    assert choice.selection is None
+    assert InterviewTurn.objects.filter(interview=interview).count() == 8
+    ended = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        decision="end",
+    )
+    interview.refresh_from_db()
+    assert ended.skipped
+    assert interview.status == Interview.Status.REFLECTION_READY
 
 
 @pytest.mark.django_db

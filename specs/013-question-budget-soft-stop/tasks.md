@@ -141,3 +141,8 @@ description: "Day 08 질문 상한과 Soft Stop 구현 작업"
 3. US3에서 오류·재시도·경합을 수렴시킨 뒤 PostgreSQL·전체 품질 게이트와 문서를 갱신한다.
 
 Day 09~10 Reflection 초안 생성·저장·화면 전환, 반복 low-information 종료, Focus Coverage, 이전 Turn 열람 및 Credit은 수행하지 않는다.
+
+## Phase 7: Convergence
+
+- [X] T025 `src/reflections/services.py`의 Budget 판단에서 `InterviewTurn.sequence`와 실제 확정 질문·답변 개수를 분리하고, 미답변 Turn·sequence 불연속·반복 요청을 포함한 `tests/reflections/test_services.py` 회귀 테스트로 4/8/10문항 판정과 새 Turn 확정 직전 상한을 검증한다. per FR-001, plan: 구현 흐름 1, T005 (partial)
+- [X] T026 `src/reflections/models.py`, 후속 migration, `src/reflections/services.py`와 관련 모델·서비스·Web 테스트에서 8문항 예외 후보의 `focus_axis`를 비공개로 보존하고, 선택 시 잠금 후 최신 Coverage에서 해당 축이 여전히 `UNCOVERED`인지 `continue`에만 재검증한다. Coverage가 바뀌어도 `end`는 독서노트 준비로 확정할 수 있게 하며, 오래된 후보·경합·재시도에서 답변과 선택의 원자성을 확인한다. per FR-005, FR-008, plan: 구현 흐름 3, T020 (partial)

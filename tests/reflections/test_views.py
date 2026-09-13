@@ -30,6 +30,13 @@ def test_pending_soft_stop_hides_candidate_and_continue_uses_it(
         book=reading.book,
         knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
     )
+    for sequence in range(1, 4):
+        InterviewTurn.objects.create(
+            interview=interview,
+            sequence=sequence,
+            question=f"{sequence}번째 질문은 무엇인가요?",
+            answer=f"{sequence}번째 답변입니다.",
+        )
     turn = InterviewTurn.objects.create(
         interview=interview,
         sequence=4,
@@ -50,7 +57,46 @@ def test_pending_soft_stop_hides_candidate_and_continue_uses_it(
     continued = client.post(url, {"decision": "continue"}, HTTP_HX_REQUEST="true")
     assert continued.status_code == 200
     assert "비공개로 보류한" in continued.content.decode()
-    assert InterviewTurn.objects.filter(interview=interview).count() == 2
+    assert InterviewTurn.objects.filter(interview=interview).count() == 5
+
+
+def test_cap_choice_rejects_stale_continue_but_allows_end(client, reading) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+        coverage={
+            "MEMORY": "COVERED",
+            "REACTION": "COVERED",
+            "CONNECTION": "COVERED",
+            "AFTERTHOUGHT": "UNCOVERED",
+        },
+    )
+    for sequence in range(1, 9):
+        turn = InterviewTurn.objects.create(
+            interview=interview,
+            sequence=sequence,
+            question=f"{sequence}번째 질문은 무엇인가요?",
+            answer=f"{sequence}번째 답변입니다.",
+        )
+    InterviewProgressDecision.objects.create(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.CAP_EXTENSION,
+        candidate_question="다음 질문은 무엇인가요?",
+        candidate_focus_axis="AFTERTHOUGHT",
+    )
+    Interview.objects.filter(pk=interview.pk).update(
+        coverage=dict.fromkeys(interview.coverage, "COVERED")
+    )
+    client.force_login(reading.user)
+    url = reverse("reflections:interview_decision", args=[interview.pk, 8])
+    denied = client.post(url, {"decision": "continue"}, HTTP_HX_REQUEST="true")
+    assert denied.status_code == 409
+    assert "다음 질문은 무엇인가요?" not in denied.content.decode()
+    ended = client.post(url, {"decision": "end"})
+    assert ended.status_code == 302
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.REFLECTION_READY
 
 
 def test_decision_end_ready_and_owner_boundary(

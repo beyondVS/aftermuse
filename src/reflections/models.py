@@ -208,6 +208,12 @@ class InterviewProgressDecision(models.Model):
         max_length=8, choices=Selection.choices, null=True, blank=True
     )
     candidate_question = models.CharField(max_length=300)
+    candidate_focus_axis = models.CharField(  # noqa: DJ001
+        max_length=16,
+        choices=[(axis.value, axis.value) for axis in CoreCoverageAxis],
+        null=True,
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     decided_at = models.DateTimeField(null=True, blank=True)
 

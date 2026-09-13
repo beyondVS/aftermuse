@@ -45,6 +45,23 @@ def test_progress_decision_requires_answer_and_one_choice_per_turn(interview) ->
         pending.full_clean()
 
 
+def test_progress_decision_rejects_unknown_candidate_axis(interview) -> None:
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="무엇이 남았나요?",
+        answer="남은 생각입니다.",
+    )
+    decision = InterviewProgressDecision(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.CAP_EXTENSION,
+        candidate_question="다음 질문은 무엇인가요?",
+        candidate_focus_axis="UNKNOWN",
+    )
+    with pytest.raises(ValidationError):
+        decision.full_clean()
+
+
 @pytest.fixture
 def interview(django_user_model) -> Interview:
     user = django_user_model.objects.create_user(username="interview-model")

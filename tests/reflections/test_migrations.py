@@ -8,6 +8,57 @@ from django.db.migrations.executor import MigrationExecutor
 
 
 @pytest.mark.django_db(transaction=True)
+def test_candidate_focus_axis_migration_preserves_pending_legacy_choice() -> None:
+    connection = transaction.get_connection()
+    previous = [("reflections", "0005_interview_progress_decision")]
+    target = [("reflections", "0006_interviewprogressdecision_candidate_focus_axis")]
+    try:
+        MigrationExecutor(connection).migrate(previous)
+        apps = MigrationExecutor(connection).loader.project_state(previous).apps
+        User = apps.get_model("accounts", "User")
+        Book = apps.get_model("books", "Book")
+        Reading = apps.get_model("readings", "Reading")
+        Interview = apps.get_model("reflections", "Interview")
+        Turn = apps.get_model("reflections", "InterviewTurn")
+        Decision = apps.get_model("reflections", "InterviewProgressDecision")
+        user = User.objects.create(username="candidate-axis-migration-owner")
+        book = Book.objects.create(isbn13="9780000000189", title="후보 축 Migration")
+        reading = Reading.objects.create(
+            user=user, book=book, status="completed", completed_on="2026-09-13"
+        )
+        interview = Interview.objects.create(
+            reading=reading, book=book, knowledge_readiness="READY"
+        )
+        turn = Turn.objects.create(
+            interview=interview, sequence=1, question="무엇인가요?", answer="답변"
+        )
+        choice = Decision.objects.create(
+            turn=turn, kind="CAP_EXTENSION", candidate_question="다음은 무엇인가요?"
+        )
+        MigrationExecutor(connection).migrate(target)
+        upgraded = MigrationExecutor(connection).loader.project_state(target).apps
+        NewDecision = upgraded.get_model("reflections", "InterviewProgressDecision")
+        assert NewDecision.objects.get(pk=choice.pk).candidate_focus_axis is None
+        NewDecision.objects.filter(pk=choice.pk).update(candidate_focus_axis="MEMORY")
+        MigrationExecutor(connection).migrate(previous)
+        assert Decision.objects.filter(pk=choice.pk, turn_id=turn.pk).exists()
+    finally:
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
+
+@pytest.mark.django_db(transaction=True)
+def test_candidate_focus_axis_sql_is_additive_and_lock_bounded() -> None:
+    output = StringIO()
+    call_command("sqlmigrate", "reflections", "0006", stdout=output)
+    sql = output.getvalue().upper()
+    assert "SET LOCAL LOCK_TIMEOUT = '2S'" in sql
+    assert 'ALTER TABLE "REFLECTIONS_INTERVIEWPROGRESSDECISION" ADD COLUMN' in sql
+    assert "CANDIDATE_FOCUS_AXIS" in sql
+    assert 'ALTER TABLE "REFLECTIONS_INTERVIEWTURN"' not in sql
+
+
+@pytest.mark.django_db(transaction=True)
 def test_progress_decision_migration_preserves_existing_turn_and_reverses() -> None:
     connection = transaction.get_connection()
     previous = [("reflections", "0004_turn_next_question_skipped_at")]

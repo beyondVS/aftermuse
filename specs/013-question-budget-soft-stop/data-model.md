@@ -24,9 +24,10 @@
 | `kind` | `SOFT_STOP` 또는 `CAP_EXTENSION`. 생성 뒤 변경하지 않는다. |
 | `selection` | 미결정, `END`, `CONTINUE` 중 하나. 최초 확정 이후 다른 값으로 바꾸지 않는다. |
 | `candidate_question` | 기존 검증 경계를 통과한 단일 질문 후보. 선택 전 사용자에게 노출하지 않는다. |
+| `candidate_focus_axis` | 후보가 겨냥한 Core 축. 기존 대기 기록과 호환되도록 nullable로 두며, 새 `CAP_EXTENSION`의 계속 선택은 잠금 후 이 축이 여전히 `UNCOVERED`일 때만 허용한다. |
 | `created_at`, `decided_at` | 재접속과 반복 요청에서 대기·확정 상태를 구분한다. |
 
-검증 규칙: `turn.answer`가 확정돼야 하고, 선택 생성 시 해당 Turn이 마지막 답변 Turn이어야 한다. `CAP_EXTENSION`은 8번째 답변과 `UNCOVERED` 목표 축의 근거 있는 후보에서만 허용한다. `CONTINUE`는 허용 상한 이내의 다음 Turn 하나와 같은 트랜잭션에서 확정한다. `END`는 Interview의 `REFLECTION_READY`와 함께 확정한다. `CAP_EXTENSION`의 `CONTINUE` 이력은 9번째 답변 후 10번째 질문 허용의 근거가 된다.
+검증 규칙: `turn.answer`가 확정돼야 하고, 선택 생성 시 해당 Turn이 마지막 답변 Turn이어야 한다. `CAP_EXTENSION`은 8번째 답변과 `UNCOVERED` 목표 축의 근거 있는 후보에서만 허용한다. `CONTINUE`는 허용 상한 이내의 다음 Turn 하나와 같은 트랜잭션에서 확정하며, 후보 축이 더 이상 `UNCOVERED`가 아니면 거부한다. Coverage가 바뀌어도 `END`는 Interview의 `REFLECTION_READY`와 함께 확정할 수 있다. `CAP_EXTENSION`의 `CONTINUE` 이력은 9번째 답변 후 10번째 질문 허용의 근거가 된다.
 
 ## 상태 전이
 
