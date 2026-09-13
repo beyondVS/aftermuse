@@ -1,0 +1,9 @@
+<section id="interview-turn-region" aria-labelledby="soft-stop-title">
+  <h2 id="soft-stop-title">생각이 충분히 모였어요</h2>
+  <p role="status">답변은 저장되어 있습니다. 지금 독서노트를 준비하거나 조금 더 이야기할 수 있어요.</p>
+  <form method="post" action="{% url 'reflections:interview_decision' turn.interview_id turn.sequence %}" hx-post="{% url 'reflections:interview_decision' turn.interview_id turn.sequence %}" hx-target="#interview-turn-region" hx-swap="outerHTML">
+    {% csrf_token %}
+    <button type="submit" name="decision" value="end">독서노트 준비하기</button>
+    <button type="submit" name="decision" value="continue">조금 더 이야기하기</button>
+  </form>
+</section>

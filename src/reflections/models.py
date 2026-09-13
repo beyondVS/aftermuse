@@ -187,3 +187,58 @@ class InterviewTurn(models.Model):
             original_answer = type(self).objects.only("answer").get(pk=self.pk).answer
             if original_answer is not None and self.answer != original_answer:
                 raise ValidationError({"answer": "확정된 답변은 변경할 수 없습니다."})
+
+
+class InterviewProgressDecision(models.Model):
+    """확정 답변 뒤 보류한 다음 질문과 사용자의 진행 선택이다."""
+
+    class Kind(models.TextChoices):
+        SOFT_STOP = "SOFT_STOP", "조기 마무리 선택"
+        CAP_EXTENSION = "CAP_EXTENSION", "질문 상한 연장 선택"
+
+    class Selection(models.TextChoices):
+        END = "END", "마치기"
+        CONTINUE = "CONTINUE", "계속하기"
+
+    turn = models.OneToOneField(
+        InterviewTurn, on_delete=models.CASCADE, related_name="progress_decision"
+    )
+    kind = models.CharField(max_length=16, choices=Kind.choices)
+    selection = models.CharField(  # noqa: DJ001
+        max_length=8, choices=Selection.choices, null=True, blank=True
+    )
+    candidate_question = models.CharField(max_length=300)
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(kind__in=("SOFT_STOP", "CAP_EXTENSION")),
+                name="reflections_progress_kind_valid",
+            ),
+            models.CheckConstraint(
+                condition=Q(selection__isnull=True)
+                | Q(selection__in=("END", "CONTINUE")),
+                name="reflections_progress_selection_valid",
+            ),
+            models.CheckConstraint(
+                condition=(Q(selection__isnull=True) & Q(decided_at__isnull=True))
+                | (Q(selection__isnull=False) & Q(decided_at__isnull=False)),
+                name="reflections_progress_decided_consistent",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.turn} · {self.kind}"
+
+    def clean(self) -> None:
+        """대기 질문과 결정 시점의 애플리케이션 불변식을 확인한다."""
+        super().clean()
+        if self.turn_id and self.turn.answer is None:
+            raise ValidationError({"turn": "확정된 답변이 필요합니다."})
+        if (
+            not isinstance(self.candidate_question, str)
+            or not self.candidate_question.strip()
+        ):
+            raise ValidationError({"candidate_question": "질문 후보가 필요합니다."})

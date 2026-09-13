@@ -105,6 +105,7 @@ class NextQuestionContext:
     meaning: str | None
     low_information: bool
     coverage: tuple[CurrentCoverageItem, ...]
+    budget_mode: str = "NORMAL"
 
 
 @dataclass(frozen=True, slots=True)

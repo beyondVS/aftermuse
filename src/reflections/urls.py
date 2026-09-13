@@ -40,4 +40,9 @@ urlpatterns = [
         views.next_turn,
         name="next_turn",
     ),
+    path(
+        "interviews/<int:interview_id>/turns/<int:sequence>/decision/",
+        views.interview_decision,
+        name="interview_decision",
+    ),
 ]

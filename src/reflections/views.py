@@ -9,7 +9,7 @@ from integrations.llm.factory import get_question_provider
 from knowledge.services import get_book_knowledge_readiness
 from readings.models import Reading
 from reflections.forms import FirstAnswerForm
-from reflections.models import Interview
+from reflections.models import Interview, InterviewProgressDecision
 from reflections.services import (
     AnswerAnalysisPolicyError,
     FirstAnswerConflict,
@@ -18,6 +18,7 @@ from reflections.services import (
     InterviewPolicyError,
     NextTurnPersistenceError,
     NextTurnStaleError,
+    decide_interview_progress,
     ensure_first_question,
     get_interview_destination,
     process_next_turn,
@@ -223,7 +224,23 @@ def next_turn(request: HttpRequest, interview_id: int, sequence: int) -> HttpRes
             focus_error=True,
         )
     if request.headers.get("HX-Request") == "true":
+        interview.refresh_from_db()
         current = interview.turns.order_by("-sequence").first()
+        if interview.status == Interview.Status.REFLECTION_READY:
+            return render(request, "reflections/_interview_reflection_ready.html")
+        choice = InterviewProgressDecision.objects.filter(
+            turn=current, selection__isnull=True
+        ).first()
+        if choice is not None:
+            return render(
+                request,
+                (
+                    "reflections/_interview_soft_stop.html"
+                    if choice.kind == InterviewProgressDecision.Kind.SOFT_STOP
+                    else "reflections/_interview_cap_extension.html"
+                ),
+                {"turn": current},
+            )
         if current.next_question_skipped_at is not None:
             return render(
                 request,
@@ -242,6 +259,57 @@ def next_turn(request: HttpRequest, interview_id: int, sequence: int) -> HttpRes
             {
                 "interview": interview,
                 "turn": current,
+                "answer_form": FirstAnswerForm(),
+            },
+        )
+    return redirect("reflections:interview_detail", interview_id=interview.pk)
+
+
+@require_POST
+@login_required
+def interview_decision(
+    request: HttpRequest, interview_id: int, sequence: int
+) -> HttpResponse:
+    """소유자의 종료·계속 선택을 확정하고 같은 Interview 상태를 반환한다."""
+    interview = get_object_or_404(
+        Interview.objects.select_related("reading", "book"),
+        pk=interview_id,
+        reading__user=request.user,
+    )
+    if set(request.POST) - {"csrfmiddlewaretoken", "decision"}:
+        return _policy_conflict_response(request)
+    try:
+        result = decide_interview_progress(
+            user=request.user,
+            interview=interview,
+            sequence=sequence,
+            decision=request.POST.get("decision", ""),
+        )
+    except InterviewPolicyError:
+        return _policy_conflict_response(request)
+    except NextTurnPersistenceError:
+        turn = get_object_or_404(interview.turns, sequence=sequence)
+        template = (
+            "reflections/_interview_next_error.html"
+            if request.headers.get("HX-Request") == "true"
+            else "reflections/interview_detail.html"
+        )
+        return _interview_turn_response(
+            request,
+            template,
+            {"interview": interview, "turn": turn, "next_error": True},
+            status=503,
+            focus_error=True,
+        )
+    if request.headers.get("HX-Request") == "true":
+        if result.skipped:
+            return render(request, "reflections/_interview_reflection_ready.html")
+        return render(
+            request,
+            "reflections/_interview_question.html",
+            {
+                "interview": interview,
+                "turn": result.turn,
                 "answer_form": FirstAnswerForm(),
             },
         )
@@ -270,6 +338,15 @@ def _destination_response(
     if destination is InterviewDestination.INTERVIEW:
         if detail:
             turn = interview.turns.order_by("-sequence").first()
+            if turn is not None and turn.next_question_skipped_at is not None:
+                return render(request, "reflections/interview_reflection_ready.html")
+            choice = (
+                InterviewProgressDecision.objects.filter(
+                    turn=turn, selection__isnull=True
+                ).first()
+                if turn is not None
+                else None
+            )
             return render(
                 request,
                 "reflections/interview_detail.html",
@@ -277,14 +354,13 @@ def _destination_response(
                     "interview": interview,
                     "turn": turn,
                     "answer_form": FirstAnswerForm(),
+                    "progress_decision": choice,
                 },
             )
         return redirect("reflections:interview_detail", interview_id=interview.pk)
-    label = (
-        "Reflection 준비 단계"
-        if destination is InterviewDestination.REFLECTION_READY
-        else "완료된 Reflection 단계"
-    )
+    if destination is InterviewDestination.REFLECTION_READY:
+        return render(request, "reflections/interview_reflection_ready.html")
+    label = "완료된 Reflection 단계"
     return render(
         request, "reflections/interview_unavailable.html", {"label": label}, status=409
     )

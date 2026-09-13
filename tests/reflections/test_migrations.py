@@ -8,6 +8,63 @@ from django.db.migrations.executor import MigrationExecutor
 
 
 @pytest.mark.django_db(transaction=True)
+def test_progress_decision_migration_preserves_existing_turn_and_reverses() -> None:
+    connection = transaction.get_connection()
+    previous = [("reflections", "0004_turn_next_question_skipped_at")]
+    target = [("reflections", "0005_interview_progress_decision")]
+    try:
+        MigrationExecutor(connection).migrate(previous)
+        apps = MigrationExecutor(connection).loader.project_state(previous).apps
+        User = apps.get_model("accounts", "User")
+        Book = apps.get_model("books", "Book")
+        Reading = apps.get_model("readings", "Reading")
+        Interview = apps.get_model("reflections", "Interview")
+        InterviewTurn = apps.get_model("reflections", "InterviewTurn")
+        user = User.objects.create(username="progress-migration-owner")
+        book = Book.objects.create(isbn13="9780000000188", title="선택 Migration")
+        reading = Reading.objects.create(
+            user=user, book=book, status="completed", completed_on="2026-09-13"
+        )
+        interview = Interview.objects.create(
+            reading=reading, book=book, knowledge_readiness="READY"
+        )
+        turn = InterviewTurn.objects.create(
+            interview=interview, sequence=1, question="무엇인가요?", answer="답변"
+        )
+        MigrationExecutor(connection).migrate(target)
+        apps = MigrationExecutor(connection).loader.project_state(target).apps
+        Decision = apps.get_model("reflections", "InterviewProgressDecision")
+        Decision.objects.create(
+            turn_id=turn.pk, kind="SOFT_STOP", candidate_question="다음은 무엇인가요?"
+        )
+        with pytest.raises(IntegrityError), transaction.atomic():
+            Decision.objects.create(
+                turn_id=turn.pk, kind="CAP_EXTENSION", candidate_question="중복인가요?"
+            )
+        MigrationExecutor(connection).migrate(previous)
+        assert (
+            "reflections_interviewprogressdecision"
+            not in connection.introspection.table_names()
+        )
+        assert InterviewTurn.objects.filter(pk=turn.pk, answer="답변").exists()
+        MigrationExecutor(connection).migrate(target)
+    finally:
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
+
+@pytest.mark.django_db(transaction=True)
+def test_progress_decision_sql_is_additive_and_bounded() -> None:
+    output = StringIO()
+    call_command("sqlmigrate", "reflections", "0005", stdout=output)
+    sql = output.getvalue().upper()
+    assert "SET LOCAL LOCK_TIMEOUT = '2S'" in sql
+    assert 'CREATE TABLE "REFLECTIONS_INTERVIEWPROGRESSDECISION"' in sql
+    assert "UNIQUE" in sql and "FOREIGN KEY" in sql
+    assert 'ALTER TABLE "REFLECTIONS_INTERVIEW"' not in sql
+
+
+@pytest.mark.django_db(transaction=True)
 def test_next_question_skip_marker_migration_round_trip() -> None:
     """기존 Turn을 보존하며 nullable 생략 표식을 추가·제거한다."""
     connection = transaction.get_connection()

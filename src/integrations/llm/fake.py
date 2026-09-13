@@ -89,6 +89,17 @@ class FakeNextQuestionProvider:
         if self._result is not None:
             return self._result
         gaps = tuple(item for item in context.coverage if item.status != "COVERED")
+        if context.budget_mode == "CAP_EXTENSION":
+            uncovered = tuple(item for item in gaps if item.status == "UNCOVERED")
+            if not uncovered or context.low_information:
+                return ProposedNextQuestion(
+                    "skip",
+                    None,
+                    None,
+                    None,
+                    "아직 다루지 않은 방향을 질문할 만한 구체적 답변 근거가 없습니다.",
+                )
+            gaps = uncovered
         if not gaps and context.low_information:
             return ProposedNextQuestion(
                 "skip",

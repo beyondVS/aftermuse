@@ -6,6 +6,7 @@ import pytest
 from django.db import DatabaseError, IntegrityError, close_old_connections, connection
 from django.db.models.query import QuerySet
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
 from books.models import Book
 from integrations.llm.contracts import (
@@ -25,7 +26,13 @@ from integrations.llm.fake import (
 from knowledge.models import BookKnowledge, KnowledgeKind
 from readings.models import Reading
 from readings.services import ReadingLockedError, update_completion_date
-from reflections.models import CoverageStatus, Interview, InterviewTurn
+from reflections.models import (
+    CoverageStatus,
+    Interview,
+    InterviewProgressDecision,
+    InterviewTurn,
+    default_coverage,
+)
 from reflections.services import (
     AnalyzedCoverageChange,
     AnswerAnalysisPolicyError,
@@ -38,6 +45,7 @@ from reflections.services import (
     NextTurnPersistenceError,
     analyze_interview_answer,
     apply_interview_coverage_patch,
+    decide_interview_progress,
     ensure_first_question,
     get_interview_coverage,
     get_interview_destination,
@@ -46,6 +54,243 @@ from reflections.services import (
     save_turn_answer,
     start_interview,
 )
+
+
+def _answered_at(
+    reading, sequence: int, coverage: dict[str, str]
+) -> tuple[Interview, InterviewTurn]:
+    interview = start_interview(user=reading.user, reading=reading).interview
+    interview.coverage = coverage
+    interview.save(update_fields=("coverage", "updated_at"))
+    for number in range(1, sequence + 1):
+        turn = InterviewTurn.objects.create(
+            interview=interview,
+            sequence=number,
+            question=f"{number}번째 질문은 무엇인가요?",
+            answer=f"{number}번째 답변에서 기억에 남는 장면입니다.",
+        )
+    return interview, turn
+
+
+def _process_fake(reading, interview: Interview, turn: InterviewTurn):
+    return process_next_turn(
+        user=reading.user,
+        interview=interview,
+        turn=turn,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    )
+
+
+@pytest.mark.django_db
+def test_soft_stop_waits_for_fourth_answer_and_reuses_private_candidate(
+    completed_reading,
+) -> None:
+    covered = dict.fromkeys(
+        ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "COVERED"
+    )
+    interview, third = _answered_at(completed_reading, 3, covered)
+    next_turn = _process_fake(completed_reading, interview, third)
+    assert next_turn.turn.sequence == 4
+    assert not InterviewProgressDecision.objects.exists()
+    next_turn.turn.answer = "네 번째 답변에서도 장면이 남습니다."
+    next_turn.turn.save(update_fields=("answer", "updated_at"))
+    waiting = _process_fake(completed_reading, interview, next_turn.turn)
+    assert waiting.turn.pk == next_turn.turn.pk
+    choice = InterviewProgressDecision.objects.get(turn=next_turn.turn)
+    assert choice.kind == InterviewProgressDecision.Kind.SOFT_STOP
+    assert InterviewTurn.objects.filter(interview=interview).count() == 4
+    repeated = _process_fake(completed_reading, interview, next_turn.turn)
+    assert repeated.turn.pk == waiting.turn.pk
+    continued = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=4,
+        decision="continue",
+    )
+    assert continued.turn.question == choice.candidate_question
+    assert (
+        decide_interview_progress(
+            user=completed_reading.user,
+            interview=interview,
+            sequence=4,
+            decision="continue",
+        ).turn.pk
+        == continued.turn.pk
+    )
+    with pytest.raises(InterviewPolicyError):
+        decide_interview_progress(
+            user=completed_reading.user, interview=interview, sequence=4, decision="end"
+        )
+
+
+@pytest.mark.django_db
+def test_eighth_answer_cap_and_tenth_answer_terminal(completed_reading) -> None:
+    coverage = dict.fromkeys(
+        ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "PARTIAL"
+    )
+    coverage["AFTERTHOUGHT"] = "UNCOVERED"
+    interview, eighth = _answered_at(completed_reading, 8, coverage)
+    pending = _process_fake(completed_reading, interview, eighth)
+    assert pending.turn.pk == eighth.pk
+    choice = InterviewProgressDecision.objects.get(turn=eighth)
+    assert choice.kind == InterviewProgressDecision.Kind.CAP_EXTENSION
+    ninth = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        decision="continue",
+    ).turn
+    ninth.answer = "아홉 번째 답변에서 다른 기억이 남습니다."
+    ninth.save(update_fields=("answer", "updated_at"))
+    tenth = _process_fake(completed_reading, interview, ninth).turn
+    assert tenth.sequence == 10
+    tenth.answer = "열 번째 답변을 마칩니다."
+    tenth.save(update_fields=("answer", "updated_at"))
+    final = _process_fake(completed_reading, interview, tenth)
+    interview.refresh_from_db()
+    assert final.skipped
+    assert interview.status == Interview.Status.REFLECTION_READY
+    assert InterviewTurn.objects.filter(interview=interview).count() == 10
+
+
+@pytest.mark.django_db
+def test_legacy_skip_becomes_ready_without_provider(completed_reading) -> None:
+    interview, turn = _answered_at(completed_reading, 1, default_coverage())
+    turn.next_question_skipped_at = timezone.now()
+    turn.save(update_fields=("next_question_skipped_at", "updated_at"))
+    result = process_next_turn(
+        user=completed_reading.user, interview=interview, turn=turn
+    )
+    interview.refresh_from_db()
+    assert result.skipped and interview.status == Interview.Status.REFLECTION_READY
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("remaining", ["PARTIAL", "COVERED"])
+def test_eighth_answer_without_uncovered_finishes_without_question_provider(
+    completed_reading, remaining
+) -> None:
+    coverage = dict.fromkeys(
+        ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "COVERED"
+    )
+    coverage["AFTERTHOUGHT"] = remaining
+    interview, eighth = _answered_at(completed_reading, 8, coverage)
+    provider = FakeNextQuestionProvider(error=QuestionGenerationUnavailable())
+    result = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=eighth,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=provider,
+    )
+    interview.refresh_from_db()
+    assert result.skipped
+    assert interview.status == Interview.Status.REFLECTION_READY
+    assert not provider.contexts
+    assert not InterviewProgressDecision.objects.exists()
+
+
+@pytest.mark.django_db
+def test_ninth_answer_without_grounded_question_ends_without_tenth(
+    completed_reading,
+) -> None:
+    coverage = dict.fromkeys(
+        ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "PARTIAL"
+    )
+    coverage["AFTERTHOUGHT"] = "UNCOVERED"
+    interview, eighth = _answered_at(completed_reading, 8, coverage)
+    _process_fake(completed_reading, interview, eighth)
+    ninth = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        decision="continue",
+    ).turn
+    ninth.answer = "네"
+    ninth.save(update_fields=("answer", "updated_at"))
+    result = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=ninth,
+        analysis_provider=FakeAnswerAnalysisProvider(
+            result=ProposedAnswerAnalysis(None, True, ())
+        ),
+        next_provider=FakeNextQuestionProvider(),
+    )
+    interview.refresh_from_db()
+    assert result.skipped
+    assert interview.status == Interview.Status.REFLECTION_READY
+    assert InterviewTurn.objects.filter(interview=interview).count() == 9
+
+
+@pytest.mark.django_db(transaction=True)
+def test_competing_progress_choices_commit_only_one_outcome(completed_reading) -> None:
+    covered = dict.fromkeys(
+        ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "COVERED"
+    )
+    interview, turn = _answered_at(completed_reading, 4, covered)
+    _process_fake(completed_reading, interview, turn)
+    barrier = Barrier(2)
+
+    def choose_from_connection(value: str) -> str:
+        close_old_connections()
+        try:
+            barrier.wait()
+            decide_interview_progress(
+                user=completed_reading.user,
+                interview=interview,
+                sequence=4,
+                decision=value,
+            )
+            return value
+        except InterviewPolicyError:
+            return "conflict"
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(choose_from_connection, ("end", "continue")))
+
+    assert outcomes.count("conflict") == 1
+    choice = InterviewProgressDecision.objects.get(turn=turn)
+    interview.refresh_from_db()
+    if choice.selection == InterviewProgressDecision.Selection.END:
+        assert interview.status == Interview.Status.REFLECTION_READY
+        assert InterviewTurn.objects.filter(interview=interview).count() == 4
+    else:
+        assert choice.selection == InterviewProgressDecision.Selection.CONTINUE
+        assert interview.status == Interview.Status.IN_PROGRESS
+        assert InterviewTurn.objects.filter(interview=interview).count() == 5
+
+
+@pytest.mark.django_db
+def test_decision_insert_failure_rolls_back_selection_and_keeps_answer(
+    completed_reading, monkeypatch
+) -> None:
+    covered = dict.fromkeys(
+        ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "COVERED"
+    )
+    interview, turn = _answered_at(completed_reading, 4, covered)
+    _process_fake(completed_reading, interview, turn)
+    original_create = InterviewTurn.objects.create
+
+    def fail_insert(**kwargs):
+        raise DatabaseError("insert unavailable")
+
+    monkeypatch.setattr(InterviewTurn.objects, "create", fail_insert)
+    with pytest.raises(NextTurnPersistenceError):
+        decide_interview_progress(
+            user=completed_reading.user,
+            interview=interview,
+            sequence=4,
+            decision="continue",
+        )
+    monkeypatch.setattr(InterviewTurn.objects, "create", original_create)
+    choice = InterviewProgressDecision.objects.get(turn=turn)
+    assert choice.selection is None and choice.decided_at is None
+    assert InterviewTurn.objects.get(pk=turn.pk).answer == turn.answer
+    assert InterviewTurn.objects.filter(interview=interview).count() == 4
 
 
 @pytest.fixture

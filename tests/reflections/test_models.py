@@ -11,9 +11,38 @@ from reflections.models import (
     CORE_COVERAGE,
     CoverageStatus,
     Interview,
+    InterviewProgressDecision,
     InterviewTurn,
     default_coverage,
 )
+
+
+def test_progress_decision_requires_answer_and_one_choice_per_turn(interview) -> None:
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="무엇이 남았나요?",
+    )
+    pending = InterviewProgressDecision(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.SOFT_STOP,
+        candidate_question="다음 질문은 무엇인가요?",
+    )
+    with pytest.raises(ValidationError):
+        pending.full_clean()
+    turn.answer = "남은 생각입니다."
+    turn.save(update_fields=("answer", "updated_at"))
+    pending.full_clean()
+    pending.save()
+    with pytest.raises(IntegrityError), transaction.atomic():
+        InterviewProgressDecision.objects.create(
+            turn=turn,
+            kind=InterviewProgressDecision.Kind.CAP_EXTENSION,
+            candidate_question="다른 질문은 무엇인가요?",
+        )
+    pending.selection = InterviewProgressDecision.Selection.END
+    with pytest.raises(ValidationError):
+        pending.full_clean()
 
 
 @pytest.fixture
