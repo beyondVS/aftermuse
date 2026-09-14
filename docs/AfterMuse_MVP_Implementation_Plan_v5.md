@@ -315,7 +315,36 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - **완료 조건:** 다음 질문 생성 실패 후에도 사용자가 복구할 수 있다.
   - **현재 구현 확인:** next_turn 실패 시 저장된 답변을 보존하고 오류 화면에서 동일 endpoint로 재시도한다. 관련 view 테스트에 답변 보존·재시도 표시 검증이 있다.
 
-### Day 09 — Reflection 초안을 생성하고 저장한다
+### Day 09 — Core Home 사용자 상태 연결과 Reflection 초안 생성
+
+기존 Reflection 작업을 유지하면서 Core MVP의 최소 Navigation Hub 및 재진입 UI를 추가한다.
+
+- [ ] **IMP-085 — Core Home / 사용자 상태 연결**
+  - **선행 작업:** IMP-033, IMP-050, IMP-073, IMP-084
+  - Home을 Full Library로 만드는 것이 아니라, Core MVP에서 사용자가 현재 상태와 다음 행동을 찾을 수 있는 최소 Navigation Hub로 만든다.
+  - 하드코딩된 샘플 데이터를 걷어내고 실제 사용자 데이터(Reading, Interview, Reflection)를 바탕으로 Home UI를 렌더링한다.
+  - **상태별 동작 및 UI:**
+    - **Reading 없음:** `[책 찾아보기]` 버튼으로 도서 검색 화면으로 유도한다.
+    - **읽고 싶음 / 읽는 중 Reading:** '지금 읽고 있는 책' 섹션에 도서 정보와 독서 상태를 표시하고, `[독서 기록 계속하기]` 버튼으로 해당 Reading 상세 화면으로 이동한다.
+    - **완독 Reading + Interview 없음:** '사색을 기다리는 책' 섹션에 도서 정보와 완독 상태를 표시하고, `[AI 독서노트 만들기]` 버튼을 제공한다. 이 버튼은 도서 검색으로 이동하지 않고 해당 Reading의 Interview 시작 화면으로 직접 이동한다.
+    - **진행 중 Interview:** '진행 중인 인터뷰' 섹션에 진행 상황을 표시하고 `[인터뷰 이어하기]` 버튼을 제공한다. 새 Interview를 생성하지 않고 기존 Interview를 연다.
+    - **Reflection 존재:** '최근 독서노트' 섹션에 생성된 Reflection을 표시하고 `[독서노트 보기]` 버튼으로 해당 Reflection 결과 화면으로 이동한다.
+  - **완료 조건:**
+    - Home의 도서/상태가 하드코딩된 샘플이 아니며 실제 사용자 데이터를 반영한다.
+    - 실제 Reading 상태(읽고 싶음/읽는 중/완독)가 Home에 즉시 반영된다.
+    - 완독 후 다시 책을 검색하지 않고 Home에서 바로 Interview를 시작할 수 있다.
+    - 진행 중 Interview에 Home에서 다시 접근할 수 있다.
+    - 생성된 Reflection을 Home에서 다시 찾아 진입할 수 있다.
+
+- [ ] **IMP-086 — Core Interview 재진입 UI**
+  - **선행 작업:** IMP-073, IMP-085
+  - Core MVP에서 필요한 최소 Resume(재진입) 경로를 구현한다. 사용자가 인터뷰 진행 중 브라우저를 닫거나 이탈한 후에도 Home을 통해 직전 진행 상태로 복귀할 수 있게 한다.
+  - **재진입 흐름:** `Interview 진행 → 페이지 이탈 → Home → [인터뷰 이어하기] → 기존 미완료 Turn 화면`
+  - **완료 조건:**
+    - 재진입 시 새 Interview가 중복 생성되지 않는다.
+    - 기존 질문/답변 상태가 유실 없이 유지된다.
+    - 현재 미완료 Turn으로 정확하게 돌아갈 수 있다.
+  - **명시적 제외 사항 (Full MVP 이관):** Restart, 14일 재시작 제한 정책, 기존 답변 삭제 정책 안내, Restart Confirm UX 등은 여기에서 구현하지 않고 기존 Full MVP Resume 작업(IMP-160, IMP-161)에서 처리한다.
 
 - [ ] **IMP-090 — Reflection 기본 모델 구현**
   - **선행 작업:** IMP-050
@@ -328,28 +357,76 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 사용자가 말하지 않은 생각을 추가하지 않는 규칙을 포함한다.
   - **완료 조건:** fake provider 및 실제 provider에서 Markdown 초안을 생성할 수 있다.
 
-### Day 10 — Interview 종료를 Reflection 생성으로 연결한다
+### Day 10 — Interview 종료 Transition과 Book Knowledge 표현 정리
+
+Interview 종료 후 Reflection 생성 과정의 상태 UX를 완성하고, 내부 Book Knowledge 상태의 사용자 노출을 방지한다.
 
 - [ ] **IMP-092 — Reflection 생성 Transition 구현**
   - **선행 작업:** IMP-080, IMP-081, IMP-091
-  - Soft Stop에서 종료를 선택하거나 질문 budget/safety cap에 도달하면 Reflection 생성 화면으로 이동한다.
-  - **완료 조건:** Interview 완료 → Reflection Draft 생성 흐름이 연결된다.
+  - Soft Stop에서 종료를 선택하거나 질문 budget/safety cap에 도달했을 때 Reflection 생성 화면으로 이동하며, LLM 생성 과정의 UI 상태(생성 중, 성공, 실패, 재시도)를 처리한다.
+  - **정상 흐름:** `Interview 종료 → Reflection 생성 중 (Loading UI) → 성공 → Reflection 결과 화면`
+  - **실패 및 재시도 흐름:** `Reflection 생성 실패 → 기존 Interview 답변 보존 → 오류 안내 → 다시 시도 (Retry CTA)`
+  - **완료 조건:**
+    - 생성 중(Loading) 상태가 사용자에게 명확히 표시되고 중복 호출을 방지한다.
+    - 생성 실패 상태가 사용자에게 친절하게 표시된다.
+    - Retry가 가능하며, 재시도 시 기존 Interview 답변이 절대 유실되지 않는다.
+    - Retry로 인해 동일 Interview에 중복 Reflection이 만들어지지 않는다 (멱등성 보장).
+    - 생성 완료 시 Reflection 결과 화면으로 자동 전환된다.
 
-### Day 11 — Reflection을 읽고 수정할 수 있다
+- [ ] **IMP-095 — Book Knowledge 사용자용 상태 표현 정리**
+  - **선행 작업:** IMP-042, IMP-051, IMP-063
+  - 기존 `READY / READY_LIMITED` 도메인 상태는 유지하되, 사용자에게 보이는 표현 계층만 친화적으로 정리한다.
+  - **원칙:**
+    - 사용자에게 `READY`, `READY_LIMITED`, `Knowledge readiness`, `RAG 상태` 등 내부 enum이나 기술 용어를 직접 노출하지 않는다.
+    - `READY_LIMITED` 상태는 시스템 결함처럼 표시하지 않고, 사용자 친화적인 안내 문구(예: *"이 책에 대해 확인할 수 있는 정보가 많지 않아, 기억에 남은 내용부터 함께 이야기해볼게요."*)를 사용한다.
+    - Knowledge가 부족한 상태에서 AI가 책 내용을 아는 척하거나 사실을 단정하지 않고, 사용자의 주도적인 기억과 감상을 묻는다.
+  - **완료 조건:**
+    - Interview 시작 화면, 질문 화면 등 사용자 접점 UI에 내부 Knowledge enum이 직접 나타나지 않는다.
+    - `READY_LIMITED` 상태에서도 자연스럽게 Interview를 시작하고 진행할 수 있다.
+    - Knowledge가 부족한 상태에서 AI가 책 내용을 아는 척하지 않는다.
+
+### Day 11 — Reflection 결과/수정과 Interview 질문 건너뛰기
+
+Reflection 결과 및 편집 UX를 고도화하고, Interview 도중 질문을 건너뛸 수 있는 액션을 추가한다.
 
 - [ ] **IMP-093 — Reflection 결과 화면 구현**
   - **선행 작업:** IMP-090, IMP-092
-  - AI보다 독서노트 자체가 중심이 되는 결과 화면을 구현한다.
-  - **완료 조건:** 긴 글을 읽기 편하고 책/날짜/본문이 표시된다.
+  - AI 생성 결과 화면보다는 사용자의 독서 기록처럼 보이는 에세이 결과 화면을 구현한다.
+  - **UX 기준:**
+    - 책 제목, 저자, 작성일, Reflection 본문을 명확하게 구분한다.
+    - 긴 Reflection을 몰입해서 읽기 편한 타이포그래피와 레이아웃을 적용한다.
+    - 결과 화면에서 `[수정]` 및 `[Home으로]` 명확한 이동 진입점을 제공한다.
+  - **완료 조건:**
+    - 긴 글을 읽기 편하고 책 제목/저자/작성일/본문이 명확히 구분되어 표시된다.
+    - AI 도구 결과물보다 사용자의 독서 기록 에세이로 자연스럽게 느껴진다.
+    - `[수정]` 및 `[Home으로]` 진입점이 정상 동작한다.
 
 - [ ] **IMP-094 — Reflection 수정 구현**
   - **선행 작업:** IMP-093
-  - 사용자가 생성된 Reflection을 직접 수정할 수 있게 한다.
-  - **완료 조건:** 수정한 내용이 저장되고 다시 열어도 유지된다.
+  - 사용자가 생성된 Reflection을 직접 수정하고 보완할 수 있는 흐름을 구현한다.
+  - **편집 및 이동 흐름:** `Reflection 수정 → 저장 → 저장 완료 피드백 (인라인/토스트) → 결과 화면`
+  - **Home 연계:** IMP-085와 연결하여 `Home → 기존 Reflection 다시 열기`가 가능해야 한다.
+  - **완료 조건:**
+    - 수정한 내용이 DB에 안전하게 저장된다.
+    - 저장 완료 즉시 사용자 피드백이 제공되고 결과 화면으로 복귀한다.
+    - Home에서 최근 독서노트를 통해 다시 열어도 수정된 내용이 유지된다.
 
-### Day 12 — 실제 책으로 전체 흐름을 검증한다
+- [ ] **IMP-096 — Interview 질문 건너뛰기 구현**
+  - **선행 작업:** IMP-073, IMP-080
+  - 사용자가 현재 질문에 답하기 어렵거나 답하고 싶지 않을 경우 명시적으로 건너뛸 수 있는 기능을 추가한다.
+  - **Skip 구분 원칙:**
+    - Skip은 빈 답변(`""`), low-information 답변(예: "모르겠어요"), 실제 사용자 답변과 엄격히 구분하여 처리한다.
+    - 빈 문자열 Answer 레코드 저장으로 우회하지 않고, Skip된 상태를 명시적으로 구분하여 처리한다.
+    - Skip된 Turn은 Coverage를 무리하게 올리지 않으며, 다음 질문 생성 또는 질문 Budget/Safety Cap에 따른 종료 판단으로 정상 진행된다.
+  - **완료 조건:**
+    - Interview 화면에서 질문을 건너뛸 수 있는 `[건너뛰기]` 액션이 제공된다.
+    - 빈 문자열 Answer 저장으로 구현하지 않는다.
+    - Skip된 Turn과 실제 Answer를 구분할 수 있다.
+    - Skip 후 다음 질문 생성 또는 Interview 종료 판단이 정상 진행된다.
 
-실제 책과 전체 사용자 흐름으로 Core MVP의 핵심 제품 가설을 검증한다.
+### Day 12 — 실제 책으로 전체 Core Loop 흐름을 검증한다
+
+실제 책과 전체 사용자 흐름(Home 중심 Navigation 포함)으로 Core MVP의 핵심 제품 가설을 검증한다.
 
 - [ ] **IMP-100 — 2주 검증용 책 세트 구성**
   - **선행 작업:** IMP-041, IMP-094
@@ -357,13 +434,63 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - **완료 조건:** 최소 3권 이상으로 테스트할 수 있다.
 
 - [ ] **IMP-101 — End-to-End 수동 시나리오 검증**
-  - **선행 작업:** IMP-094, IMP-100
-  - 가입 → 책 검색 → Reading → Interview → 종료 → Reflection 생성 → Reflection 수정까지 실제로 수행한다.
-  - **완료 조건:** Desktop에서 팀원이 전체 흐름을 끊김 없이 완료하고 모바일 핵심 화면이 완전히 깨지지 않는지 최소 smoke 확인한다.
+  - **선행 작업:** IMP-085, IMP-086, IMP-094, IMP-095, IMP-096, IMP-100
+  - 화면 단위의 고립된 검증을 넘어, 실제 사용자 Navigation과 상태 전이를 포함하여 Desktop 및 Mobile에서 전체 Core Loop를 직접 수행한다.
+  - **Desktop 전체 Core Loop 검증 시나리오:**
+    ```text
+    회원가입 / 로그인
+      ↓
+    Home (초기 빈 상태 확인)
+      ↓
+    책 검색 ([책 찾아보기] 클릭)
+      ↓
+    책 선택 및 등록
+      ↓
+    Reading 생성 (읽는 중 / 완독)
+      ↓
+    Home에서 Reading 상태 반영 확인
+      ↓
+    완독 처리
+      ↓
+    Home ('사색을 기다리는 책' 카드 확인)
+      ↓
+    [AI 독서노트 만들기] (도서 검색으로 돌아가지 않고 바로 이동)
+      ↓
+    Interview 시작 (책 확인 및 내부 Knowledge enum 미노출 확인)
+      ↓
+    몇 개 질문에 답변 및 질문 [건너뛰기] 확인
+      ↓
+    Interview 중간 이탈 (브라우저 닫기/다른 페이지 이동)
+      ↓
+    Home ('진행 중인 인터뷰' 카드 확인)
+      ↓
+    [인터뷰 이어하기] (새 인터뷰 미생성, 기존 미완료 Turn 복귀)
+      ↓
+    남은 질문 완료 및 Interview 종료
+      ↓
+    Reflection 생성 Transition (생성 중 Loading 및 실패 시 Retry 확인)
+      ↓
+    Reflection 결과 확인 (가독성 레이아웃, 독서 기록 감성)
+      ↓
+    [수정] 클릭 → Reflection 수정 및 저장 (저장 완료 피드백 확인)
+      ↓
+    Home ([Home으로] 이동)
+      ↓
+    Reflection 다시 열기 ('최근 독서노트'에서 확인 및 재진입)
+    ```
+  - **Desktop 검증 기준:** 사용자가 이전 상태를 다시 찾거나 다음 행동으로 나아가기 위해 책 검색부터 불필요하게 반복해야 하는 구간이 없어야 한다.
+  - **Mobile 실사용 검증:**
+    - 단순한 "화면이 깨지지 않는다" 수준을 넘어, Mobile Viewport 환경에서 실제로 다음 흐름을 끝까지 수행한다:
+      `책 검색 → Reading 진입 및 상태 변경 → Interview 질문 확인 → 답변 입력 및 건너뛰기 → Reflection 확인 → Reflection 수정 및 저장`
+    - (단, Day 16의 Mobile Hardening 세부 보강 작업은 별도로 유지한다.)
+  - **완료 조건:**
+    - Desktop에서 팀원이 위 전체 E2E 시나리오를 막힘 없이 완료할 수 있다.
+    - Mobile Viewport에서도 전체 핵심 루프를 실제로 조작하여 완주할 수 있음을 검증한다.
 
 ### Day 13 — Interview와 Reflection의 핵심 품질을 조정한다
 
 제품 가설을 깨는 오류만 수정하며 말투, 미세한 UI polish, 취향 수준의 개선으로 완료를 늦추지 않는다.
+새로운 기능이나 디자인 polish를 추가하는 날로 바꾸지 않고, Day 12 E2E에서 발견된 문제 중 **Core Loop를 막는 문제만** 처리한다.
 
 - [ ] **IMP-102 — Interview 품질 1차 조정**
   - **선행 작업:** IMP-101
@@ -384,7 +511,12 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 - [ ] **IMP-110 — 핵심 오류 정리 및 Smoke Test 보강**
   - **선행 작업:** IMP-101, IMP-102, IMP-103
   - 핵심 흐름을 막는 오류와 가장 중요한 회귀 테스트를 정리한다.
-  - **완료 조건:** 핵심 E2E 흐름이 smoke test 또는 명확한 수동 절차로 검증된다.
+  - 회귀/Smoke 대상에는 핵심 기능뿐만 아니라 다음 주요 사용자 Navigation 경로를 반드시 포함한다:
+    - `Home → Reading`
+    - `Home → Interview 시작`
+    - `Home → 진행 중 Interview 재진입`
+    - `Home → Reflection 재진입`
+  - **완료 조건:** 핵심 E2E 흐름 및 4대 사용자 이동 경로가 smoke test 또는 명확한 수동 절차로 검증된다.
 
 - [ ] **IMP-113 — 2주 회고 및 Full MVP 진행 여부 판단**
   - **선행 작업:** IMP-101, IMP-102, IMP-103
@@ -398,13 +530,20 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 2주 Core MVP 완료 기준:
 
 ```text
-사용자가 책을 선택한다.
-Reading을 완독 처리한다.
-AI Interview를 시작한다.
-사용자 답변에 따라 질문이 이어진다.
-Coverage 또는 질문 수가 충분하면 Interview를 종료할 수 있다.
-Interview 답변을 바탕으로 Reflection 초안이 생성된다.
-사용자가 Reflection을 수정하고 다시 열 수 있다.
+사용자가 Home에서 책 검색을 시작할 수 있다.
+책을 선택하고 Reading을 생성할 수 있다.
+Reading 상태가 Home에 실제 데이터로 반영된다.
+완독한 Reading에서 책을 다시 검색하지 않고 AI Interview를 시작할 수 있다.
+진행 중 Interview에서 나갔다가 다시 이어갈 수 있다.
+사용자 답변을 기반으로 질문이 이어진다.
+필요한 경우 질문을 건너뛸 수 있다.
+Coverage 또는 질문 Budget에 따라 Interview를 종료할 수 있다.
+Reflection 생성 중 / 실패 / 재시도 상태가 처리된다.
+Interview 답변을 기반으로 Reflection이 생성된다.
+Reflection을 직접 수정하고 저장할 수 있다.
+저장한 Reflection을 Home에서 다시 찾을 수 있다.
+Desktop에서 전체 Core Loop를 수행할 수 있다.
+Mobile에서도 핵심 흐름을 수행할 수 있다.
 실제 책으로 전체 흐름과 생성 품질을 검증한다.
 ```
 
@@ -429,10 +568,11 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
   - 수정 기능은 Full MVP 이후로 미룰 수 있다.
   - **완료 조건:** Interview 화면에서 이전 Turn을 확인할 수 있다.
 
-- [ ] **IMP-104 — Mobile 핵심 흐름 확인**
+- [ ] **IMP-104 — Mobile UX Hardening 및 반응형 검증**
   - **선행 작업:** IMP-101
-  - 모바일 웹에서 책 검색, 인터뷰, Reflection 확인/수정이 가능한지 확인한다.
-  - **완료 조건:** 모바일에서 핵심 루프를 수행할 수 있다.
+  - Day 12의 최소 Mobile E2E를 바탕으로, 모바일 실사용 시의 세부 반응형 UX 결함을 보강하고 검증한다.
+  - 긴 책 제목/저자 줄바꿈, 긴 질문 및 답변 스크롤 처리, 모바일 가상 키보드 활성 시 textarea 및 CTA 가림 방지, 터치 영역(최소 44x44px), Loading/Error 상태 표시, 소형 Viewport(375px/320px) 레이아웃 무결성을 집중 점검한다.
+  - **완료 조건:** 다양한 모바일 화면과 가상 키보드 입력 상황에서도 폼 입력과 버튼 조작이 가려지지 않고 핵심 루프를 쾌적하게 수행할 수 있다.
 
 ### Day 17 — Demo와 실행 재현성을 정리한다
 
@@ -463,9 +603,12 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
   - **완료 조건:** Entry가 Interview Context에 활용 가능하다.
 
 - [ ] **IMP-122 — Library / Home 기본 화면 고도화**
-  - **선행 작업:** IMP-030, IMP-093
-  - 읽는 중 / 완독 / Reflection 존재 여부를 책 중심으로 보여준다.
-  - **완료 조건:** 사용자가 자신의 Reading과 Reflection을 다시 찾을 수 있다.
+  - **선행 작업:** IMP-085, IMP-093
+  - Core MVP의 최소 Navigation Hub(IMP-085)와 역할을 명확히 구분하여, 개인 서재 관점의 Full Library/Home으로 고도화한다.
+    - `IMP-085`: Core MVP용 최소 Home Navigation Hub (현재 상태 및 다음 행동 최소 연결)
+    - `IMP-122`: Full MVP용 개인 Library / Home 고도화 (전체 서재 아카이브, 분류 및 탐색)
+  - 다수의 Reading 탐색, 과거 독서 이력 아카이브, 상태별(읽고 싶음/읽는 중/완독) 필터링 및 분류 정렬, 여러 Reflection 탐색, 최근 활동 피드, 서재 정보 구조(IA)를 체계화한다.
+  - **완료 조건:** 다수의 Reading과 Reflection을 상태별로 정렬·필터링하여 체계적으로 탐색하고 관리할 수 있다.
 
 ### Day 19 — Credit 흐름을 완성한다
 
@@ -527,10 +670,13 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
 
 ### Day 23 — 인터뷰 연속성과 Grounding을 보강한다
 
-- [ ] **IMP-160 — Interview Resume 구현**
-  - **선행 작업:** IMP-073
-  - 사용자가 중단한 인터뷰를 이어서 진행할 수 있게 한다.
-  - **완료 조건:** 브라우저를 닫아도 진행 상태가 유지된다.
+- [ ] **IMP-160 — Interview Resume / Restart 고도화**
+  - **선행 작업:** IMP-086
+  - Core MVP의 최소 재진입(IMP-086)과 역할을 명확히 구분하여, 세션 만료·다중 기기 접속 시의 동기화, 인터뷰 중단 상태 복구 안내, Restart 정책 진입점을 고도화한다.
+    - `IMP-086`: Core MVP용 단일 세션 미완료 Turn 직행 최소 재진입
+    - `IMP-160`: Full MVP용 다중 세션 동기화, 인터뷰 Restart 정책 및 상태 초기화 고도화
+  - Interview Restart UX, 14일 재시작 제한 및 재시작 가능 날짜 계산/표시, 기존 답변 영구 삭제 사전 경고 안내, Confirm 모달/UX, 상태 초기화 정책을 체계화한다.
+  - **완료 조건:** 브라우저/기기 변경 시에도 안전하게 이어가거나 명시적 Confirm을 거쳐 14일 정책에 맞게 인터뷰를 초기화할 수 있다.
 
 - [ ] **IMP-161 — 14일 Restart 정책 구현**
   - **선행 작업:** IMP-160
