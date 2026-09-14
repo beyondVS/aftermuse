@@ -99,3 +99,8 @@
 3. US3의 격리·복수 기록 검증을 완료하고 전체 품질 게이트와 문서 동기화를 수행한다.
 
 실제 브라우저 검증, Reflection 생성·목록, Interview Restart·14일 정책은 이번 완료 조건이 아니다.
+
+## Phase 7: Convergence
+
+- [X] T017 src/reflections/views.py와 src/templates/reflections/interview_detail.html에서 기존 Interview 재진입 시 최신 Turn의 현재 단계와 함께 이전에 확정한 질문·답변 기록을 표시하고, tests/reflections/test_views.py에서 복수 Turn 재방문 시 이전 답변 표시 및 Interview·Turn·답변 불변을 검증하기 per US2/AC1, FR-006 (partial)
+- [X] T018 src/templates/pages/home.html에서 Reading은 있지만 현재 독서·사색 대기·진행 중 Interview 대상이 없는 경우와 개별 영역에 대상이 없는 경우에 허위 콘텐츠 없는 적절한 빈 상태를 제공하고, tests/test_home_page.py에 대표 상태를 검증하기 per FR-009 (partial)

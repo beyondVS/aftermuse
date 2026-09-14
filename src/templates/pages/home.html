@@ -92,6 +92,26 @@
   {% else %}
     <!-- Authenticated Bento Hub Grid -->
     <section class="home-hub-grid" aria-label="독서 진행 및 사색 허브">
+      {% if not in_progress_interviews and not currently_reading and not ready_for_reflection %}
+        <article class="hub-card empty-hub-card">
+          <div>
+            <div class="hub-card-header">
+              <div class="hub-card-tag-row">
+                <span class="hub-card-tag">Get Started</span>
+              </div>
+              <h2 class="hub-card-title">진행 중인 독서나 대기 중인 사색이 없습니다</h2>
+            </div>
+            <p class="reading-book-meta">현재 진행 중인 독서나 다음 행동이 필요한 책이 없습니다. 새로운 책을 찾아 독서를 시작해 보세요.</p>
+          </div>
+          <div class="hub-card-actions">
+            <a href="{% url 'books:search' %}" class="btn btn-glow w-full" aria-label="책 찾아보기">
+              <span>책 찾아보기</span>
+              <span class="btn-arrow" aria-hidden="true">→</span>
+            </a>
+          </div>
+        </article>
+      {% endif %}
+
       <!-- In-Progress Interviews (US2) -->
       {% for interview in in_progress_interviews %}
         <article class="hub-card interview-in-progress-card">

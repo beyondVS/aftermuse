@@ -316,6 +316,52 @@ def test_home_page_excludes_ready_and_completed_interviews_from_resume(
     )
     assert reverse("reflections:interview_start", args=[reading_done.pk]) not in content
 
+    # FR-009: When readings exist but no active cards, appropriate empty state is shown
+    assert "진행 중인 독서나 대기 중인 사색이 없습니다" in content
+    assert reverse("books:search") in content
+    assert "책 찾아보기" in content
+
+
+@pytest.mark.django_db
+def test_home_page_with_readings_but_no_active_cards_shows_empty_state(
+    client, django_user_model
+) -> None:
+    user = django_user_model.objects.create_user(username="no-active-reader")
+    client.force_login(user)
+
+    book = Book.objects.create(
+        isbn13="9788932917258",
+        title="완료된 사색 도서",
+        authors="사색 작가",
+    )
+    reading = Reading.objects.create(
+        user=user,
+        book=book,
+        status=Reading.Status.COMPLETED,
+        completed_on=date.today(),
+    )
+    Interview.objects.create(
+        reading=reading,
+        book=book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+
+    response = client.get(reverse("home"))
+    content = response.content.decode()
+
+    assert response.status_code == 200
+    # FR-009: Empty state when reading exists but no active cards
+    assert "진행 중인 독서나 대기 중인 사색이 없습니다" in content
+    assert reverse("books:search") in content
+    assert "책 찾아보기" in content
+
+    # FR-009: No fake / mockup content
+    assert "생각에 관한 생각" not in content
+    assert "정의란 무엇인가" not in content
+    assert "68% 완독 중" not in content
+    assert "오늘의 사색 화두" not in content
+
 
 @pytest.mark.django_db
 def test_anonymous_home_does_not_expose_any_user_reading_or_interview(

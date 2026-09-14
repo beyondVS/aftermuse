@@ -1028,3 +1028,50 @@ def test_interview_detail_resume_after_error_preserves_answer_and_retries(
     turn.refresh_from_db()
     assert turn.answer == "소중한 첫 답변입니다."
     assert InterviewTurn.objects.filter(interview=interview).count() == 1
+
+
+def test_interview_detail_resume_multiple_turns_preserves_previous_answers(
+    client, reading
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+    )
+    turn1 = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="첫 번째 질문: 책의 핵심 메시지는 무엇인가요?",
+        answer="주인공의 용기가 가장 큰 울림을 주었습니다.",
+    )
+    turn2 = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=2,
+        question="두 번째 질문: 어떤 장면에서 그 용기를 가장 크게 느꼈나요?",
+    )
+    client.force_login(reading.user)
+
+    for _ in range(2):
+        response = client.get(
+            reverse("reflections:interview_detail", args=[interview.pk])
+        )
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Previous turn question and confirmed answer are displayed
+        assert "1번째 질문" in content
+        assert "첫 번째 질문: 책의 핵심 메시지는 무엇인가요?" in content
+        assert "주인공의 용기가 가장 큰 울림을 주었습니다." in content
+
+        # Current uncompleted turn question and answer form are displayed
+        assert "2번째 질문" in content
+        assert "두 번째 질문: 어떤 장면에서 그 용기를 가장 크게 느꼈나요?" in content
+        assert "답변 저장하기" in content
+
+    # State invariants: no duplicate creation, no data mutation
+    assert Interview.objects.count() == 1
+    assert InterviewTurn.objects.filter(interview=interview).count() == 2
+    turn1.refresh_from_db()
+    turn2.refresh_from_db()
+    assert turn1.answer == "주인공의 용기가 가장 큰 울림을 주었습니다."
+    assert turn2.answer is None
