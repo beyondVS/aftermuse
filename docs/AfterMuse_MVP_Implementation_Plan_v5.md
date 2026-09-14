@@ -362,10 +362,12 @@ Interview 결과를 저장할 Reflection 모델을 구현하고, 사용자 답�
 ### Day 11 — Interview 상호작용 완결과 Reflection 생성 Transition
 
 Interview 도중 질문을 건너뛸 수 있는 액션을 추가하고, 내부 도서 지식 안내 표현을 친화적으로 정리하며, 인터뷰 종료 후 Reflection 생성 중 로딩 및 재시도/멱등성 전이 흐름을 완성한다.
+*(과밀 주의 & Scope Gate 적용: Day 12 결과 화면 및 Day 13 전체 E2E 선행 필수 작업들이므로 Day 11에 유지하되, 각 항목의 구현 상한선을 엄격히 통제하여 세션 폭주를 방지한다.)*
 
 - [ ] **IMP-092 — Reflection 생성 Transition 구현**
   - **선행 작업:** IMP-080, IMP-081, IMP-091
   - Soft Stop에서 종료를 선택하거나 질문 budget/safety cap에 도달했을 때 Reflection 생성 화면으로 이동하며, LLM 생성 과정의 UI 상태(생성 중, 성공, 실패, 재시도)를 처리한다.
+  - **Scope Gate:** 복잡한 백그라운드 폴링 체계 대신 단일 트랜잭션/API 기반의 로딩 및 에러 처리, 멱등성 보장(기존 답변 유지)에 집중한다.
   - **정상 흐름:** `Interview 종료 → Reflection 생성 중 (Loading UI) → 성공 → Reflection 결과 화면`
   - **실패 및 재시도 흐름:** `Reflection 생성 실패 → 기존 Interview 답변 보존 → 오류 안내 → 다시 시도 (Retry CTA)`
   - **완료 조건:**
@@ -390,13 +392,18 @@ Interview 도중 질문을 건너뛸 수 있는 액션을 추가하고, 내부 �
 - [ ] **IMP-096 — Interview 질문 건너뛰기 구현**
   - **선행 작업:** IMP-073, IMP-080
   - 사용자가 현재 질문에 답하기 어렵거나 답하고 싶지 않을 경우 명시적으로 건너뛸 수 있는 기능을 추가한다.
+  - **실질적 구현 규모 및 Scope Gate:**
+    - `InterviewTurn` 모델에 명시적 사용자 건너뛰기 필드(`user_skipped_at`)를 추가하는 마이그레이션을 수행한다. (기존 `next_question_skipped_at`은 답변 후 다음 질문 생략용이므로 재사용하지 않고 분리)
+    - `InterviewSession._validated_budget` 불변식(`answered_count + skipped_count == question_count`)을 건너뛰기 상태를 포함하도록 안전하게 완화한다.
+    - 질문 폼 UI에 `[건너뛰기]` 버튼을 추가하고, `skip_turn` 액션을 통해 답변 없이 현재 턴을 건너뛰고 다음 질문 또는 종료 판단으로 즉시 전이한다.
+    - 복잡한 건너뛰기 취소/되돌리기나 질문 재생성 분기 UI는 제외하고, 단방향 건너뛰기 상태 전이로 구현 상한을 엄격히 통제한다.
   - **Skip 구분 원칙:**
     - Skip은 빈 답변(`""`), low-information 답변(예: "모르겠어요"), 실제 사용자 답변과 엄격히 구분하여 처리한다.
     - 빈 문자열 Answer 레코드 저장으로 우회하지 않고, Skip된 상태를 명시적으로 구분하여 처리한다.
     - Skip된 Turn은 Coverage를 무리하게 올리지 않으며, 다음 질문 생성 또는 질문 Budget/Safety Cap에 따른 종료 판단으로 정상 진행된다.
   - **완료 조건:**
     - Interview 화면에서 질문을 건너뛸 수 있는 `[건너뛰기]` 액션이 제공된다.
-    - 빈 문자열 Answer 저장으로 구현하지 않는다.
+    - 빈 문자열 Answer 저장으로 구현하지 않고 명시적 스킵 상태로 관리된다.
     - Skip된 Turn과 실제 Answer를 구분할 수 있다.
     - Skip 후 다음 질문 생성 또는 Interview 종료 판단이 정상 진행된다.
 
@@ -437,7 +444,8 @@ AI 결과물이 아닌 독서 에세이 형태의 Reflection 결과 화면과 �
 ### Day 13 — 전체 Core Loop E2E 검증 및 핵심 품질 1차 조정
 
 Desktop 및 Mobile 환경에서 실제 검증용 책들로 전체 Core Loop 수동 E2E를 완주하고, 발견된 핵심 제품 가설 저해 문제에 대해 인터뷰 질문 품질과 Reflection 충실도를 1차 조정한다.
-새로운 기능이나 디자인 polish를 추가하는 날로 바꾸지 않고, Day 13 E2E에서 발견된 문제 중 **Core Loop를 막는 문제만** 처리한다.
+새로운 기능이나 디자인 polish를 추가하는 날로 바꾸지 않고, Day 13 E2E에서 발견된 문제 중 **Core Loop를 막는 치명적 결함(Blocker)만** 처리한다.
+*(과밀 주의 & Scope Gate 적용: E2E 검증 도중 질문 및 회고 프롬프트 튜닝 루프에 빠져 작업량이 폭증하는 것을 방지하기 위해, IMP-102와 IMP-103은 사전 정의된 Acceptance Rubric을 기준으로 한 '1차 미세조정(Prompt 튜닝 상한 통제)'으로 범위를 엄격히 한정한다. 취향/어조 개선이나 추가 polish는 Hardening(Day 15~17) 또는 Full MVP(Day 27)로 이월한다.)*
 
 - [ ] **IMP-101 — End-to-End 수동 시나리오 검증**
   - **선행 작업:** IMP-085, IMP-086, IMP-094, IMP-095, IMP-096, IMP-100
@@ -597,9 +605,10 @@ Day 13의 최소 Mobile E2E를 바탕으로, 모바일 실사용 시의 세부 �
 
 기존 Full MVP 기능을 이어서 구현한다. Day 계획은 Core MVP 이후 작업량에 맞게 다시 조정할 수 있다.
 
-### Day 18 — 독서 Context와 개인 Library를 확장한다
+### Day 18 — 독서 Context(의도 및 메모)를 확장한다
 
-읽기 전 의도와 읽는 중 메모 모델/CRUD를 구축하여 Interview Context에 연계하고, 개인 서재 관점의 Full Library 화면 고도화를 구현한다. (과밀 주의: 모델 및 화면 동시 변경)
+읽기 전 의도와 읽는 중 메모 모델/CRUD를 구축하여 Interview Context에 연계한다.
+(화면 고도화는 Day 19로 분리하여 독서 Context 데이터 모델 및 비즈니스 로직에 집중한다.)
 
 - [ ] **IMP-120 — Reading Intention 입력/수정 고도화**
   - **선행 작업:** IMP-033
@@ -611,6 +620,10 @@ Day 13의 최소 Mobile E2E를 바탕으로, 모바일 실사용 시의 세부 �
   - 읽는 중 짧은 메모를 여러 개 저장하고 수정/삭제할 수 있게 한다.
   - **완료 조건:** Entry가 Interview Context에 활용 가능하다.
 
+### Day 19 — 개인 Library 고도화와 인터뷰 연속성/재시작 UX를 통합한다
+
+Core MVP의 최소 Home을 개인 서재 관점의 Full Library/Home으로 고도화하고, 브라우저/기기 변경 시 안전하게 인터뷰로 복귀하는 Resume 고도화 및 14일 경과 시 재시작(Restart) 정책과 사용자 확인 UX를 서재 화면과 유기적으로 통합한다.
+
 - [ ] **IMP-122 — Library / Home 기본 화면 고도화**
   - **선행 작업:** IMP-085, IMP-093
   - Core MVP의 최소 Navigation Hub(IMP-085)와 역할을 명확히 구분하여, 개인 서재 관점의 Full Library/Home으로 고도화한다.
@@ -618,71 +631,6 @@ Day 13의 최소 Mobile E2E를 바탕으로, 모바일 실사용 시의 세부 �
     - `IMP-122`: Full MVP용 개인 Library / Home 고도화 (전체 서재 아카이브, 분류 및 탐색)
   - 다수의 Reading 탐색, 과거 독서 이력 아카이브, 상태별(읽고 싶음/읽는 중/완독) 필터링 및 분류 정렬, 여러 Reflection 탐색, 최근 활동 피드, 서재 정보 구조(IA)를 체계화한다.
   - **완료 조건:** 다수의 Reading과 Reflection을 상태별로 정렬·필터링하여 체계적으로 탐색하고 관리할 수 있다.
-
-### Day 19 — Credit 지갑과 인터뷰 시작 예약 적용
-
-Credit Wallet과 원자적 Ledger 이력을 구현하고, Full MVP 인터뷰 시작 시 Credit을 RESERVED 처리하는 예약 트랜잭션을 연결한다.
-
-- [ ] **IMP-130 — Credit Wallet / Ledger 구현**
-  - **선행 작업:** IMP-010
-  - available/reserved 수량과 Ledger 이력을 구현한다.
-  - **완료 조건:** 관리자 지급, 예약, 소비, 해제가 테스트된다.
-
-- [ ] **IMP-131 — Interview 시작 시 Credit 예약 적용**
-  - **선행 작업:** IMP-051, IMP-130
-  - Full MVP에서는 Interview 시작 시 Credit을 RESERVED 처리한다.
-  - **완료 조건:** Credit 부족/성공/실패 시나리오가 검증된다.
-
-### Day 20 — Book Knowledge 모델을 확장한다
-
-Claim, Source, Evidence, Candidate 구조로 다중 지식 모델을 확장하고, 지식 준비 상태(State)와 세대(Generation) 버전 관리 및 Candidate 검토/승격 도메인 로직을 구현한다. (과밀 주의: 신규 스키마 및 비즈니스 로직 집중)
-
-- [ ] **IMP-140 — Source / Evidence / Candidate 모델 확장**
-  - **선행 작업:** IMP-040
-  - Claim, Source, Evidence, Candidate 구조를 Full MVP 기준으로 확장한다.
-  - **완료 조건:** Source 기반 Candidate와 Evidence를 저장할 수 있다.
-
-- [ ] **IMP-141 — Knowledge State / Generation 구현**
-  - **선행 작업:** IMP-140
-  - EMPTY / PARTIAL / GROUNDED / VERIFIED와 generation을 관리한다.
-  - **완료 조건:** 의미 있는 Knowledge 변화에 generation이 증가한다.
-
-- [ ] **IMP-142 — Candidate 검토 / 승격 / 중복 처리 구현**
-  - **선행 작업:** IMP-140, IMP-141
-  - Candidate를 기존 Knowledge와 비교해 Evidence 추가, 신규 Claim, Conflict로 처리한다.
-  - **완료 조건:** 세 가지 결과가 테스트된다.
-
-### Day 21 — Knowledge Research 수집 흐름을 만든다
-
-도서 단위 비동기 Research Job을 기록하여 중복 실행을 방지하고, 외부 검색·수집·추출을 위한 Search/Fetch 파이프라인을 구축한다.
-
-- [ ] **IMP-150 — KnowledgeResearchJob 구현**
-  - **선행 작업:** IMP-141
-  - Book 단위 Research Job을 기록하고 중복 실행을 방지한다.
-  - **완료 조건:** 같은 Book에 동시 PREPARING 요청이 하나의 Job으로 병합된다.
-
-- [ ] **IMP-151 — Search / Fetch / Extraction Pipeline 구현**
-  - **선행 작업:** IMP-150
-  - 제한된 query/source budget으로 외부 자료를 수집한다.
-  - **완료 조건:** Source 수집과 실패 처리가 검증된다.
-
-### Day 22 — 안전한 Knowledge 추출 경계를 만든다
-
-외부 수집 문서를 Untrusted Input으로 검사하여 Prompt Injection을 방어하고, 도구 권한 없이 안전하게 Structured Candidate만 생성하는 Extractor LLM을 구현한다.
-
-- [ ] **IMP-152 — Prompt Injection Guard 삽입 지점 구현**
-  - **선행 작업:** IMP-151
-  - 외부 문서를 Untrusted Input으로 검사하고 위험한 문서를 차단/보류한다.
-  - **완료 조건:** 악성 지시문 포함 문서가 Knowledge로 바로 승격되지 않는다.
-
-- [ ] **IMP-153 — Knowledge Extractor LLM 구현**
-  - **선행 작업:** IMP-152
-  - Tool 권한 없이 Structured Candidate만 생성한다.
-  - **완료 조건:** Source에서 Candidate가 생성되고 Application Validation을 통과한다.
-
-### Day 23 — 인터뷰 연속성과 Grounding을 보강한다
-
-기기/브라우저 변경 시 복구 안내를 거쳐 진행 중 인터뷰로 안전하게 복귀할 수 있게 하고, 14일 경과 Restart 정책과 Confirm UX를 처리하며, 질문에 사용된 지식의 Grounding 관계를 저장·검증한다.
 
 - [ ] **IMP-160 — Interview Resume 고도화**
   - **선행 작업:** IMP-086
@@ -703,22 +651,84 @@ Claim, Source, Evidence, Candidate 구조로 다중 지식 모델을 확장하�
     - 사용자가 명시적으로 Confirm한 경우에만 기존 상태를 초기화한다.
     - Restart 후 동일한 책으로 새 Interview 흐름을 정상 시작할 수 있다.
 
+### Day 20 — Credit 지갑과 인터뷰 시작 예약을 적용한다
+
+Credit Wallet과 원자적 Ledger 이력을 구현하고, Full MVP 인터뷰 시작 시 Credit을 RESERVED 처리하는 예약 트랜잭션을 연결한다.
+
+- [ ] **IMP-130 — Credit Wallet / Ledger 구현**
+  - **선행 작업:** IMP-010
+  - available/reserved 수량과 Ledger 이력을 구현한다.
+  - **완료 조건:** 관리자 지급, 예약, 소비, 해제가 테스트된다.
+
+- [ ] **IMP-131 — Interview 시작 시 Credit 예약 적용**
+  - **선행 작업:** IMP-051, IMP-130
+  - Full MVP에서는 Interview 시작 시 Credit을 RESERVED 처리한다.
+  - **완료 조건:** Credit 부족/성공/실패 시나리오가 검증된다.
+
+### Day 21 — Book Knowledge 코어 모델과 상태 세대를 구축한다
+
+Claim, Source, Evidence, Candidate 구조로 다중 지식 모델을 확장하고, 지식 준비 상태(State)와 세대(Generation) 버전 관리 체계를 구현한다.
+(Candidate 승격 및 중복 처리는 지식 추출 LLM과 함께 Day 23에서 통합 처리한다.)
+
+- [ ] **IMP-140 — Source / Evidence / Candidate 모델 확장**
+  - **선행 작업:** IMP-040
+  - Claim, Source, Evidence, Candidate 구조를 Full MVP 기준으로 확장한다.
+  - **완료 조건:** Source 기반 Candidate와 Evidence를 저장할 수 있다.
+
+- [ ] **IMP-141 — Knowledge State / Generation 구현**
+  - **선행 작업:** IMP-140
+  - EMPTY / PARTIAL / GROUNDED / VERIFIED와 generation을 관리한다.
+  - **완료 조건:** 의미 있는 Knowledge 변화에 generation이 증가한다.
+
+### Day 22 — Knowledge Research 수집과 Prompt Injection Guard를 구축한다
+
+도서 단위 비동기 Research Job을 기록하여 중복 실행을 방지하고, 외부 검색·수집을 위한 Search/Fetch 파이프라인을 구축하며, 외부 수집 문서를 Untrusted Input으로 검사하는 Prompt Injection 방어선을 세운다.
+
+- [ ] **IMP-150 — KnowledgeResearchJob 구현**
+  - **선행 작업:** IMP-141
+  - Book 단위 Research Job을 기록하고 중복 실행을 방지한다.
+  - **완료 조건:** 같은 Book에 동시 PREPARING 요청이 하나의 Job으로 병합된다.
+
+- [ ] **IMP-151 — Search / Fetch / Extraction Pipeline 구현**
+  - **선행 작업:** IMP-150
+  - 제한된 query/source budget으로 외부 자료를 수집한다.
+  - **완료 조건:** Source 수집과 실패 처리가 검증된다.
+
+- [ ] **IMP-152 — Prompt Injection Guard 삽입 지점 구현**
+  - **선행 작업:** IMP-151
+  - 외부 문서를 Untrusted Input으로 검사하고 위험한 문서를 차단/보류한다.
+  - **완료 조건:** 악성 지시문 포함 문서가 Knowledge로 바로 승격되지 않는다.
+
+### Day 23 — 지식 추출, 승격 및 질문 Grounding 관계를 완성한다
+
+도구 권한 없이 안전하게 Structured Candidate만 생성하는 Extractor LLM을 구현하고, 추출된 Candidate를 기존 지식과 비교하여 승격/중복/충돌 처리하며, 질문에 사용된 지식의 Grounding 관계를 저장·검증하여 지식 활용 흐름을 완결한다.
+
+- [ ] **IMP-153 — Knowledge Extractor LLM 구현**
+  - **선행 작업:** IMP-152
+  - Tool 권한 없이 Structured Candidate만 생성한다.
+  - **완료 조건:** Source에서 Candidate가 생성되고 Application Validation을 통과한다.
+
+- [ ] **IMP-142 — Candidate 검토 / 승격 / 중복 처리 구현**
+  - **선행 작업:** IMP-140, IMP-141
+  - Candidate를 기존 Knowledge와 비교해 Evidence 추가, 신규 Claim, Conflict로 처리한다.
+  - **완료 조건:** 세 가지 결과가 테스트된다.
+
 - [ ] **IMP-162 — Grounding 관계 저장 및 검증**
   - **선행 작업:** IMP-073, IMP-140
   - BookKnowledge 기반 질문의 grounding을 저장하고 잘못된 grounding_id를 검증한다.
   - **완료 조건:** 질문에 사용된 Knowledge를 추적할 수 있다.
 
-### Day 24 — Reflection 완료 처리와 Credit 최종 소비
+### Day 24 — Reflection 완료 상태 전이와 Credit 최종 소비를 원자적으로 연결한다
 
-Reflection의 최종 완료 상태 전이(DRAFT → FINALIZING → COMPLETED)와 commit boundary를 구현하고, 완료 시점에 일치하여 Credit을 소비(CONSUMED) 처리하는 원자적 트랜잭션을 연결한다.
+Reflection의 최종 완료 상태 전이(DRAFT → FINALIZING → COMPLETED)와 commit boundary를 먼저 구현하고, 완료 시점에 일치하여 Credit을 소비(CONSUMED) 처리하는 원자적 트랜잭션을 연결한다.
 
 - [ ] **IMP-170 — Reflection 완료 상태와 Commit Boundary 구현**
-  - **선행 작업:** IMP-094, IMP-132
+  - **선행 작업:** IMP-094
   - DRAFT → FINALIZING → COMPLETED 흐름을 구현한다.
   - **완료 조건:** 완료 시점에만 파생 데이터가 반영된다.
 
 - [ ] **IMP-132 — Reflection 완료 시 Credit 소비 적용**
-  - **선행 작업:** IMP-094, IMP-131
+  - **선행 작업:** IMP-131, IMP-170
   - Reflection 최종 완료 시 Credit을 CONSUMED 처리한다.
   - **완료 조건:** 소비와 파생 데이터 commit 경계가 일치한다.
 
