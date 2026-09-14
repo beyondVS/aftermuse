@@ -641,7 +641,8 @@ button:active,
   color: var(--color-accent);
 }
 
-.reading-streak-badge {
+.reading-streak-badge,
+.reading-status-badge {
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--color-accent);
@@ -651,6 +652,21 @@ button:active,
   border-radius: var(--radius-full);
 }
 
+.badge-completed {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #2b7a4b;
+  background: rgba(43, 122, 75, 0.1);
+  border: 1px solid rgba(43, 122, 75, 0.25);
+  padding: 0.2rem 0.65rem;
+  border-radius: var(--radius-full);
+}
+
+.hub-card-actions {
+  margin-block-start: 1.5rem;
+}
+
+
 .hub-card-title {
   font-family: var(--font-serif);
   font-size: 1.55rem;
@@ -659,6 +675,11 @@ button:active,
   color: var(--color-ink);
   margin: 0;
   word-break: keep-all;
+}
+
+.empty-sub-card {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.5);
 }
 
 /* 3D Realistic Hardcover Book Spine Mockup */
@@ -1692,6 +1713,67 @@ button:active,
 
 .answer-form[aria-busy="true"] .answer-submitting {
   display: block;
+}
+
+.interview-history {
+  margin-top: 1.5rem;
+  margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.history-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-ink-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+
+.history-turn {
+  background: var(--bg-surface-warm);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 1.25rem;
+}
+
+.history-question-title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-accent);
+  margin-bottom: 0.375rem;
+}
+
+.history-question-text {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--color-ink);
+  margin-bottom: 0.75rem;
+}
+
+.history-answer-box {
+  background: var(--bg-surface);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius-xs);
+  padding: 0.75rem 1rem;
+}
+
+.history-answer-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-ink-muted);
+  margin-bottom: 0.25rem;
+}
+
+.history-answer-text {
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-ink);
+  white-space: pre-wrap;
+  margin: 0;
 }
 
 @media (max-width: 36rem) {

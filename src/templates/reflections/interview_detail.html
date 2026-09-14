@@ -7,6 +7,21 @@
   <p>인터뷰를 시작했습니다.</p>
   <p>준비 수준: {{ interview.knowledge_readiness }}</p>
   {% if interview.knowledge_readiness == "READY_LIMITED" %}<p class="interview-notice">기억에 남은 내용부터 정리해 볼게요.</p>{% endif %}
+  {% if previous_turns %}
+    <section class="interview-history" aria-label="이전 질문과 답변">
+      <h2 class="history-title">이전 대화 기록</h2>
+      {% for prev_turn in previous_turns %}
+        <article class="history-turn">
+          <h3 class="history-question-title">{{ prev_turn.sequence }}번째 질문</h3>
+          <p class="history-question-text">{{ prev_turn.question }}</p>
+          <div class="history-answer-box">
+            <span class="history-answer-label">내 답변:</span>
+            <p class="history-answer-text">{{ prev_turn.answer }}</p>
+          </div>
+        </article>
+      {% endfor %}
+    </section>
+  {% endif %}
   <div>
     {% if question_error %}
       {% include "reflections/_interview_error.html" %}

@@ -319,7 +319,7 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 
 Core MVP의 최소 Navigation Hub를 구축하여 현재 사용자의 실제 독서/인터뷰 상태를 연결하고, 진행 중인 인터뷰로 안전하게 복귀하는 재진입 UI를 구현한다.
 
-- [ ] **IMP-085 — Core Home / 사용자 상태 연결**
+- [x] **IMP-085 — Core Home / 사용자 상태 연결**
   - **선행 작업:** IMP-033, IMP-050, IMP-073, IMP-084
   - Home을 Full Library로 만드는 것이 아니라, Core MVP에서 사용자가 현재 상태와 다음 행동을 찾을 수 있는 최소 Navigation Hub로 만든다.
   - 하드코딩된 샘플 데이터를 걷어내고 현재 사용자의 실제 데이터(Reading 및 진행 중 Interview)를 바탕으로 Home UI를 렌더링한다. (아직 생성되지 않은 Reflection 연계는 Day 12 IMP-094에서 담당한다.)
@@ -333,16 +333,18 @@ Core MVP의 최소 Navigation Hub를 구축하여 현재 사용자의 실제 독
     - 실제 Reading 상태(읽고 싶음/읽는 중/완독)가 Home에 즉시 반영된다.
     - 완독 후 다시 책을 검색하지 않고 Home에서 바로 Interview를 시작할 수 있다.
     - 진행 중 Interview에 Home에서 다시 접근할 수 있다.
+  - **검증:** 실제 사용자 Reading(읽고 싶음, 읽는 중, 완독) 및 진행 중 Interview의 상태별 카드·영역별 빈 상태·직접 이동(읽기 계속, 인터뷰 시작, 이어하기)과 N+1 방지(5쿼리 고정)를 단위/통합 테스트와 `scripts/verify.py`로 검증했다.
 
-- [ ] **IMP-086 — Core Interview 재진입 UI**
+- [x] **IMP-086 — Core Interview 재진입 UI**
   - **선행 작업:** IMP-073, IMP-085
   - Core MVP에서 필요한 최소 Resume(재진입) 경로를 구현한다. 사용자가 인터뷰 진행 중 브라우저를 닫거나 이탈한 후에도 Home을 통해 직전 진행 상태로 복귀할 수 있게 한다.
   - **재진입 흐름:** `Interview 진행 → 페이지 이탈 → Home → [인터뷰 이어하기] → 기존 미완료 Turn 화면`
   - **완료 조건:**
     - 재진입 시 새 Interview가 중복 생성되지 않는다.
-    - 기존 질문/답변 상태가 유실 없이 유지된다.
+    - 기존 질문/답변 상태가 유실 없이 유지되며, 이전 확정 질문·답변을 현재 단계와 함께 볼 수 있다.
     - 현재 미완료 Turn으로 정확하게 돌아갈 수 있다.
   - **명시적 제외 사항 (Full MVP 이관):** Restart, 14일 재시작 제한 정책, 기존 답변 삭제 정책 안내, Restart Confirm UX 등은 여기에서 구현하지 않고 기존 Full MVP Resume 작업(IMP-160, IMP-161)에서 처리한다.
+  - **검증:** 첫 질문 전, 미답변 턴, 답변 저장 후, 진행 대기, 오류 복구 분기에서 GET 재진입 시 인터뷰·턴 수 및 답변 불변과 현재 단계 보존을 회귀 테스트와 `scripts/verify.py`로 검증했다. 복수 Turn 재진입에서 이전 확정 질문·답변 표시도 검증했다.
 
 ### Day 10 — Reflection 기본 모델과 생성 Prompt / Adapter
 

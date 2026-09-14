@@ -9,7 +9,7 @@ from integrations.llm.factory import get_question_provider
 from knowledge.services import get_book_knowledge_readiness
 from readings.models import Reading
 from reflections.forms import FirstAnswerForm
-from reflections.models import Interview, InterviewProgressDecision
+from reflections.models import Interview, InterviewProgressDecision, InterviewTurn
 from reflections.services import (
     AnswerAnalysisPolicyError,
     FirstAnswerConflict,
@@ -219,7 +219,12 @@ def next_turn(request: HttpRequest, interview_id: int, sequence: int) -> HttpRes
         return _interview_turn_response(
             request,
             template,
-            {"interview": interview, "turn": turn, "next_error": True},
+            {
+                "interview": interview,
+                "turn": turn,
+                "previous_turns": _get_previous_turns(interview, turn),
+                "next_error": True,
+            },
             status=503,
             focus_error=True,
         )
@@ -297,7 +302,12 @@ def interview_decision(
         return _interview_turn_response(
             request,
             template,
-            {"interview": interview, "turn": turn, "next_error": True},
+            {
+                "interview": interview,
+                "turn": turn,
+                "previous_turns": _get_previous_turns(interview, turn),
+                "next_error": True,
+            },
             status=503,
             focus_error=True,
         )
@@ -314,6 +324,20 @@ def interview_decision(
             },
         )
     return redirect("reflections:interview_detail", interview_id=interview.pk)
+
+
+def _get_previous_turns(
+    interview: Interview, turn: InterviewTurn | None
+) -> list[InterviewTurn]:
+    """재진입 시 현재 단계 이전의 확정된 질문·답변 목록을 순서대로 반환한다."""
+    if turn is None:
+        return []
+    return list(
+        interview.turns.filter(
+            sequence__lt=turn.sequence,
+            answer__isnull=False,
+        ).order_by("sequence")
+    )
 
 
 def _destination_response(
@@ -353,6 +377,7 @@ def _destination_response(
                 {
                     "interview": interview,
                     "turn": turn,
+                    "previous_turns": _get_previous_turns(interview, turn),
                     "answer_form": FirstAnswerForm(),
                     "progress_decision": choice,
                 },
@@ -375,7 +400,12 @@ def _question_response(
     status: int,
 ) -> HttpResponse:
     _prepare_answer_form_accessibility(form)
-    context = {"interview": interview, "turn": turn, "answer_form": form}
+    context = {
+        "interview": interview,
+        "turn": turn,
+        "previous_turns": _get_previous_turns(interview, turn),
+        "answer_form": form,
+    }
     template = (
         "reflections/_interview_question.html"
         if request.headers.get("HX-Request") == "true"
@@ -395,7 +425,14 @@ def _saved_response(
         else "reflections/interview_detail.html"
     )
     return _interview_turn_response(
-        request, template, {"interview": interview, "turn": turn}, status=status
+        request,
+        template,
+        {
+            "interview": interview,
+            "turn": turn,
+            "previous_turns": _get_previous_turns(interview, turn),
+        },
+        status=status,
     )
 
 
