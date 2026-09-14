@@ -1,6 +1,6 @@
 # AfterMuse MVP Implementation Plan v5
 
-> 상태: 구현 실행 계획 (2026-09-13 일정 재배치)
+> 상태: 구현 실행 계획 (2026-09-14 실제 작업량 기준 일정 재배치)
 > 목적: AfterMuse 구현 작업을 실제 하루 작업량에 맞게 배치하고, 2주 Core MVP와 이후 보완·Full MVP Backlog를 분리한다.
 >
 > 이 문서는 PRD/Architecture를 반복하지 않는다. 각 항목은 구현 범위를 통제하기 위한 실행 단위다.
@@ -315,14 +315,14 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - **완료 조건:** 다음 질문 생성 실패 후에도 사용자가 복구할 수 있다.
   - **현재 구현 확인:** next_turn 실패 시 저장된 답변을 보존하고 오류 화면에서 동일 endpoint로 재시도한다. 관련 view 테스트에 답변 보존·재시도 표시 검증이 있다.
 
-### Day 09 — Core Home 사용자 상태 연결과 Reflection 초안 생성
+### Day 09 — Core Home 사용자 상태 연결과 인터뷰 재진입 UI
 
-기존 Reflection 작업을 유지하면서 Core MVP의 최소 Navigation Hub 및 재진입 UI를 추가한다.
+Core MVP의 최소 Navigation Hub를 구축하여 현재 사용자의 실제 독서/인터뷰 상태를 연결하고, 진행 중인 인터뷰로 안전하게 복귀하는 재진입 UI를 구현한다.
 
 - [ ] **IMP-085 — Core Home / 사용자 상태 연결**
   - **선행 작업:** IMP-033, IMP-050, IMP-073, IMP-084
   - Home을 Full Library로 만드는 것이 아니라, Core MVP에서 사용자가 현재 상태와 다음 행동을 찾을 수 있는 최소 Navigation Hub로 만든다.
-  - 하드코딩된 샘플 데이터를 걷어내고 현재 사용자의 실제 데이터(Reading 및 진행 중 Interview)를 바탕으로 Home UI를 렌더링한다. (아직 생성되지 않은 Reflection 연계는 Day 11 IMP-094에서 담당한다.)
+  - 하드코딩된 샘플 데이터를 걷어내고 현재 사용자의 실제 데이터(Reading 및 진행 중 Interview)를 바탕으로 Home UI를 렌더링한다. (아직 생성되지 않은 Reflection 연계는 Day 12 IMP-094에서 담당한다.)
   - **상태별 동작 및 UI:**
     - **Reading 없음:** `[책 찾아보기]` 버튼으로 도서 검색 화면으로 유도한다.
     - **읽고 싶음 / 읽는 중 Reading:** '지금 읽고 있는 책' 섹션에 도서 정보와 독서 상태를 표시하고, `[독서 기록 계속하기]` 버튼으로 해당 Reading 상세 화면으로 이동한다.
@@ -344,6 +344,10 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
     - 현재 미완료 Turn으로 정확하게 돌아갈 수 있다.
   - **명시적 제외 사항 (Full MVP 이관):** Restart, 14일 재시작 제한 정책, 기존 답변 삭제 정책 안내, Restart Confirm UX 등은 여기에서 구현하지 않고 기존 Full MVP Resume 작업(IMP-160, IMP-161)에서 처리한다.
 
+### Day 10 — Reflection 기본 모델과 생성 Prompt / Adapter
+
+Interview 결과를 저장할 Reflection 모델을 구현하고, 사용자 답변에만 근거하여 에세이 초안을 생성하는 LLM Prompt 및 Provider Adapter 경계를 완성한다.
+
 - [ ] **IMP-090 — Reflection 기본 모델 구현**
   - **선행 작업:** IMP-050
   - Interview 결과를 바탕으로 Reflection 초안과 사용자 수정본을 저장할 수 있게 한다.
@@ -355,9 +359,9 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - 사용자가 말하지 않은 생각을 추가하지 않는 규칙을 포함한다.
   - **완료 조건:** fake provider 및 실제 provider에서 Markdown 초안을 생성할 수 있다.
 
-### Day 10 — Interview 종료 Transition과 Book Knowledge 표현 정리
+### Day 11 — Interview 상호작용 완결과 Reflection 생성 Transition
 
-Interview 종료 후 Reflection 생성 과정의 상태 UX를 완성하고, 내부 Book Knowledge 상태의 사용자 노출을 방지한다.
+Interview 도중 질문을 건너뛸 수 있는 액션을 추가하고, 내부 도서 지식 안내 표현을 친화적으로 정리하며, 인터뷰 종료 후 Reflection 생성 중 로딩 및 재시도/멱등성 전이 흐름을 완성한다.
 
 - [ ] **IMP-092 — Reflection 생성 Transition 구현**
   - **선행 작업:** IMP-080, IMP-081, IMP-091
@@ -383,9 +387,22 @@ Interview 종료 후 Reflection 생성 과정의 상태 UX를 완성하고, 내�
     - `READY_LIMITED` 상태에서도 자연스럽게 Interview를 시작하고 진행할 수 있다.
     - Knowledge가 부족한 상태에서 AI가 책 내용을 아는 척하지 않는다.
 
-### Day 11 — Reflection 결과/수정과 Interview 질문 건너뛰기
+- [ ] **IMP-096 — Interview 질문 건너뛰기 구현**
+  - **선행 작업:** IMP-073, IMP-080
+  - 사용자가 현재 질문에 답하기 어렵거나 답하고 싶지 않을 경우 명시적으로 건너뛸 수 있는 기능을 추가한다.
+  - **Skip 구분 원칙:**
+    - Skip은 빈 답변(`""`), low-information 답변(예: "모르겠어요"), 실제 사용자 답변과 엄격히 구분하여 처리한다.
+    - 빈 문자열 Answer 레코드 저장으로 우회하지 않고, Skip된 상태를 명시적으로 구분하여 처리한다.
+    - Skip된 Turn은 Coverage를 무리하게 올리지 않으며, 다음 질문 생성 또는 질문 Budget/Safety Cap에 따른 종료 판단으로 정상 진행된다.
+  - **완료 조건:**
+    - Interview 화면에서 질문을 건너뛸 수 있는 `[건너뛰기]` 액션이 제공된다.
+    - 빈 문자열 Answer 저장으로 구현하지 않는다.
+    - Skip된 Turn과 실제 Answer를 구분할 수 있다.
+    - Skip 후 다음 질문 생성 또는 Interview 종료 판단이 정상 진행된다.
 
-Reflection 결과 및 편집 UX를 고도화하고, Interview 도중 질문을 건너뛸 수 있는 액션을 추가한다.
+### Day 12 — Reflection 결과/수정과 Home 재진입 및 검증 준비
+
+AI 결과물이 아닌 독서 에세이 형태의 Reflection 결과 화면과 직접 수정 UX를 구현하고, Home '최근 독서노트' 재진입을 완성하며, 2주 E2E 검증용 책 세트(Seed 및 READY_LIMITED)를 준비한다.
 
 - [ ] **IMP-093 — Reflection 결과 화면 구현**
   - **선행 작업:** IMP-090, IMP-092
@@ -412,27 +429,15 @@ Reflection 결과 및 편집 UX를 고도화하고, Interview 도중 질문을 �
     - Reflection 저장 후 Home의 '최근 독서노트'에서 실제 저장된 Reflection을 다시 열 수 있고 수정된 내용이 유지된다.
     - IMP-085에서 만든 Core Home 구조를 확장하되, 기존 Reading / Interview 기본 동작을 깨뜨리지 않는다.
 
-- [ ] **IMP-096 — Interview 질문 건너뛰기 구현**
-  - **선행 작업:** IMP-073, IMP-080
-  - 사용자가 현재 질문에 답하기 어렵거나 답하고 싶지 않을 경우 명시적으로 건너뛸 수 있는 기능을 추가한다.
-  - **Skip 구분 원칙:**
-    - Skip은 빈 답변(`""`), low-information 답변(예: "모르겠어요"), 실제 사용자 답변과 엄격히 구분하여 처리한다.
-    - 빈 문자열 Answer 레코드 저장으로 우회하지 않고, Skip된 상태를 명시적으로 구분하여 처리한다.
-    - Skip된 Turn은 Coverage를 무리하게 올리지 않으며, 다음 질문 생성 또는 질문 Budget/Safety Cap에 따른 종료 판단으로 정상 진행된다.
-  - **완료 조건:**
-    - Interview 화면에서 질문을 건너뛸 수 있는 `[건너뛰기]` 액션이 제공된다.
-    - 빈 문자열 Answer 저장으로 구현하지 않는다.
-    - Skip된 Turn과 실제 Answer를 구분할 수 있다.
-    - Skip 후 다음 질문 생성 또는 Interview 종료 판단이 정상 진행된다.
-
-### Day 12 — 실제 책으로 전체 Core Loop 흐름을 검증한다
-
-실제 책과 전체 사용자 흐름(Home 중심 Navigation 포함)으로 Core MVP의 핵심 제품 가설을 검증한다.
-
 - [ ] **IMP-100 — 2주 검증용 책 세트 구성**
   - **선행 작업:** IMP-041, IMP-094
   - Seed Knowledge가 있는 책과 READY_LIMITED 책을 포함한 최소 검증 세트를 준비한다.
   - **완료 조건:** 최소 3권 이상으로 테스트할 수 있다.
+
+### Day 13 — 전체 Core Loop E2E 검증 및 핵심 품질 1차 조정
+
+Desktop 및 Mobile 환경에서 실제 검증용 책들로 전체 Core Loop 수동 E2E를 완주하고, 발견된 핵심 제품 가설 저해 문제에 대해 인터뷰 질문 품질과 Reflection 충실도를 1차 조정한다.
+새로운 기능이나 디자인 polish를 추가하는 날로 바꾸지 않고, Day 13 E2E에서 발견된 문제 중 **Core Loop를 막는 문제만** 처리한다.
 
 - [ ] **IMP-101 — End-to-End 수동 시나리오 검증**
   - **선행 작업:** IMP-085, IMP-086, IMP-094, IMP-095, IMP-096, IMP-100
@@ -487,11 +492,6 @@ Reflection 결과 및 편집 UX를 고도화하고, Interview 도중 질문을 �
   - **완료 조건:**
     - Desktop에서 팀원이 위 전체 E2E 시나리오를 막힘 없이 완료할 수 있다.
     - Mobile Viewport에서도 전체 핵심 루프를 실제로 조작하여 완주할 수 있음을 검증한다.
-
-### Day 13 — Interview와 Reflection의 핵심 품질을 조정한다
-
-제품 가설을 깨는 오류만 수정하며 말투, 미세한 UI polish, 취향 수준의 개선으로 완료를 늦추지 않는다.
-새로운 기능이나 디자인 polish를 추가하는 날로 바꾸지 않고, Day 12 E2E에서 발견된 문제 중 **Core Loop를 막는 문제만** 처리한다.
 
 - [ ] **IMP-102 — Interview 품질 1차 조정**
   - **선행 작업:** IMP-101
@@ -554,14 +554,14 @@ Mobile에서도 핵심 흐름을 수행할 수 있다.
 
 Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행한다.
 
-### Day 15 — Low-information 조기 종료를 보완한다
+### Day 15 — Low-information 조기 종료와 이전 답변 확인
+
+반복적인 low-information 답변 시 무리한 질문을 멈추고 조기 종료하는 로직을 처리하며, Interview 화면에서 이전 질문과 답변 내역을 확인할 수 있는 최소 뷰를 구현한다.
 
 - [ ] **IMP-082 — Low-information 조기 종료 처리**
   - **선행 작업:** IMP-071, IMP-080
   - low-information 답변이 반복되면 무리한 꼬리질문을 중단한다.
   - **완료 조건:** 연속 low-information 답변 후 짧은 Reflection 생성 흐름으로 이동한다.
-
-### Day 16 — 이전 답변과 모바일 흐름을 확인한다
 
 - [ ] **IMP-083 — 이전 답변 보기 최소 구현**
   - **선행 작업:** IMP-073
@@ -569,13 +569,19 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
   - 수정 기능은 Full MVP 이후로 미룰 수 있다.
   - **완료 조건:** Interview 화면에서 이전 Turn을 확인할 수 있다.
 
+### Day 16 — Mobile UX Hardening 및 반응형 검증
+
+Day 13의 최소 Mobile E2E를 바탕으로, 모바일 실사용 시의 세부 반응형 UX 결함을 보강하고 검증한다.
+
 - [ ] **IMP-104 — Mobile UX Hardening 및 반응형 검증**
   - **선행 작업:** IMP-101
-  - Day 12의 최소 Mobile E2E를 바탕으로, 모바일 실사용 시의 세부 반응형 UX 결함을 보강하고 검증한다.
+  - Day 13의 최소 Mobile E2E를 바탕으로, 모바일 실사용 시의 세부 반응형 UX 결함을 보강하고 검증한다.
   - 긴 책 제목/저자 줄바꿈, 긴 질문 및 답변 스크롤 처리, 모바일 가상 키보드 활성 시 textarea 및 CTA 가림 방지, 터치 영역(최소 44x44px), Loading/Error 상태 표시, 소형 Viewport(375px/320px) 레이아웃 무결성을 집중 점검한다.
   - **완료 조건:** 다양한 모바일 화면과 가상 키보드 입력 상황에서도 폼 입력과 버튼 조작이 가려지지 않고 핵심 루프를 쾌적하게 수행할 수 있다.
 
 ### Day 17 — Demo와 실행 재현성을 정리한다
+
+팀 공유용 시연 책, 계정, 진행 순서를 정리하고, 새 환경에서 Full MVP 재현 실행이 가능하도록 배포 및 로컬 실행 가이드를 완성한다.
 
 - [ ] **IMP-111 — Demo 데이터와 시연 흐름 정리**
   - **선행 작업:** IMP-100, IMP-110
@@ -592,6 +598,8 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
 기존 Full MVP 기능을 이어서 구현한다. Day 계획은 Core MVP 이후 작업량에 맞게 다시 조정할 수 있다.
 
 ### Day 18 — 독서 Context와 개인 Library를 확장한다
+
+읽기 전 의도와 읽는 중 메모 모델/CRUD를 구축하여 Interview Context에 연계하고, 개인 서재 관점의 Full Library 화면 고도화를 구현한다. (과밀 주의: 모델 및 화면 동시 변경)
 
 - [ ] **IMP-120 — Reading Intention 입력/수정 고도화**
   - **선행 작업:** IMP-033
@@ -611,7 +619,9 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
   - 다수의 Reading 탐색, 과거 독서 이력 아카이브, 상태별(읽고 싶음/읽는 중/완독) 필터링 및 분류 정렬, 여러 Reflection 탐색, 최근 활동 피드, 서재 정보 구조(IA)를 체계화한다.
   - **완료 조건:** 다수의 Reading과 Reflection을 상태별로 정렬·필터링하여 체계적으로 탐색하고 관리할 수 있다.
 
-### Day 19 — Credit 흐름을 완성한다
+### Day 19 — Credit 지갑과 인터뷰 시작 예약 적용
+
+Credit Wallet과 원자적 Ledger 이력을 구현하고, Full MVP 인터뷰 시작 시 Credit을 RESERVED 처리하는 예약 트랜잭션을 연결한다.
 
 - [ ] **IMP-130 — Credit Wallet / Ledger 구현**
   - **선행 작업:** IMP-010
@@ -623,12 +633,9 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
   - Full MVP에서는 Interview 시작 시 Credit을 RESERVED 처리한다.
   - **완료 조건:** Credit 부족/성공/실패 시나리오가 검증된다.
 
-- [ ] **IMP-132 — Reflection 완료 시 Credit 소비 적용**
-  - **선행 작업:** IMP-094, IMP-131
-  - Reflection 최종 완료 시 Credit을 CONSUMED 처리한다.
-  - **완료 조건:** 소비와 파생 데이터 commit 경계가 일치한다.
-
 ### Day 20 — Book Knowledge 모델을 확장한다
+
+Claim, Source, Evidence, Candidate 구조로 다중 지식 모델을 확장하고, 지식 준비 상태(State)와 세대(Generation) 버전 관리 및 Candidate 검토/승격 도메인 로직을 구현한다. (과밀 주의: 신규 스키마 및 비즈니스 로직 집중)
 
 - [ ] **IMP-140 — Source / Evidence / Candidate 모델 확장**
   - **선행 작업:** IMP-040
@@ -647,6 +654,8 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
 
 ### Day 21 — Knowledge Research 수집 흐름을 만든다
 
+도서 단위 비동기 Research Job을 기록하여 중복 실행을 방지하고, 외부 검색·수집·추출을 위한 Search/Fetch 파이프라인을 구축한다.
+
 - [ ] **IMP-150 — KnowledgeResearchJob 구현**
   - **선행 작업:** IMP-141
   - Book 단위 Research Job을 기록하고 중복 실행을 방지한다.
@@ -659,6 +668,8 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
 
 ### Day 22 — 안전한 Knowledge 추출 경계를 만든다
 
+외부 수집 문서를 Untrusted Input으로 검사하여 Prompt Injection을 방어하고, 도구 권한 없이 안전하게 Structured Candidate만 생성하는 Extractor LLM을 구현한다.
+
 - [ ] **IMP-152 — Prompt Injection Guard 삽입 지점 구현**
   - **선행 작업:** IMP-151
   - 외부 문서를 Untrusted Input으로 검사하고 위험한 문서를 차단/보류한다.
@@ -670,6 +681,8 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
   - **완료 조건:** Source에서 Candidate가 생성되고 Application Validation을 통과한다.
 
 ### Day 23 — 인터뷰 연속성과 Grounding을 보강한다
+
+기기/브라우저 변경 시 복구 안내를 거쳐 진행 중 인터뷰로 안전하게 복귀할 수 있게 하고, 14일 경과 Restart 정책과 Confirm UX를 처리하며, 질문에 사용된 지식의 Grounding 관계를 저장·검증한다.
 
 - [ ] **IMP-160 — Interview Resume 고도화**
   - **선행 작업:** IMP-086
@@ -695,14 +708,23 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
   - BookKnowledge 기반 질문의 grounding을 저장하고 잘못된 grounding_id를 검증한다.
   - **완료 조건:** 질문에 사용된 Knowledge를 추적할 수 있다.
 
-### Day 24 — Reflection 완료 처리를 구현한다
+### Day 24 — Reflection 완료 처리와 Credit 최종 소비
+
+Reflection의 최종 완료 상태 전이(DRAFT → FINALIZING → COMPLETED)와 commit boundary를 구현하고, 완료 시점에 일치하여 Credit을 소비(CONSUMED) 처리하는 원자적 트랜잭션을 연결한다.
 
 - [ ] **IMP-170 — Reflection 완료 상태와 Commit Boundary 구현**
   - **선행 작업:** IMP-094, IMP-132
   - DRAFT → FINALIZING → COMPLETED 흐름을 구현한다.
   - **완료 조건:** 완료 시점에만 파생 데이터가 반영된다.
 
-### Day 25 — Reader Insight와 Backoffice 기반을 준비한다
+- [ ] **IMP-132 — Reflection 완료 시 Credit 소비 적용**
+  - **선행 작업:** IMP-094, IMP-131
+  - Reflection 최종 완료 시 Credit을 CONSUMED 처리한다.
+  - **완료 조건:** 소비와 파생 데이터 commit 경계가 일치한다.
+
+### Day 25 — Reader Insight 평가 신호 추출 및 집계
+
+완성된 Reflection에서 구조화된 다차원 평가 신호(Dimension/Score)를 추출하고, 도서별로 독자 인사이트를 집계하여 표본 수와 신뢰도를 함께 제공하는 Reader Insight 통계 화면을 구현한다.
 
 - [ ] **IMP-171 — Evaluation Dimension / Score 추출 구현**
   - **선행 작업:** IMP-170
@@ -714,12 +736,14 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
   - 책별 평가 신호를 집계하고 표본 수와 신뢰도를 함께 보여준다.
   - **완료 조건:** 사용자가 완성한 책의 Reader Insight를 볼 수 있다.
 
+### Day 26 — Backoffice 운영 화면을 완성한다
+
+Staff 전용 Layout과 접근 제어 Shell을 구축하고, 관리자가 테스트/보정 목적으로 Credit을 지급·조정하는 화면 및 LLM이 생성한 지식 Candidate를 승인·거절·수정하는 검토 화면을 완성한다.
+
 - [ ] **IMP-180 — Backoffice 기본 Shell 구현**
   - **선행 작업:** IMP-004, IMP-010
   - Staff 전용 Layout과 접근 제어를 구현한다.
   - **완료 조건:** 비관리자는 접근할 수 없다.
-
-### Day 26 — Backoffice 운영 화면을 완성한다
 
 - [ ] **IMP-181 — 관리자 Credit 지급 화면 구현**
   - **선행 작업:** IMP-130, IMP-180
