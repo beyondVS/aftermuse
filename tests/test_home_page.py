@@ -307,17 +307,20 @@ def test_home_page_excludes_ready_and_completed_interviews_from_resume(
     content = response.content.decode()
 
     assert response.status_code == 200
-    # Neither should appear in '진행 중인 인터뷰'
-    assert "진행 중인 인터뷰" not in content
+    # Neither should appear as an interview to resume
     assert "인터뷰 이어하기" not in content
+    # In-progress interview area shows empty state
+    assert "진행 중인 인터뷰가 없습니다" in content
     # Neither should appear in '사색을 기다리는 책' (since interview exists)
     assert (
         reverse("reflections:interview_start", args=[reading_ready.pk]) not in content
     )
     assert reverse("reflections:interview_start", args=[reading_done.pk]) not in content
 
-    # FR-009: When readings exist but no active cards, appropriate empty state is shown
-    assert "진행 중인 독서나 대기 중인 사색이 없습니다" in content
+    # FR-009: When readings exist but no active cards,
+    # empty state is shown for each area
+    assert "현재 읽고 있는 책이 없습니다" in content
+    assert "사색을 기다리는 완독 도서가 없습니다" in content
     assert reverse("books:search") in content
     assert "책 찾아보기" in content
 
@@ -351,8 +354,10 @@ def test_home_page_with_readings_but_no_active_cards_shows_empty_state(
     content = response.content.decode()
 
     assert response.status_code == 200
-    # FR-009: Empty state when reading exists but no active cards
-    assert "진행 중인 독서나 대기 중인 사색이 없습니다" in content
+    # FR-009: Empty states for each area when reading exists but no active cards
+    assert "진행 중인 인터뷰가 없습니다" in content
+    assert "현재 읽고 있는 책이 없습니다" in content
+    assert "사색을 기다리는 완독 도서가 없습니다" in content
     assert reverse("books:search") in content
     assert "책 찾아보기" in content
 
@@ -361,6 +366,70 @@ def test_home_page_with_readings_but_no_active_cards_shows_empty_state(
     assert "정의란 무엇인가" not in content
     assert "68% 완독 중" not in content
     assert "오늘의 사색 화두" not in content
+
+
+@pytest.mark.django_db
+def test_home_page_empty_states_per_area_when_other_cards_exist(
+    client, django_user_model
+) -> None:
+    # 1. User with only currently reading book
+    user1 = django_user_model.objects.create_user(username="only-reading-user")
+    b1 = Book.objects.create(isbn13="9788932917268", title="읽는 책만 있는 도서")
+    r1 = Reading.objects.create(user=user1, book=b1, status=Reading.Status.READING)
+    client.force_login(user1)
+
+    res1 = client.get(reverse("home"))
+    c1 = res1.content.decode()
+    assert reverse("readings:detail", args=[r1.pk]) in c1
+    assert "독서 기록 계속하기" in c1
+    # Other two areas show empty states
+    assert "진행 중인 인터뷰가 없습니다" in c1
+    assert "사색을 기다리는 완독 도서가 없습니다" in c1
+    assert "인터뷰 이어하기" not in c1
+    assert "AI 독서노트 만들기" not in c1
+
+    # 2. User with only ready for reflection book
+    user2 = django_user_model.objects.create_user(username="only-reflection-user")
+    b2 = Book.objects.create(isbn13="9788932917269", title="완독만 있는 도서")
+    r2 = Reading.objects.create(
+        user=user2, book=b2, status=Reading.Status.COMPLETED, completed_on=date.today()
+    )
+    client.force_login(user2)
+
+    res2 = client.get(reverse("home"))
+    c2 = res2.content.decode()
+    assert reverse("reflections:interview_start", args=[r2.pk]) in c2
+    assert "AI 독서노트 만들기" in c2
+    # Other two areas show empty states
+    assert "현재 읽고 있는 책이 없습니다" in c2
+    assert "진행 중인 인터뷰가 없습니다" in c2
+    assert "독서 기록 계속하기" not in c2
+    assert "인터뷰 이어하기" not in c2
+
+    # 3. User with only in-progress interview
+    user3 = django_user_model.objects.create_user(username="only-interview-user")
+    b3 = Book.objects.create(isbn13="9788932917270", title="인터뷰만 있는 도서")
+    r3 = Reading.objects.create(
+        user=user3, book=b3, status=Reading.Status.COMPLETED, completed_on=date.today()
+    )
+    inv3 = Interview.objects.create(
+        reading=r3,
+        book=b3,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.IN_PROGRESS,
+    )
+    InterviewTurn.objects.create(interview=inv3, sequence=1, question="질문?")
+    client.force_login(user3)
+
+    res3 = client.get(reverse("home"))
+    c3 = res3.content.decode()
+    assert reverse("reflections:interview_detail", args=[inv3.pk]) in c3
+    assert "인터뷰 이어하기" in c3
+    # Other two areas show empty states
+    assert "현재 읽고 있는 책이 없습니다" in c3
+    assert "사색을 기다리는 완독 도서가 없습니다" in c3
+    assert "독서 기록 계속하기" not in c3
+    assert reverse("reflections:interview_start", args=[r3.pk]) not in c3
 
 
 @pytest.mark.django_db

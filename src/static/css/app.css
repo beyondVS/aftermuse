@@ -677,6 +677,11 @@ button:active,
   word-break: keep-all;
 }
 
+.empty-sub-card {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.5);
+}
+
 /* 3D Realistic Hardcover Book Spine Mockup */
 .reading-book-preview {
   display: flex;

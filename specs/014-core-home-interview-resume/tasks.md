@@ -104,3 +104,7 @@
 
 - [X] T017 src/reflections/views.py와 src/templates/reflections/interview_detail.html에서 기존 Interview 재진입 시 최신 Turn의 현재 단계와 함께 이전에 확정한 질문·답변 기록을 표시하고, tests/reflections/test_views.py에서 복수 Turn 재방문 시 이전 답변 표시 및 Interview·Turn·답변 불변을 검증하기 per US2/AC1, FR-006 (partial)
 - [X] T018 src/templates/pages/home.html에서 Reading은 있지만 현재 독서·사색 대기·진행 중 Interview 대상이 없는 경우와 개별 영역에 대상이 없는 경우에 허위 콘텐츠 없는 적절한 빈 상태를 제공하고, tests/test_home_page.py에 대표 상태를 검증하기 per FR-009 (partial)
+
+## Phase 8: Convergence
+
+- [X] T019 Home에 하나 이상의 실제 카드가 있어도 대상이 없는 지금 읽고 있는 책, 사색을 기다리는 책, 진행 중인 인터뷰 영역에 각각 적절한 빈 상태를 표시하고, 복수 그룹 조합에서 허위 기록·잘못된 행동 링크가 생기지 않는지 tests/test_home_page.py로 검증하기 per FR-009, T018 (partial)
