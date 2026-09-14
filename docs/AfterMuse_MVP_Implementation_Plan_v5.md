@@ -322,19 +322,17 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
 - [ ] **IMP-085 — Core Home / 사용자 상태 연결**
   - **선행 작업:** IMP-033, IMP-050, IMP-073, IMP-084
   - Home을 Full Library로 만드는 것이 아니라, Core MVP에서 사용자가 현재 상태와 다음 행동을 찾을 수 있는 최소 Navigation Hub로 만든다.
-  - 하드코딩된 샘플 데이터를 걷어내고 실제 사용자 데이터(Reading, Interview, Reflection)를 바탕으로 Home UI를 렌더링한다.
+  - 하드코딩된 샘플 데이터를 걷어내고 현재 사용자의 실제 데이터(Reading 및 진행 중 Interview)를 바탕으로 Home UI를 렌더링한다. (아직 생성되지 않은 Reflection 연계는 Day 11 IMP-094에서 담당한다.)
   - **상태별 동작 및 UI:**
     - **Reading 없음:** `[책 찾아보기]` 버튼으로 도서 검색 화면으로 유도한다.
     - **읽고 싶음 / 읽는 중 Reading:** '지금 읽고 있는 책' 섹션에 도서 정보와 독서 상태를 표시하고, `[독서 기록 계속하기]` 버튼으로 해당 Reading 상세 화면으로 이동한다.
     - **완독 Reading + Interview 없음:** '사색을 기다리는 책' 섹션에 도서 정보와 완독 상태를 표시하고, `[AI 독서노트 만들기]` 버튼을 제공한다. 이 버튼은 도서 검색으로 이동하지 않고 해당 Reading의 Interview 시작 화면으로 직접 이동한다.
     - **진행 중 Interview:** '진행 중인 인터뷰' 섹션에 진행 상황을 표시하고 `[인터뷰 이어하기]` 버튼을 제공한다. 새 Interview를 생성하지 않고 기존 Interview를 연다.
-    - **Reflection 존재:** '최근 독서노트' 섹션에 생성된 Reflection을 표시하고 `[독서노트 보기]` 버튼으로 해당 Reflection 결과 화면으로 이동한다.
   - **완료 조건:**
     - Home의 도서/상태가 하드코딩된 샘플이 아니며 실제 사용자 데이터를 반영한다.
     - 실제 Reading 상태(읽고 싶음/읽는 중/완독)가 Home에 즉시 반영된다.
     - 완독 후 다시 책을 검색하지 않고 Home에서 바로 Interview를 시작할 수 있다.
     - 진행 중 Interview에 Home에서 다시 접근할 수 있다.
-    - 생성된 Reflection을 Home에서 다시 찾아 진입할 수 있다.
 
 - [ ] **IMP-086 — Core Interview 재진입 UI**
   - **선행 작업:** IMP-073, IMP-085
@@ -401,15 +399,18 @@ Reflection 결과 및 편집 UX를 고도화하고, Interview 도중 질문을 �
     - AI 도구 결과물보다 사용자의 독서 기록 에세이로 자연스럽게 느껴진다.
     - `[수정]` 및 `[Home으로]` 진입점이 정상 동작한다.
 
-- [ ] **IMP-094 — Reflection 수정 구현**
-  - **선행 작업:** IMP-093
-  - 사용자가 생성된 Reflection을 직접 수정하고 보완할 수 있는 흐름을 구현한다.
+- [ ] **IMP-094 — Reflection 수정 구현 및 Home 재진입 연계**
+  - **선행 작업:** IMP-085, IMP-093
+  - 사용자가 생성된 Reflection을 직접 수정하고 보완할 수 있는 흐름을 구현하고, Reflection 생성/저장 후 Home에서 다시 접근할 수 있는 최소 재진입 경로를 완성한다.
   - **편집 및 이동 흐름:** `Reflection 수정 → 저장 → 저장 완료 피드백 (인라인/토스트) → 결과 화면`
-  - **Home 연계:** IMP-085와 연결하여 `Home → 기존 Reflection 다시 열기`가 가능해야 한다.
+  - **Home 연계 (최소 재진입 경로 완성):**
+    - Reflection이 생성/저장된 이후에는 IMP-085에서 구축한 Core Home에 '최근 독서노트' 섹션을 활성화하고 `[독서노트 보기]` 버튼을 제공하여 해당 Reflection 결과 화면으로 다시 접근할 수 있게 한다.
+    - 다수의 Reflection 아카이브나 서재 필터링 등 전체 Library 기능은 Full MVP(IMP-122)로 분리하고, 여기서는 방금 또는 최근 완성된 Reflection으로의 최소 재진입만 연결한다.
   - **완료 조건:**
     - 수정한 내용이 DB에 안전하게 저장된다.
     - 저장 완료 즉시 사용자 피드백이 제공되고 결과 화면으로 복귀한다.
-    - Home에서 최근 독서노트를 통해 다시 열어도 수정된 내용이 유지된다.
+    - Reflection 저장 후 Home의 '최근 독서노트'에서 실제 저장된 Reflection을 다시 열 수 있고 수정된 내용이 유지된다.
+    - IMP-085에서 만든 Core Home 구조를 확장하되, 기존 Reading / Interview 기본 동작을 깨뜨리지 않는다.
 
 - [ ] **IMP-096 — Interview 질문 건너뛰기 구현**
   - **선행 작업:** IMP-073, IMP-080
@@ -670,18 +671,24 @@ Core MVP 직후 보완할 작업이며 Full MVP 기능 구현에 앞서 진행�
 
 ### Day 23 — 인터뷰 연속성과 Grounding을 보강한다
 
-- [ ] **IMP-160 — Interview Resume / Restart 고도화**
+- [ ] **IMP-160 — Interview Resume 고도화**
   - **선행 작업:** IMP-086
-  - Core MVP의 최소 재진입(IMP-086)과 역할을 명확히 구분하여, 세션 만료·다중 기기 접속 시의 동기화, 인터뷰 중단 상태 복구 안내, Restart 정책 진입점을 고도화한다.
-    - `IMP-086`: Core MVP용 단일 세션 미완료 Turn 직행 최소 재진입
-    - `IMP-160`: Full MVP용 다중 세션 동기화, 인터뷰 Restart 정책 및 상태 초기화 고도화
-  - Interview Restart UX, 14일 재시작 제한 및 재시작 가능 날짜 계산/표시, 기존 답변 영구 삭제 사전 경고 안내, Confirm 모달/UX, 상태 초기화 정책을 체계화한다.
-  - **완료 조건:** 브라우저/기기 변경 시에도 안전하게 이어가거나 명시적 Confirm을 거쳐 14일 정책에 맞게 인터뷰를 초기화할 수 있다.
+  - Core MVP의 IMP-086은 동일 세션/브라우저 흐름에서 Home을 통해 기존 Interview로 다시 들어가는 최소 기능만 제공한다.
+  - IMP-160은 이를 확장하여 브라우저 변경, 기기 변경, 세션 만료 후 재로그인 등 환경이 바뀌어도 진행 중 Interview를 안전하게 발견하고 복구 안내를 거쳐 현재 미완료 Turn으로 이어갈 수 있게 한다.
+  - 기존 Interview 및 Turn 상태 동기화를 처리하되, 인터뷰 초기화(Restart) 정책은 IMP-161로 분리한다.
+  - **완료 조건:** 브라우저 또는 기기가 변경되거나 세션이 갱신된 후에도 기존 진행 중 Interview를 안전하게 식별하고 현재 미완료 Turn부터 이어갈 수 있다.
 
-- [ ] **IMP-161 — 14일 Restart 정책 구현**
+- [ ] **IMP-161 — 14일 Restart 정책 및 Confirm UX 구현**
   - **선행 작업:** IMP-160
-  - IN_PROGRESS Interview를 14일 이후 같은 책에 한해 초기화할 수 있게 한다.
-  - **완료 조건:** 정책 조건과 기존 답변 삭제 안내가 검증된다.
+  - IN_PROGRESS Interview에 대해 14일 경과 여부에 따른 재시작(Restart) 정책 및 사용자 확인 UX를 전담한다.
+  - 마지막 시작/재시작 시점 기준 14일 제한 및 Restart eligibility 판정, 재시작 가능 날짜 계산 및 표시를 구현한다.
+  - 같은 책에 대한 Restart 시 기존 질문/답변이 영구 삭제된다는 사전 안내 및 Confirm 모달/UX를 제공한다.
+  - 사용자가 명시적으로 승인한 경우에만 안전하게 기존 Interview 상태를 초기화하고 동일한 책으로 새 Interview 흐름을 시작한다.
+  - **완료 조건:**
+    - 사용자가 14일 정책 조건을 충족했을 때만 Restart할 수 있다.
+    - Restart 전 기존 질문/답변이 삭제된다는 점을 명확히 안내한다.
+    - 사용자가 명시적으로 Confirm한 경우에만 기존 상태를 초기화한다.
+    - Restart 후 동일한 책으로 새 Interview 흐름을 정상 시작할 수 있다.
 
 - [ ] **IMP-162 — Grounding 관계 저장 및 검증**
   - **선행 작업:** IMP-073, IMP-140
