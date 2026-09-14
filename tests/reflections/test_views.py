@@ -22,6 +22,11 @@ from reflections.services import (
 )
 
 
+@pytest.fixture(autouse=True)
+def default_fake_llm_provider(settings) -> None:
+    settings.LLM_PROVIDER = "fake"
+
+
 def test_pending_soft_stop_hides_candidate_and_continue_uses_it(
     client, reading
 ) -> None:
@@ -857,3 +862,169 @@ def test_new_turn_routes_hide_other_users_interview(
         response = client.post(url, {"answer": "훔친 답변"})
         assert response.status_code == 404
         assert "내 답변" not in response.content.decode()
+
+
+def test_interview_detail_resume_pre_first_question_preserves_state(
+    client, reading
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+    )
+    client.force_login(reading.user)
+
+    for _ in range(2):
+        response = client.get(
+            reverse("reflections:interview_detail", args=[interview.pk])
+        )
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "첫 질문을 준비하고 있어요." in content
+        assert "첫 질문 준비하기" in content
+
+    assert Interview.objects.count() == 1
+    assert InterviewTurn.objects.filter(interview=interview).count() == 0
+
+
+def test_interview_detail_resume_unanswered_turn_preserves_question(
+    client, reading
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="처음 읽을 때 인상 깊었던 장면은 무엇인가요?",
+    )
+    client.force_login(reading.user)
+
+    for _ in range(2):
+        response = client.get(
+            reverse("reflections:interview_detail", args=[interview.pk])
+        )
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "1번째 질문" in content
+        assert "처음 읽을 때 인상 깊었던 장면은 무엇인가요?" in content
+        assert "답변 저장하기" in content
+
+    turn.refresh_from_db()
+    assert turn.answer is None
+    assert InterviewTurn.objects.filter(interview=interview).count() == 1
+
+
+def test_interview_detail_resume_answered_turn_preserves_answer_without_reentry(
+    client, reading
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="처음 읽을 때 인상 깊었던 장면은 무엇인가요?",
+        answer="주인공이 결심하는 장면이 인상적이었습니다.",
+    )
+    client.force_login(reading.user)
+
+    for _ in range(2):
+        response = client.get(
+            reverse("reflections:interview_detail", args=[interview.pk])
+        )
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "답변을 저장했습니다" in content
+        assert "주인공이 결심하는 장면이 인상적이었습니다." in content
+        assert "다음 질문 준비하기" in content
+        assert "답변 저장하기" not in content
+
+    turn.refresh_from_db()
+    assert turn.answer == "주인공이 결심하는 장면이 인상적이었습니다."
+    assert InterviewTurn.objects.filter(interview=interview).count() == 1
+
+
+def test_interview_detail_resume_pending_decision_preserves_choices(
+    client, reading
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=4,
+        question="네 번째 질문입니다?",
+        answer="네 번째 답변입니다.",
+    )
+    decision = InterviewProgressDecision.objects.create(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.SOFT_STOP,
+        candidate_question="다섯 번째 보류 질문입니다?",
+    )
+    client.force_login(reading.user)
+
+    for _ in range(2):
+        response = client.get(
+            reverse("reflections:interview_detail", args=[interview.pk])
+        )
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "조금 더 이야기하기" in content
+        assert "독서노트 준비하기" in content
+        assert "다섯 번째 보류 질문입니다?" not in content
+
+    decision.refresh_from_db()
+    assert decision.selection is None
+    assert InterviewTurn.objects.filter(interview=interview).count() == 1
+
+
+def test_interview_detail_resume_after_error_preserves_answer_and_retries(
+    client, reading, monkeypatch
+) -> None:
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="첫 번째 질문입니다?",
+        answer="소중한 첫 답변입니다.",
+    )
+    client.force_login(reading.user)
+
+    def failing_analyze(*args, **kwargs):
+        raise QuestionGenerationTimeout()
+
+    monkeypatch.setattr(
+        "reflections.views.process_next_turn",
+        failing_analyze,
+    )
+
+    error_response = client.post(
+        reverse("reflections:next_turn", args=[interview.pk, 1]),
+        HTTP_HX_REQUEST="true",
+    )
+    assert error_response.status_code == 503
+    assert "다음 질문을 준비하지 못했습니다" in error_response.content.decode()
+
+    resume_response = client.get(
+        reverse("reflections:interview_detail", args=[interview.pk])
+    )
+    assert resume_response.status_code == 200
+    content = resume_response.content.decode()
+    assert "소중한 첫 답변입니다." in content
+    assert "답변을 저장했습니다" in content
+    assert "다음 질문 준비하기" in content
+
+    turn.refresh_from_db()
+    assert turn.answer == "소중한 첫 답변입니다."
+    assert InterviewTurn.objects.filter(interview=interview).count() == 1

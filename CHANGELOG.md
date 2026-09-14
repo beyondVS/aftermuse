@@ -9,6 +9,9 @@
 
 ### Added
 
+- Home 화면을 실제 사용자 Reading 상태(읽고 싶음, 읽는 중, 완독) 및 진행 중 Interview와 연결하는 최소 Navigation Hub 및 상태별 카드·빈 상태 구현
+- 진행 중인 Interview로 질문·답변 유실 및 중복 생성 없이 현재 단계로 복귀하는 재진입(Resume) 흐름 및 소유자 격리 검증
+
 - 네 Core Coverage 축 완료 후 Soft Stop 선택과 8문항 일반 상한·최대 10문항 예외 진행을 연결하고, 실제 답변 수와 최신 후보 축을 재검증하며 종료 시 답변을 보존한 독서노트 준비 안내를 제공
 
 - Gemini API와 로컬 Ollama의 Interview 세 작업 Adapter, 명시적 Provider·모델·timeout 설정 및 opt-in live smoke test
