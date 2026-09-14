@@ -790,7 +790,7 @@ Staff 전용 Layout과 접근 제어 Shell을 구축하고, 관리자가 테스�
 핵심 사용자 흐름과 실패 시나리오를 망라한 Full MVP E2E 및 회귀 테스트를 통과시킨 뒤, 같은 release context에서 환경변수, secret, DB migration, static files, 로그 확인 등 배포 및 운영 재현성을 완성한다. (순서는 반드시 IMP-192 회귀 검증 완료 후 IMP-193 운영 설정으로 진행한다.)
 
 - [ ] **IMP-192 — Full MVP E2E / Regression Test 정리**
-  - **선행 작업:** IMP-181, IMP-182, IMP-191
+  - **선행 작업:** IMP-172, IMP-181, IMP-182, IMP-191
   - 핵심 사용자 흐름과 주요 실패 시나리오를 테스트한다.
   - **완료 조건:** 배포 전 회귀 테스트가 통과한다.
 
