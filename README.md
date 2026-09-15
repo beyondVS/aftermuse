@@ -2,83 +2,52 @@
 
 > 책을 덮은 뒤, 생각이 시작됩니다.
 
-## 제품 개요
+AfterMuse는 AI 질문으로 독자의 생각을 끌어내고, 사용자가 실제로 답한 내용으로
+독서노트(Reflection) 초안을 만드는 서비스입니다. 빈 노트에서 글을 시작하는 부담을
+질문과 답변으로 줄이고, 사용자가 초안을 직접 다듬어 자신의 기록으로 남기게 합니다.
 
-AfterMuse는 책을 읽은 사용자가 AI와 인터뷰하듯 대화하면, AI가 사용자의 생각을
-끌어내고 사용자가 실제로 말한 범위에서 구조화된 독서노트(Reflection)를 만들어주는
-서비스입니다.
+**핵심 흐름:** 책 선택 → Reading → AI Interview → Reflection 초안 → 수정·확인
 
-## 해결하려는 문제
+AI는 사용자가 말하지 않은 생각이나 책의 사실을 추가하지 않습니다. Books-first 전략의
+Responsive Web(Desktop 우선, Mobile 지원)을 개발하며, Credit·Reader Insight·자동 Book
+Knowledge Research·공개/공유 기능은 후속 범위입니다.
 
-독서 후 빈 노트를 마주하면 무엇을 써야 할지 막막합니다. 템플릿이 있어도 결국
-사용자가 스스로 생각을 떠올리고 문장으로 작성해야 하므로, 기록을 시작하기가
-어렵습니다. AfterMuse는 이 부담을 질문과 대화로 바꿉니다.
-
-## 핵심 경험
-
-책을 읽음 → AI 질문 → 사용자 답변 → 필요한 꼬리질문 → 생각 구체화 → Reflection
-생성·수정
-
-## 제품 원칙
-
-- AI가 독후감이나 해석을 대신 쓰지 않습니다.
-- 사용자가 말하지 않은 생각을 추가하지 않습니다.
-- 빈 노트에 쓰게 하지 말고, 답변하게 해서 노트를 만듭니다.
-
-## MVP 범위
-
-현재 2주 Core MVP는 책 선택부터 AI Interview, Reflection 생성·수정, 실제 책 기반
-검증까지의 핵심 경험을 연결합니다. Books-first 전략을 따르며 Responsive Web으로
-제공합니다(Desktop 우선, Mobile 지원).
-
-Credit, Reader Insight, Book Knowledge 자동 Research, Backoffice 및 기타 콘텐츠
-확장은 Full MVP 이후의 장기 항목입니다.
+[현재 구현 상태](#현재-구현-상태) · [개발 환경 시작](#개발-환경-시작) ·
+[LLM 설정과 오류 진단](#llm-설정과-오류-진단) · [개발 명령](#개발-명령) · [문서](#문서)
 
 ## 현재 구현 상태
 
-현재 저장소에는 Custom User 기반의 세션 인증 흐름이 구현되어 있습니다. 사용자는
-`/accounts/signup/`에서 가입하고, `/accounts/login/`에서 로그인하며, POST
-`/accounts/logout/`으로 로그아웃할 수 있습니다.
+2026-09-16 기준, Day 10의 데이터·생성 기반까지 구현했습니다.
 
-Day 03까지 ISBN13 중심의 Book 모델, Provider 중립 Metadata 계약과 검색 Service,
-Kakao 도서 검색 Adapter 및 로그인 사용자용 `/books/search/` 화면이 구현되어 있습니다.
-검색 화면은 HTMX로 Loading·Empty·Error 상태와 판본 식별용 서지정보를 제공하며, 사용자가
-선택한 검색 결과는 기존 Book을 재사용하거나 새 Book으로 안전하게 등록한 뒤 Reading
-진입 화면으로 이동합니다. 사용자는 상태를 명시적으로 선택해 Reading을 시작하며, 활성
-Reading 재사용·완독 이력 보존·재독, 상태/완독일 변경과 소유자 전용 상세 화면을 사용할 수
-있습니다. 완독 후 `AI 독서노트 만들기` CTA에서 대상 책과 준비 상태를 확인하고 Interview를
-시작할 수 있으며, 시작된 Interview에는 Reading과 Book이 고정되고 진행 상태로 재진입할 수
-있습니다. 진행 중 Interview에서는 준비 수준에 맞는 첫 질문을 생성하며, `READY`는 검증된
-Claim만 사용하고 `READY_LIMITED`는 기억·인상 중심으로 묻습니다. 첫 답변은 한 번만 확정되며
-동일 재제출은 안전하게 재사용하고, 질문 생성 실패는 같은 화면의 명시적 재시도로 복구합니다.
-생성 질문은 저장 전에 형식·금지 지시를 검사하며, HTMX의 validation·정책·저장 오류는 입력과
-내부 정보를 안전하게 보호하면서 Interview 영역 전체를 교체하고 오류 위치로 focus를 옮깁니다.
-기존 첫 질문 재사용과 Interview 정책 검증은 Provider 생성보다 먼저 수행되므로 외부 설정
-오류가 이미 저장된 질문이나 정책 충돌 응답을 가리지 않습니다. 확정 답변은 비영속 Answer
-Analysis 계약으로 의미와 low-information 여부, 현재 상태보다 높은 Core Coverage 후보를 얻을
-수 있습니다. 후보별 근거 인용은 답변 원문과 대조하고 Provider 출력 전체를 Application에서
-재검증하며, 분석 성공·실패 모두 답변·Turn·Coverage를 직접 변경하지 않습니다.
-확정 답변 뒤에는 분석과 Coverage를 반영해 다음 질문 하나를 이어갑니다. 후속 질문은 답변
-원문·이전 답변·검증된 Claim의 인용과 Coverage 축을 근거로 LLM이 직접 작성합니다.
-서버는 인용이 확인된 자료에 있고 질문 문구와 연결되는지 검사하며, 네 축이 모두 완료되고
-구체적인 추가 탐색 근거가 없다는 제안을 검증하면 질문 생략을
-기록합니다. 질문 준비에 실패해도 답변 원문은 유지되고 재시도할 수 있습니다.
-네 Core Coverage 축이 모두 `COVERED`이고 네 번째부터 일곱 번째 답변까지 추가 질문의
-근거가 있으면 Soft Stop에서 독서노트 준비 또는 계속하기를 선택할 수 있습니다. 여덟 번째
-답변에서는 일반 상한을 우선 적용하며, `UNCOVERED` 축에 근거 있는 질문이 있을 때만
-명시적 선택으로 최대 열 번째 질문까지 이어집니다. 종료 후에는 저장된 답변을 유지한
-독서노트 준비 안내가 표시되며 Reflection 초안 생성은 후속 단계에서 연결됩니다.
-Day 09에서는 로그인 사용자를 위한 최소 Navigation Hub로서 Home 화면을 개편하여,
-하드코딩된 샘플 데이터 대신 실제 사용자의 독서 상태(`읽고 싶음`, `읽는 중`, `완독`)와 진행 중인
-Interview를 연결했습니다. '지금 읽고 있는 책'에서는 독서 상세로 바로 이동하며, 완독 후
-아직 인터뷰가 없는 도서는 '사색을 기다리는 책'에서 검색 없이 바로 `[AI 독서노트 만들기]`로
-연결됩니다. 진행 중인 Interview는 '진행 중인 인터뷰'에서 `[인터뷰 이어하기]`를 통해
-새 인터뷰를 생성하지 않고 직전 미완료 질문이나 대기 상태로 안전하게 복귀할 수 있으며,
-이전에 확정한 질문·답변도 현재 단계와 함께 확인할 수 있습니다. 각 영역에 해당 기록이
-없으면 샘플 카드 대신 빈 상태를 표시합니다.
-첫 질문 전, 미답변 턴, 답변 저장 후, 진행 선택 대기, 오류 복구 등 모든 상태에서 질문·답변
-유실 없이 현재 단계를 보존합니다. 비로그인 방문자는 서비스 소개를 보게 되며, 타 사용자의
-기록이나 링크는 철저히 격리됩니다.
+| 영역 | 사용할 수 있는 기능 |
+| --- | --- |
+| 인증 | 세션 기반 회원가입·로그인·POST 로그아웃 |
+| 책 검색 | Kakao 검색, HTMX Loading·Empty·Error, 판본 확인 및 Book 등록·재사용 |
+| Reading | 명시적 시작·재독, 상태·완독일 변경, 소유자 전용 상세 |
+| Interview | 완독 후 시작, 첫 질문·답변 분석·후속 질문, Coverage·Soft Stop·질문 상한, 실패 재시도 |
+| Home | 실제 Reading 상태별 카드·빈 상태, 진행 중 Interview 재진입과 확정 질문·답변 조회 |
+| Reflection 기반 | Interview당 하나의 초안 저장·조회, 별도 수정본 보존, 답변 기반 비영속 생성 Service |
+
+Interview는 `READY`에서 검증된 Claim을 사용하고, `READY_LIMITED`에서는 기억·인상 중심으로
+질문합니다. 확정 답변은 보존하며 기존 질문을 재사용하고, 실패 시 명시적으로 재시도합니다.
+네 Core Coverage 축 완료 후 네 번째~일곱 번째 답변에서 Soft Stop을 선택할 수 있습니다.
+여덟 번째 답변에 일반 상한을 적용하며, 미충족 축의 근거 있는 질문을 사용자가 선택한 경우에만
+최대 열 번째 질문까지 진행합니다.
+
+Reflection 생성 대상은 최종 완료된 Interview가 아니라 `REFLECTION_READY` 상태입니다.
+생성은 DB transaction 밖에서 비영속 결과를 반환하고, 별도의 저장 Service가 초안을 보존합니다.
+최초 초안은 Model 검증으로 변경을 거부하고, DB는 Interview당 하나·길이·Draft 상태를 제한합니다.
+수정본은 초안과 분리하며 생성·수정본 저장만으로 완료 처리하지 않습니다.
+저장 잠금 후 소유자·책 관계·상태·확정 답변 snapshot을 다시 검증합니다.
+
+fake·OpenAI·Gemini·Ollama는 같은 구조화 생성 계약을 사용합니다. 서버는 최상위·중첩 키,
+길이, 답변 원문 인용, 표현 연결과 금지 형식을 검증하고 canonical Markdown을 조립합니다.
+이 검사는 실제 LLM 출력의 의미적 충실성을 완전히 증명하지 않습니다.
+
+**남은 범위:** Reflection 생성/실패/Retry 화면(Day 11), 결과·수정 화면과 Home 재진입(Day 12).
+실제 Reflection Provider 연결·의미 품질 평가는 별도 opt-in 인수로 남아 있습니다.
+자세한 완료 상태는 [구현 계획](docs/AfterMuse_MVP_Implementation_Plan_v5.md), 검증 근거는
+[Day 10 검증 기록](specs/015-reflection-draft-generation/quickstart.md)을 참조합니다.
 
 ## 기술 스택
 
@@ -104,9 +73,12 @@ HTMX와 Alpine.js는 CDN 없이 저장소의 로컬 정적 자산을 사용합�
 │  ├─ accounts/          Custom User와 인증 흐름
 │  ├─ books/             Book 모델, 검색·선택 Service와 화면
 │  ├─ config/            Django 프로젝트 설정
-│  ├─ integrations/      외부 Metadata Provider Adapter
+│  ├─ integrations/      Metadata·LLM Provider Adapter
+│  ├─ knowledge/         검증된 Book Claim과 준비 상태
+│  ├─ readings/          독서 상태·완독·재독
+│  ├─ reflections/       Interview·Coverage·Reflection 모델과 Service
 │  ├─ static/            공통 CSS, JavaScript 및 vendor 자산
-│  ├─ templates/         공통·인증·도서 검색 Template
+│  ├─ templates/         공통·인증·독서·Interview Template
 │  └─ manage.py
 ├─ tests/                프로젝트 설정 및 통합 테스트
 ├─ .env.example          로컬 환경변수 예시
@@ -153,10 +125,10 @@ uv run python src/manage.py runserver
 | `POSTGRES_PORT` | PostgreSQL port |
 | `KAKAO_REST_API_KEY` | 기본 Kakao 도서 검색 Adapter용 REST API key (일반 자동 테스트에서는 불필요) |
 | `ALADIN_TTB_KEY` | IMP-021 legacy 알라딘 Adapter용 TTB key (신규 발급 종료, 자동 테스트에서는 불필요) |
-| `LLM_PROVIDER` | Interview LLM Provider (`fake` 기본값, `openai`·`gemini`·`ollama` 선택) |
-| `OPENAI_MODEL` | OpenAI 질문·답변 분석에 사용할 고정 모델 snapshot |
+| `LLM_PROVIDER` | Interview·Reflection LLM Provider (`fake` 기본값, `openai`·`gemini`·`ollama` 선택) |
+| `OPENAI_MODEL` | OpenAI 질문·답변 분석·Reflection 생성에 사용할 고정 모델 snapshot |
 | `OPENAI_API_KEY` | `LLM_PROVIDER=openai`일 때 필요한 API key |
-| `OPENAI_TIMEOUT_SECONDS` | Interview LLM Provider 전체 timeout (기본 30초) |
+| `OPENAI_TIMEOUT_SECONDS` | LLM Provider 호출 timeout (기본 30초) |
 | `GEMINI_MODEL`, `GEMINI_API_KEY`, `GEMINI_TIMEOUT_SECONDS` | Gemini의 정확한 모델명·명시적 API key·호출 timeout |
 | `OLLAMA_MODEL`, `OLLAMA_BASE_URL`, `OLLAMA_TIMEOUT_SECONDS` | 설치된 로컬 모델명·loopback API URL·호출 timeout |
 
@@ -170,46 +142,36 @@ key 없이 실행할 수 있고, 실제 검색이나 명시적 live smoke를 실
 신규 검색 경로에서는 사용하지 않습니다. key와 Provider 원본 오류 내용은 반환값이나 오류
 메시지에 포함하지 않습니다.
 
-Interview LLM의 기본 Provider는 `fake`이므로 자동 테스트와 일반 개발 흐름에 credential이나
-실행 중인 Ollama가 필요하지 않습니다. `LLM_PROVIDER=gemini`는 `GEMINI_API_KEY`를 명시하고
-원하는 `GEMINI_MODEL`을 설정합니다. `LLM_PROVIDER=ollama`는 로컬 서버를 실행한 뒤 설치된
-`gemma4:12b-it-qat` 또는 `gemma4:26b-a4b-it-qat`를 `OLLAMA_MODEL`에 정확히 지정합니다.
-모델 다운로드는 자동으로 수행하지 않습니다. 선택한 Provider가 실패해도 다른 유료 API로
-전환하지 않으며, 각 작업은 자동 재시도 없이 한 번 요청합니다. Ollama URL은 loopback HTTP만
-허용합니다. 실제 연결 smoke test는 `uv run pytest -m live tests/integrations/llm/test_live_smoke.py`로
-명시적으로 선택하며, Ollama는 `OLLAMA_LIVE_TEST=1`도 필요합니다.
+## LLM 설정과 오류 진단
 
-실제 OpenAI Adapter는 `store=False`, tools 없이 고정 모델 snapshot으로
-질문 또는 답변 분석 결과만 생성하며, timeout·Provider·출력 오류는 원문을 노출하지 않는 상태로
-변환합니다. 기존 질문 재사용과 Interview 소유권·관계·상태 검증이 끝난 뒤에만 Provider를
-생성하므로, 저장된 질문을 표시하는 경로는 Provider credential이나 구성 상태에 의존하지
-않습니다.
+기본 `LLM_PROVIDER=fake`는 credential이나 실행 중인 Ollama 없이 동작합니다.
+실제 Provider는 `.env`에 선택한 Provider의 모델·key·timeout을 명시합니다.
+Ollama는 설치된 모델명과 loopback HTTP URL을 사용하며 모델을 자동 다운로드하지 않습니다.
+질문 생성·답변 분석·후속 질문·Reflection 생성은 자동 재요청이나 다른 유료 Provider로의
+fallback 없이 한 번 호출합니다. OpenAI는 `store=False`와 tools 없는 요청을 사용하고,
+Gemini는 AFC를 비활성화하며 Ollama는 JSON schema를 전달합니다.
 
-세 Interview 작업에는 기존 OpenAI SDK, Gemini 공식 `google-genai` SDK, Ollama 로컬 `/api/chat`
-Adapter를 사용합니다. [Google SDK 2.23.0](https://pypi.org/project/google-genai/2.23.0/)은
-Python 3.14를 지원하는 Apache-2.0 패키지이며, [구조화 출력](https://ai.google.dev/gemini-api/docs/structured-output)과
-[timeout·재시도 설정](https://googleapis.github.io/python-genai/)을 제공합니다. Ollama의
-[로컬 Chat API](https://docs.ollama.com/api/chat)는 `format` JSON schema를 받습니다.
-서버는 각 구조화 결과를 다시 검증합니다. [LiteLLM](https://pypi.org/project/litellm/)은
-Python 3.14 지원과 폭넓은 Provider 호환성이 있지만 의존성과 라우팅 표면이 크고
-[Proxy 보안 공지](https://github.com/BerriAI/litellm/security/advisories)도 있어 이 세 작업에는
-과합니다. [Pydantic AI](https://pypi.org/project/pydantic-ai/)는 Agent 실행 계층이 추가되어
-현재 필요한 단순 요청·검증 계약보다 운영 복잡도가 큽니다. `uv audit`에서는 현재 잠금된
-의존성에 알려진 취약점이 보고되지 않았습니다.
-질문의 의미적 타당성은 형식·근거 인용 검사만으로 완전히 증명할 수 없습니다. 모호하거나
-근거가 맞지 않는 제안은 거부하여 답변을 보존하고 동일 답변의 후속 처리를 재시도할 수 있습니다.
-첫 질문과 후속 질문 준비는 자동으로 시작되며, 준비 중에는 버튼을 비활성화하고 같은
-form의 추가 요청을 버립니다. JavaScript 없이도 버튼으로 질문 준비를 요청할 수 있습니다.
-질문 준비의 503 진단은 `reflections.views` logger의 `Interview pipeline failed` 기록에서
-단계, Interview id, sequence, 예외 chain의 타입·발생 위치 및 HTTP 상태 코드로 확인합니다.
-실패 화면에는 원문 대신 고정된 실패 사유·오류 코드·질문 번호를 표시합니다. 답변 분석의
-Coverage 중복·UNCOVERED·동일 또는 역행 상태와 원문 불일치 인용은 로그의 `reason`으로도 구별합니다.
-예외 메시지, Provider 원문 및 답변은 로그에 기록하지 않습니다. Live LLM smoke는 세 작업의
-transport뿐 아니라 Application의 질문·분석·근거 인용 검증까지 확인합니다.
-일반 모드에서 Coverage가 미완료이면 구조화 schema도 `question`만 허용합니다.
-저정보 답변은 생략 대신 미충족 축의 질문으로 전환하며, 네 축 완료 및 `CAP_EXTENSION`의
-생략 허용 정책은 유지합니다. Gemini smoke는 이 저정보 사례와 실제 HTTP·테스트 DB 저장
-흐름까지 검증합니다.
+기존 질문 표시·Reflection 조회·수정본 저장은 Provider 구성에 의존하지 않습니다.
+Reflection 오류는 `ReflectionGenerationError` 아래 Timeout·Unavailable·Rejected·ConfigurationError로
+구분하고, 소유자 정책·출력 검증·중복 초안·저장 오류는 Service 오류로 구분합니다.
+
+Interview 질문 준비는 자동으로 시작하며 요청 중 버튼과 같은 form의 추가 submit을 차단합니다.
+JavaScript 없이도 버튼으로 준비를 요청할 수 있습니다. 503 화면은 고정 실패 사유·오류 코드·질문
+번호를 표시하고 답변을 보존합니다. `reflections.views`의 `Interview pipeline failed` 로그는
+단계·Interview id·sequence·예외 타입/위치·HTTP 상태·검증 `reason`으로 진단합니다.
+예외 메시지·답변·credential·Provider 원문은 로그에 기록하지 않습니다.
+
+실제 연결은 아래 명령으로 선택한 경우에만 검증합니다. Ollama는 `OLLAMA_LIVE_TEST=1`도 필요합니다.
+
+```powershell
+uv run pytest -m live tests/integrations/llm/test_live_smoke.py
+# Reflection만 확인
+uv run pytest -m live tests/integrations/llm/test_live_smoke.py -k reflection
+```
+
+Interview의 과거 live 실행 결과와 Reflection의 미실행 범위는
+[문서 인덱스](docs/README.md)와 [Day 10 검증 기록](specs/015-reflection-draft-generation/quickstart.md)에
+구분하여 기록합니다.
 
 ## 개발 명령
 

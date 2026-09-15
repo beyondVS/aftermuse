@@ -304,3 +304,105 @@ def test_coverage_migrations_backfill_defaults_constraints_and_reverse_data() ->
     finally:
         executor = MigrationExecutor(connection)
         executor.migrate(executor.loader.graph.leaf_nodes())
+
+
+@pytest.mark.django_db(transaction=True)
+def test_reflection_migration_preserves_existing_data_and_reverses() -> None:
+    connection = transaction.get_connection()
+    previous = [("reflections", "0006_interviewprogressdecision_candidate_focus_axis")]
+    target = [("reflections", "0007_reflection")]
+    try:
+        MigrationExecutor(connection).migrate(previous)
+        apps = MigrationExecutor(connection).loader.project_state(previous).apps
+        User = apps.get_model("accounts", "User")
+        Book = apps.get_model("books", "Book")
+        Reading = apps.get_model("readings", "Reading")
+        Interview = apps.get_model("reflections", "Interview")
+        InterviewTurn = apps.get_model("reflections", "InterviewTurn")
+        Decision = apps.get_model("reflections", "InterviewProgressDecision")
+
+        user = User.objects.create(username="reflection-mig-owner")
+        book = Book.objects.create(
+            isbn13="9780000000199", title="Reflection Migration 도서"
+        )
+        reading = Reading.objects.create(
+            user=user, book=book, status="completed", completed_on="2026-09-15"
+        )
+        interview = Interview.objects.create(
+            reading=reading,
+            book=book,
+            knowledge_readiness="READY",
+            status="REFLECTION_READY",
+        )
+        turn = InterviewTurn.objects.create(
+            interview=interview, sequence=1, question="질문", answer="답변"
+        )
+        decision = Decision.objects.create(
+            turn=turn, kind="SOFT_STOP", candidate_question="다음 질문"
+        )
+
+        # 0007로 마이그레이션
+        MigrationExecutor(connection).migrate(target)
+        apps = MigrationExecutor(connection).loader.project_state(target).apps
+        ReflectionModel = apps.get_model("reflections", "Reflection")
+
+        # 기존 레코드 보존 확인
+        assert Interview.objects.filter(
+            pk=interview.pk, status="REFLECTION_READY"
+        ).exists()
+        assert InterviewTurn.objects.filter(pk=turn.pk, answer="답변").exists()
+        assert Decision.objects.filter(pk=decision.pk).exists()
+
+        # 새 Reflection 생성 및 OneToOne 검증
+        TargetInterview = apps.get_model("reflections", "Interview")
+        target_interview = TargetInterview.objects.get(pk=interview.pk)
+        sections = [
+            {
+                "title": "제목",
+                "paragraphs": [
+                    {"text": "답변", "evidence": [{"sequence": 1, "quote": "답변"}]}
+                ],
+            }
+        ]
+        ref = ReflectionModel.objects.create(
+            interview=target_interview,
+            draft_markdown="초안 본문",
+            draft_sections=sections,
+            status="DRAFT",
+        )
+        assert ref.pk is not None
+
+        # 중복 생성 시 유니크 제약
+        with pytest.raises(IntegrityError), transaction.atomic():
+            ReflectionModel.objects.create(
+                interview=target_interview,
+                draft_markdown="다른 초안",
+                draft_sections=sections,
+                status="DRAFT",
+            )
+
+        # 0006으로 롤백
+        MigrationExecutor(connection).migrate(previous)
+        with connection.cursor() as cursor:
+            tables = connection.introspection.table_names(cursor)
+        assert "reflections_reflection" not in tables
+
+        # 기존 레코드 보존 확인
+        assert Interview.objects.filter(pk=interview.pk).exists()
+        assert InterviewTurn.objects.filter(pk=turn.pk).exists()
+        assert Decision.objects.filter(pk=decision.pk).exists()
+    finally:
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
+
+@pytest.mark.django_db(transaction=True)
+def test_reflection_migration_sql_is_additive_and_lock_bounded() -> None:
+    output = StringIO()
+    call_command("sqlmigrate", "reflections", "0007", stdout=output)
+    sql = output.getvalue().upper()
+    assert "SET LOCAL LOCK_TIMEOUT = '2S'" in sql
+    assert 'CREATE TABLE "REFLECTIONS_REFLECTION"' in sql
+    assert 'ALTER TABLE "REFLECTIONS_INTERVIEW"' not in sql
+    assert 'ALTER TABLE "REFLECTIONS_INTERVIEWTURN"' not in sql
+    assert 'ALTER TABLE "REFLECTIONS_INTERVIEWPROGRESSDECISION"' not in sql

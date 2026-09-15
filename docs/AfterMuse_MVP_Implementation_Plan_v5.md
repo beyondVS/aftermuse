@@ -352,16 +352,20 @@ Core MVP의 최소 Navigation Hub를 구축하여 현재 사용자의 실제 독
 
 Interview 결과를 저장할 Reflection 모델을 구현하고, 사용자 답변에만 근거하여 에세이 초안을 생성하는 LLM Prompt 및 Provider Adapter 경계를 완성한다.
 
-- [ ] **IMP-090 — Reflection 기본 모델 구현**
+- [x] **IMP-090 — Reflection 기본 모델 구현**
   - **선행 작업:** IMP-050
   - Interview 결과를 바탕으로 Reflection 초안과 사용자 수정본을 저장할 수 있게 한다.
   - **완료 조건:** Reflection Draft를 저장/조회할 수 있다.
+  - **검증 (2026-09-16):** `Reflection` 영속 모델(`OneToOneField(Interview)`), 22,000자 초안/20,000자 수정본 제약, JSONB array CHECK 제약, additive migration(`0007_reflection.py`, 2초 lock timeout) 및 Service(`get_reflection_draft`, `save_reflection_draft`, `save_reflection_revision`), 최초 초안 불변·수정본 분리 보존, 소유자 격리를 단위/통합/마이그레이션 테스트 및 `scripts/verify.py`로 검증했다.
 
-- [ ] **IMP-091 — Reflection 생성 Prompt / Adapter 구현**
+- [x] **IMP-091 — Reflection 생성 Prompt / Adapter 구현 (기반 및 계약 검증 완료, 실제 품질 인수 분리)**
   - **선행 작업:** IMP-060, IMP-073, IMP-090
   - Interview 답변만을 근거로 Reflection 초안을 생성한다.
   - 사용자가 말하지 않은 생각을 추가하지 않는 규칙을 포함한다.
   - **완료 조건:** fake provider 및 실제 provider에서 Markdown 초안을 생성할 수 있다.
+  - **검증 (2026-09-16):** 확정 답변 기반 비영속 Reflection 초안 생성 계약(`generate_reflection_draft`), exact substring 인용 및 2자 이상 단어 토큰 접지 검증, 결정론적 canonical Markdown 렌더러, 네 Provider(fake, OpenAI, Gemini, Ollama)의 구조화 transport 및 전용 오류 격리 매핑, `get_reflection_provider()` 팩토리를 구현하고 단위/통합 테스트와 `scripts/verify.py`로 검증했다.
+  - **Convergence 검증 (2026-09-16):** T031–T033의 최상위 wire 추가 키 거부, 오류 원문 비노출, 저장 잠금 후 소유자·관계·상태·확정 답변 snapshot 재검증을 완료했다. 재수렴 점검 관련 테스트 100 passed, 신규 미구현 작업 0건이다.
+  - **남은 범위 및 의미 품질 한계:** Reflection 실제 연결과 대표 자료의 의미 품질 인수는 미실행이며 opt-in(`-m live ... -k reflection`)으로 분리한다. 구조·인용·표현 연결 검사는 의미적 충실성의 전수 보장이 아니다. 후속 수정 UI도 실제 Provider 품질 인수를 대신하지 않는다. Day 11/12 생성·결과·수정 화면은 후속 범위다.
 
 ### Day 11 — Interview 상호작용 완결과 Reflection 생성 Transition
 

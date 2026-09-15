@@ -248,3 +248,154 @@ class InterviewProgressDecision(models.Model):
             or not self.candidate_question.strip()
         ):
             raise ValidationError({"candidate_question": "질문 후보가 필요합니다."})
+
+
+_DRAFT_MARKDOWN_CONSTRAINT_SQL = (
+    "char_length(draft_markdown) >= 1 "
+    "AND char_length(draft_markdown) <= 22000 "
+    "AND length(trim(draft_markdown)) > 0"
+)
+_REVISED_MARKDOWN_CONSTRAINT_SQL = (
+    "revised_markdown IS NULL OR ("
+    "char_length(revised_markdown) >= 1 "
+    "AND char_length(revised_markdown) <= 20000 "
+    "AND length(trim(revised_markdown)) > 0"
+    ")"
+)
+_SECTIONS_ARRAY_CONSTRAINT_SQL = "jsonb_typeof(draft_sections) = 'array'"
+
+
+class Reflection(models.Model):
+    """Interview 완독 후 확정된 생각으로 구성된 독서노트 초안 및 수정본이다."""
+
+    class Status(models.TextChoices):
+        DRAFT = "DRAFT", "초안"
+
+    id = models.BigAutoField(primary_key=True)
+    interview = models.OneToOneField(
+        Interview, on_delete=models.CASCADE, related_name="reflection"
+    )
+    draft_markdown = models.TextField()
+    draft_sections = models.JSONField()
+    revised_markdown = models.TextField(null=True, blank=True)  # noqa: DJ001
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(status="DRAFT"),
+                name="reflections_reflection_status_draft",
+            ),
+            models.CheckConstraint(
+                condition=Q(completed_at__isnull=True),
+                name="reflections_reflection_completed_at_null",
+            ),
+            models.CheckConstraint(
+                condition=RawSQL(
+                    _DRAFT_MARKDOWN_CONSTRAINT_SQL,
+                    params=(),
+                    output_field=models.BooleanField(),
+                ),
+                name="reflections_reflection_draft_markdown_valid",
+            ),
+            models.CheckConstraint(
+                condition=RawSQL(
+                    _REVISED_MARKDOWN_CONSTRAINT_SQL,
+                    params=(),
+                    output_field=models.BooleanField(),
+                ),
+                name="reflections_reflection_revised_markdown_valid",
+            ),
+            models.CheckConstraint(
+                condition=RawSQL(
+                    _SECTIONS_ARRAY_CONSTRAINT_SQL,
+                    params=(),
+                    output_field=models.BooleanField(),
+                ),
+                name="reflections_reflection_draft_sections_array",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Reflection({self.interview_id}) · {self.status}"
+
+    def save(self, *args, **kwargs) -> None:
+        self.clean()
+        super().save(*args, **kwargs)
+
+    def _validate_markdown_fields(self) -> None:
+        """초안 및 수정본 Markdown의 타입과 길이 제약을 검증한다."""
+        if not isinstance(self.draft_markdown, str) or isinstance(
+            self.draft_markdown, bool
+        ):
+            raise ValidationError(
+                {"draft_markdown": "초안 본문은 문자열이어야 합니다."}
+            )
+        if not self.draft_markdown.strip():
+            raise ValidationError(
+                {"draft_markdown": "초안 본문은 공백만으로 구성될 수 없습니다."}
+            )
+        if len(self.draft_markdown) < 1 or len(self.draft_markdown) > 22000:
+            raise ValidationError(
+                {"draft_markdown": "초안 본문 길이는 1–22,000자여야 합니다."}
+            )
+
+        if self.revised_markdown is not None:
+            if not isinstance(self.revised_markdown, str) or isinstance(
+                self.revised_markdown, bool
+            ):
+                raise ValidationError(
+                    {"revised_markdown": "수정본은 문자열 또는 None이어야 합니다."}
+                )
+            if not self.revised_markdown.strip():
+                raise ValidationError(
+                    {"revised_markdown": "수정본은 공백만으로 구성될 수 없습니다."}
+                )
+            if len(self.revised_markdown) > 20000:
+                raise ValidationError(
+                    {"revised_markdown": "수정본 길이는 20,000자를 초과할 수 없습니다."}
+                )
+
+    def _validate_sections(self) -> None:
+        """draft_sections의 JSON 배열 구조를 검증한다."""
+        if not isinstance(self.draft_sections, list) or isinstance(
+            self.draft_sections, (str, bytes)
+        ):
+            raise ValidationError(
+                {"draft_sections": "draft_sections는 JSON 배열이어야 합니다."}
+            )
+
+    def _validate_immutability(self) -> None:
+        """기존 인스턴스의 interview, draft 본문 및 섹션 불변성을 강제한다."""
+        if not self.pk:
+            return
+        original = Reflection.objects.filter(pk=self.pk).first()
+        if not original:
+            return
+        if self.interview_id != original.interview_id:
+            raise ValidationError({"interview": "Interview 관계는 변경할 수 없습니다."})
+        if self.draft_markdown != original.draft_markdown:
+            raise ValidationError(
+                {"draft_markdown": "최초 초안 본문은 변경할 수 없습니다."}
+            )
+        if self.draft_sections != original.draft_sections:
+            raise ValidationError(
+                {"draft_sections": "최초 초안 섹션은 변경할 수 없습니다."}
+            )
+
+    def clean(self) -> None:
+        super().clean()
+        if self.status != self.Status.DRAFT:
+            raise ValidationError({"status": "Day 10에서는 DRAFT 상태만 허용됩니다."})
+        if self.completed_at is not None:
+            raise ValidationError(
+                {"completed_at": "Day 10에서는 완료 시각을 지정할 수 없습니다."}
+            )
+        self._validate_markdown_fields()
+        self._validate_sections()
+        self._validate_immutability()

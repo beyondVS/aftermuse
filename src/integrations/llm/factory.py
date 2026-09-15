@@ -8,11 +8,14 @@ from integrations.llm.contracts import (
     NextQuestionProvider,
     QuestionGenerationConfigurationError,
     QuestionProvider,
+    ReflectionGenerationConfigurationError,
+    ReflectionProvider,
 )
 from integrations.llm.fake import (
     FakeAnswerAnalysisProvider,
     FakeNextQuestionProvider,
     FakeQuestionProvider,
+    FakeReflectionProvider,
 )
 from integrations.llm.gemini import GeminiInterviewProvider
 from integrations.llm.ollama import OllamaInterviewProvider
@@ -104,3 +107,38 @@ def get_next_question_provider() -> NextQuestionProvider:
             timeout=settings.OLLAMA_TIMEOUT_SECONDS,
         )
     raise QuestionGenerationConfigurationError
+
+
+def get_reflection_provider() -> ReflectionProvider:
+    """현재 설정으로 Reflection 독서노트 초안 생성 Provider를 선택한다."""
+    provider_name = settings.LLM_PROVIDER.strip().lower()
+    if provider_name == "fake":
+        return FakeReflectionProvider()
+    if provider_name == "openai":
+        try:
+            return OpenAIInterviewProvider(
+                api_key=settings.OPENAI_API_KEY,
+                model=settings.OPENAI_MODEL,
+                timeout=settings.OPENAI_TIMEOUT_SECONDS,
+            )
+        except QuestionGenerationConfigurationError as error:
+            raise ReflectionGenerationConfigurationError() from error
+    if provider_name == "gemini":
+        try:
+            return GeminiInterviewProvider(
+                api_key=settings.GEMINI_API_KEY,
+                model=settings.GEMINI_MODEL,
+                timeout=settings.GEMINI_TIMEOUT_SECONDS,
+            )
+        except QuestionGenerationConfigurationError as error:
+            raise ReflectionGenerationConfigurationError() from error
+    if provider_name == "ollama":
+        try:
+            return OllamaInterviewProvider(
+                base_url=settings.OLLAMA_BASE_URL,
+                model=settings.OLLAMA_MODEL,
+                timeout=settings.OLLAMA_TIMEOUT_SECONDS,
+            )
+        except QuestionGenerationConfigurationError as error:
+            raise ReflectionGenerationConfigurationError() from error
+    raise ReflectionGenerationConfigurationError()
