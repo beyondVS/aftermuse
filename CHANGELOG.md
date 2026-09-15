@@ -9,10 +9,16 @@
 
 ### Fixed
 
+- Reflection wire 최상위 추가 키 거부, 검증 오류의 인용·외부값 비노출 및 저장 잠금 후 현재 소유자·관계·상태·답변 snapshot 재검증
+
 - Interview 503 화면에 안전한 실패 사유와 오류 코드·질문 번호를 표시하고 답변 분석 Coverage 검증 위반을 조건별 로그 코드로 구별
 - Gemini가 저정보 답변의 미완료 Coverage에서 질문 생략을 제안해 503이 발생하던 경로를 요청별 schema·prompt 제약으로 차단하고, 불필요한 AFC를 비활성화하며 실제 HTTP·저정보 live 검증을 추가
 - Interview 자동 질문 준비 form의 submit을 HTMX로 처리하고 실행 중 버튼·추가 요청을 차단하여 일반 navigation과 자동 POST의 경쟁을 방지
 - 첫 질문·후속 질문 503에 민감한 원문 없이 예외 chain 타입·발생 위치·HTTP 상태 진단 로그를 추가하고, 후속 질문 prompt의 근거 문자열 계약과 live smoke의 Application 검증을 보완
+
+### Changed
+
+- README를 구현 상태·설정·실행·진단 중심으로 재구성하고 문서 인덱스와 Day 10 구현 계획의 수렴 결과·실제 품질 미검증 범위를 동기화
 
 ### Added
 

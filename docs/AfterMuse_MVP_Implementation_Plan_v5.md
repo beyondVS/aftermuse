@@ -364,7 +364,8 @@ Interview 결과를 저장할 Reflection 모델을 구현하고, 사용자 답�
   - 사용자가 말하지 않은 생각을 추가하지 않는 규칙을 포함한다.
   - **완료 조건:** fake provider 및 실제 provider에서 Markdown 초안을 생성할 수 있다.
   - **검증 (2026-09-16):** 확정 답변 기반 비영속 Reflection 초안 생성 계약(`generate_reflection_draft`), exact substring 인용 및 2자 이상 단어 토큰 접지 검증, 결정론적 canonical Markdown 렌더러, 네 Provider(fake, OpenAI, Gemini, Ollama)의 구조화 transport 및 전용 오류 격리 매핑, `get_reflection_provider()` 팩토리를 구현하고 단위/통합 테스트와 `scripts/verify.py`로 검증했다.
-  - **남은 범위 및 의미 품질 한계 명시:** 기본 검사는 외부 네트워크를 격리하여 live smoke는 opt-in(`-m live ... -k reflection`)으로 분리했다. 자동 검증은 구조/보안/인용 안전망이며, 태도 왜곡(Stance Inversion)·문맥 이탈 등 실제 LLM의 미묘한 의미 품질 평가는 후속 화면(Day 11/12)의 Human-in-the-loop 수정본 보존을 통해 최종 달성된다.
+  - **Convergence 검증 (2026-09-16):** T031–T033의 최상위 wire 추가 키 거부, 오류 원문 비노출, 저장 잠금 후 소유자·관계·상태·확정 답변 snapshot 재검증을 완료했다. 재수렴 점검 관련 테스트 100 passed, 신규 미구현 작업 0건이다.
+  - **남은 범위 및 의미 품질 한계:** Reflection 실제 연결과 대표 자료의 의미 품질 인수는 미실행이며 opt-in(`-m live ... -k reflection`)으로 분리한다. 구조·인용·표현 연결 검사는 의미적 충실성의 전수 보장이 아니다. 후속 수정 UI도 실제 Provider 품질 인수를 대신하지 않는다. Day 11/12 생성·결과·수정 화면은 후속 범위다.
 
 ### Day 11 — Interview 상호작용 완결과 Reflection 생성 Transition
 
