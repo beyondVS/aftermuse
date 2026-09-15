@@ -960,17 +960,12 @@ def _validate_answer_analysis(
             current_status = CoverageStatus(current_coverage[axis.value])
         except (KeyError, TypeError, ValueError) as error:
             raise AnswerAnalysisRejected() from error
-        if (
-            axis in validated
-            or status is CoverageStatus.UNCOVERED
-            or _coverage_rank(status) <= _coverage_rank(current_status)
-        ):
-            raise AnswerAnalysisRejected()
+        _validate_analysis_coverage_transition(axis, status, current_status, validated)
         evidence = _validate_analysis_text(
             item.evidence, maximum=_ANSWER_EVIDENCE_MAX_LENGTH
         )
         if evidence not in answer:
-            raise AnswerAnalysisRejected()
+            raise AnswerAnalysisRejected(reason_code="analysis_evidence_not_verbatim")
         validated[axis] = AnalyzedCoverageChange(axis, status, evidence)
     return AnswerAnalysisResult(
         meaning=meaning,
@@ -979,6 +974,16 @@ def _validate_answer_analysis(
             validated[axis] for axis in CoreCoverageAxis if axis in validated
         ),
     )
+
+
+def _validate_analysis_coverage_transition(axis, status, current_status, validated):
+    """단방향 Coverage 계약의 위반 조건을 원문 없는 코드로 구별한다."""
+    if axis in validated:
+        raise AnswerAnalysisRejected(reason_code="analysis_duplicate_axis")
+    if status is CoverageStatus.UNCOVERED:
+        raise AnswerAnalysisRejected(reason_code="analysis_uncovered_status")
+    if _coverage_rank(status) <= _coverage_rank(current_status):
+        raise AnswerAnalysisRejected(reason_code="analysis_non_increasing_coverage")
 
 
 def _validate_analysis_text(value: object, *, maximum: int) -> str:

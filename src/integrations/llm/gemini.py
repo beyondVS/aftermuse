@@ -39,6 +39,9 @@ class GeminiInterviewProvider(StructuredInterviewProvider):
                 model=self._model,
                 contents=json.dumps(payload, ensure_ascii=False),
                 config=types.GenerateContentConfig(
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                        disable=True
+                    ),
                     system_instruction=instructions,
                     response_mime_type="application/json",
                     response_json_schema=schema,

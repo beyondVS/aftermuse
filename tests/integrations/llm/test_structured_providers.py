@@ -123,6 +123,72 @@ class Transport:
 
 
 @pytest.mark.parametrize("provider_type", ["gemini", "ollama"])
+@pytest.mark.parametrize(
+    ("covered", "budget_mode", "kinds"),
+    [
+        (False, "NORMAL", ["question"]),
+        (True, "NORMAL", ["question", "skip"]),
+        (False, "CAP_EXTENSION", ["question", "skip"]),
+    ],
+)
+def test_next_wire_contract_only_allows_policy_permitted_skip(
+    provider_type, covered, budget_mode, kinds
+):
+    """저정보 답변도 미완료 일반 모드에서는 질문을 요구하고 허용된 생략은 유지한다."""
+    context = _context()
+    context = NextQuestionContext(
+        context.question_context,
+        (),
+        context.question,
+        "잘 모르겠어요",
+        None,
+        True,
+        tuple(
+            CurrentCoverageItem(item.axis, "COVERED" if covered else "UNCOVERED")
+            for item in context.coverage
+        ),
+        budget_mode,
+    )
+    output = json.dumps(
+        {
+            "kind": "question",
+            "question": "읽을 때 어떤 느낌이 들었나요?",
+            "focus_axis": "REACTION",
+            "grounding_quote": None,
+            "skip_reason": None,
+        },
+        ensure_ascii=False,
+    )
+    if provider_type == "gemini":
+        client = GeminiClient(output)
+        provider = GeminiInterviewProvider(
+            api_key="key", model="exact", timeout=3, client=client
+        )
+    else:
+        client = Transport(output)
+        provider = OllamaInterviewProvider(
+            base_url="http://localhost:11434",
+            model="exact",
+            timeout=3,
+            transport=client,
+        )
+    result = provider.generate_next_question(context)
+    assert result.kind == "question"
+    schema = (
+        client.calls[0]["config"].response_json_schema
+        if provider_type == "gemini"
+        else json.loads(client.calls[0][0].data)["format"]
+    )
+    assert schema["properties"]["kind"]["enum"] == kinds
+    if kinds == ["question"]:
+        assert schema["properties"]["question"]["type"] == "string"
+        assert schema["properties"]["focus_axis"]["type"] == "string"
+    from integrations.llm.interview import _NEXT_QUESTION_SCHEMA
+
+    assert _NEXT_QUESTION_SCHEMA["properties"]["kind"]["enum"] == ["question", "skip"]
+
+
+@pytest.mark.parametrize("provider_type", ["gemini", "ollama"])
 def test_three_tasks_use_structured_output_without_network(provider_type):
     output = json.dumps(
         {
@@ -153,6 +219,7 @@ def test_three_tasks_use_structured_output_without_network(provider_type):
         request = client.calls[0]
         assert request["model"] == "exact-model"
         assert request["config"].response_mime_type == "application/json"
+        assert request["config"].automatic_function_calling.disable is True
         assert request["config"].response_json_schema["required"] == [
             "kind",
             "question",

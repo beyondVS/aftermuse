@@ -198,6 +198,18 @@ Python 3.14 지원과 폭넓은 Provider 호환성이 있지만 의존성과 라
 의존성에 알려진 취약점이 보고되지 않았습니다.
 질문의 의미적 타당성은 형식·근거 인용 검사만으로 완전히 증명할 수 없습니다. 모호하거나
 근거가 맞지 않는 제안은 거부하여 답변을 보존하고 동일 답변의 후속 처리를 재시도할 수 있습니다.
+첫 질문과 후속 질문 준비는 자동으로 시작되며, 준비 중에는 버튼을 비활성화하고 같은
+form의 추가 요청을 버립니다. JavaScript 없이도 버튼으로 질문 준비를 요청할 수 있습니다.
+질문 준비의 503 진단은 `reflections.views` logger의 `Interview pipeline failed` 기록에서
+단계, Interview id, sequence, 예외 chain의 타입·발생 위치 및 HTTP 상태 코드로 확인합니다.
+실패 화면에는 원문 대신 고정된 실패 사유·오류 코드·질문 번호를 표시합니다. 답변 분석의
+Coverage 중복·UNCOVERED·동일 또는 역행 상태와 원문 불일치 인용은 로그의 `reason`으로도 구별합니다.
+예외 메시지, Provider 원문 및 답변은 로그에 기록하지 않습니다. Live LLM smoke는 세 작업의
+transport뿐 아니라 Application의 질문·분석·근거 인용 검증까지 확인합니다.
+일반 모드에서 Coverage가 미완료이면 구조화 schema도 `question`만 허용합니다.
+저정보 답변은 생략 대신 미충족 축의 질문으로 전환하며, 네 축 완료 및 `CAP_EXTENSION`의
+생략 허용 정책은 유지합니다. Gemini smoke는 이 저정보 사례와 실제 HTTP·테스트 DB 저장
+흐름까지 검증합니다.
 
 ## 개발 명령
 

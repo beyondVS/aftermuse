@@ -313,7 +313,9 @@ Book Knowledge가 부족한 책은 READY_LIMITED 방식으로 질문한다.
   - **선행 작업:** IMP-073
   - LLM 실패, timeout, 잘못된 응답에서 답변이 보존되며 재시도할 수 있게 한다.
   - **완료 조건:** 다음 질문 생성 실패 후에도 사용자가 복구할 수 있다.
-  - **현재 구현 확인:** next_turn 실패 시 저장된 답변을 보존하고 오류 화면에서 동일 endpoint로 재시도한다. 관련 view 테스트에 답변 보존·재시도 표시 검증이 있다.
+  - **현재 구현 확인 (2026-09-15):** next_turn 실패 시 저장된 답변을 보존하고 오류 화면에서 동일 endpoint로 재시도한다. 자동 준비와 submit은 HTMX로 처리하며 실행 중 버튼·추가 요청을 차단한다. 첫 질문·후속 질문 503 화면은 원문 없이 실패 사유·오류 코드·질문 번호를 표시한다. 로그에는 단계·Interview id·sequence·예외 chain·안전한 reason 코드를 기록한다.
+  - **Provider 계약 보완:** 미완료 Coverage의 일반 모드에서는 schema도 question만 허용한다. 기존 분석 validation과 Soft Stop·상한·CAP_EXTENSION 정책은 유지한다. 분석의 중복 축·UNCOVERED·동일/역행 상태·원문 불일치 인용을 코드로 구별한다.
+  - **검증:** 관련 테스트 207 passed 및 Gemini live 2 passed로 세 capability·저정보 답변·실제 HTTP/ORM·재요청을 확인했다. Ollama GPU runner 문제의 대응은 보류한다.
 
 ### Day 09 — Core Home 사용자 상태 연결과 인터뷰 재진입 UI
 

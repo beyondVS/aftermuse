@@ -7,6 +7,14 @@
 
 ## 최신 업데이트 요약
 
+### 2026-09-15 Interview 구현 및 진단 현황
+
+Interview의 첫 질문·답변 선저장·분석·다음 질문 생성은 구현되어 있으며 Gemini live의 세 작업과 실제 HTTP·테스트 DB 흐름을 확인했다. 미완료 Coverage에서 Gemini가 skip을 제안하던 schema/prompt 계약 불일치는 질문을 요구하도록 보완했고 기존 validation 정책은 유지했다.
+
+자동 POST와 일반 navigation의 경쟁은 같은 form의 HTMX submit·실행 중 요청 차단으로 방지한다. 503 응답은 답변을 보존하며 안전한 한국어 실패 사유·고정 오류 코드·질문 번호를 표시한다. 로그의 reason은 분석 Coverage 중복·UNCOVERED·동일/역행 상태 및 원문 불일치 인용을 구별한다. 기존 로그의 AnswerAnalysisRejected 발생 위치만으로 해당 세부 조건을 확정할 수는 없다.
+
+Ollama의 HTTP 500은 로컬 GPU runner 오류로 확인했으며 대응은 보류했다. Broken pipe는 연결이 취소된 결과로 발생할 수 있어 그 자체를 LLM 실패의 원인 또는 제거 완료 기준으로 삼지 않는다. 실행 명령과 진단 안내는 저장소 루트 README를 따른다.
+
 이 버전은 다음 결정을 반영한다.
 
 - 서비스명은 **AfterMuse**로 확정한다.

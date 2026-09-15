@@ -7,6 +7,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Interview 503 화면에 안전한 실패 사유와 오류 코드·질문 번호를 표시하고 답변 분석 Coverage 검증 위반을 조건별 로그 코드로 구별
+- Gemini가 저정보 답변의 미완료 Coverage에서 질문 생략을 제안해 503이 발생하던 경로를 요청별 schema·prompt 제약으로 차단하고, 불필요한 AFC를 비활성화하며 실제 HTTP·저정보 live 검증을 추가
+- Interview 자동 질문 준비 form의 submit을 HTMX로 처리하고 실행 중 버튼·추가 요청을 차단하여 일반 navigation과 자동 POST의 경쟁을 방지
+- 첫 질문·후속 질문 503에 민감한 원문 없이 예외 chain 타입·발생 위치·HTTP 상태 진단 로그를 추가하고, 후속 질문 prompt의 근거 문자열 계약과 live smoke의 Application 검증을 보완
+
 ### Added
 
 - Home 화면을 실제 사용자 Reading 상태(읽고 싶음, 읽는 중, 완독) 및 진행 중 Interview와 연결하는 최소 Navigation Hub, 상태별 카드와 영역별 빈 상태 구현

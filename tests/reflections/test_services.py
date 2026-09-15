@@ -1867,3 +1867,31 @@ def test_natural_closing_variants_allow_skip_without_reserved_phrase(
         ),
     )
     assert result.skipped
+
+
+@pytest.mark.parametrize(
+    "statuses,current,expected",
+    [
+        (["PARTIAL", "COVERED"], "UNCOVERED", "analysis_duplicate_axis"),
+        (["UNCOVERED"], "UNCOVERED", "analysis_uncovered_status"),
+        (["PARTIAL"], "PARTIAL", "analysis_non_increasing_coverage"),
+        (["PARTIAL"], "COVERED", "analysis_non_increasing_coverage"),
+    ],
+)
+def test_answer_analysis_coverage_rejection_has_specific_code(
+    statuses, current, expected
+):
+    """실제 분석 validation의 중복·동일·역행 상태를 서로 구별한다."""
+    from reflections.services import _validate_answer_analysis
+
+    proposal = ProposedAnswerAnalysis(
+        meaning="기억이 남았음",
+        low_information=False,
+        coverage_patch=tuple(
+            ProposedCoverageChange(axis="MEMORY", status=status, evidence="기억")
+            for status in statuses
+        ),
+    )
+    with pytest.raises(AnswerAnalysisRejected) as caught:
+        _validate_answer_analysis(proposal, "기억", {"MEMORY": current})
+    assert caught.value.reason_code == expected

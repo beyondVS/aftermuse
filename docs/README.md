@@ -1,6 +1,15 @@
-# AfterMuse Planning Latest v2026-09-06
+# AfterMuse Planning Latest v2026-09-15
 
 최신 기준 파일 묶음입니다.
+
+## 최근 구현 확인 — 2026-09-15
+
+- Interview 자동 POST와 일반 submit의 경쟁을 방지하고, 답변 선저장·재시도·서버 멱등성을 유지했습니다.
+- Coverage가 미완료인 일반 모드는 요청 schema에서도 질문을 요구합니다. 네 축 완료 및 `CAP_EXTENSION`의 생략 정책은 유지했습니다.
+- 첫 질문·다음 질문 503 화면은 안전한 실패 사유·오류 코드·질문 번호를 제공하며, 로그는 단계·Interview id·sequence·예외 chain·`reason`으로 구별합니다. 답변·credential·Provider 원문은 노출하지 않습니다.
+- Gemini live smoke에서 first·analysis·next, 저정보 답변, 실제 HTTP·테스트 DB 저장 및 재요청을 확인했습니다. Ollama GPU runner 오류는 확인했으며 후속 대응은 보류했습니다.
+- 관련 테스트 207 passed, Gemini live 2 passed. 커밋 전 표준 verify는 임시 부모 폴더를 준비한 상태에서 388 passed, 1 skipped, 4 deselected이며 lint·format도 통과했습니다.
+- 상세 실행·오류 코드 안내는 저장소 루트 [README.md](../README.md)를 참조합니다.
 
 ## 문서 우선순위
 

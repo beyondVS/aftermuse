@@ -1,3 +1,6 @@
+import logging
+import traceback
+
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError
 from django.http import HttpRequest, HttpResponse
@@ -26,6 +29,85 @@ from reflections.services import (
     save_turn_answer,
     start_interview,
 )
+
+logger = logging.getLogger(__name__)
+
+_ANALYSIS_FAILURE_REASONS = {
+    "analysis_invalid_output": (
+        "답변 분석 결과의 형식 또는 내용이 검증 기준을 만족하지 못했습니다."
+    ),
+    "analysis_duplicate_axis": "답변 분석이 같은 Coverage 축을 중복 제안했습니다.",
+    "analysis_uncovered_status": (
+        "답변 분석이 허용되지 않는 UNCOVERED 상태를 제안했습니다."
+    ),
+    "analysis_non_increasing_coverage": (
+        "답변 분석이 이미 반영된 상태와 같거나 낮은 Coverage 상태를 제안했습니다."
+    ),
+    "analysis_evidence_not_verbatim": (
+        "답변 분석의 근거 인용이 저장된 답변 원문과 일치하지 않습니다."
+    ),
+}
+
+
+def _pipeline_failure_details(error: Exception) -> dict[str, str]:
+    """고정된 코드와 설명만 응답에 제공하고 예외 원문은 노출하지 않는다."""
+    error_type = type(error).__name__
+    code = getattr(error, "reason_code", None)
+    if error_type == "AnswerAnalysisRejected":
+        code = code if code in _ANALYSIS_FAILURE_REASONS else "analysis_invalid_output"
+        reason = _ANALYSIS_FAILURE_REASONS[code]
+    else:
+        code = error_type
+        if error_type.endswith("Timeout"):
+            reason = "AI 서비스의 응답 대기 시간이 초과되었습니다."
+        elif error_type.endswith("ConfigurationError"):
+            reason = "AI 서비스 연결 설정을 확인해야 합니다."
+        elif error_type.endswith("Unavailable"):
+            reason = "AI 서비스 요청이 연결 또는 서비스 오류로 실패했습니다."
+        elif error_type == "QuestionGenerationRejected":
+            reason = (
+                "생성된 질문이 질문 형식·근거·생략 정책 검증을 통과하지 못했습니다."
+            )
+        elif error_type == "NextTurnStaleError":
+            reason = (
+                "처리 중 Interview 상태가 변경되었습니다. 화면을 새로고침해 주세요."
+            )
+        else:
+            reason = "질문 처리 결과를 저장하지 못했습니다."
+    return {"pipeline_error_code": code, "pipeline_error_reason": reason}
+
+
+def _log_pipeline_failure(
+    stage: str, interview_id: int, sequence: int, error: Exception
+):
+    """예외 메시지·locals 없이 타입과 코드 위치만 기록해 원문 유출을 막는다."""
+    chain = []
+    reason_code = _pipeline_failure_details(error)["pipeline_error_code"]
+    seen = set()
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        frames = traceback.extract_tb(error.__traceback__)
+        origin = frames[-1] if frames else None
+        chain.append(
+            f"{type(error).__name__}@{origin.name}:{origin.lineno}"
+            if origin is not None
+            else type(error).__name__
+        )
+        status = getattr(error, "code", None)
+        if isinstance(status, int) and 100 <= status <= 599:
+            chain[-1] += f"[status={status}]"
+        error = error.__cause__ or (
+            error.__context__ if not error.__suppress_context__ else None
+        )
+    logger.warning(
+        "Interview pipeline failed stage=%s interview_id=%s sequence=%s "
+        "chain=%s reason=%s",
+        stage,
+        interview_id,
+        sequence,
+        " -> ".join(chain),
+        reason_code,
+    )
 
 
 @require_GET
@@ -124,8 +206,9 @@ def first_question(request: HttpRequest, interview_id: int) -> HttpResponse:
         )
     except InterviewPolicyError:
         return _policy_conflict_response(request)
-    except QuestionGenerationError:
-        return _question_error_response(request, interview)
+    except QuestionGenerationError as error:
+        _log_pipeline_failure("first", interview.pk, 1, error)
+        return _question_error_response(request, interview, error)
     if request.headers.get("HX-Request") == "true":
         return render(
             request,
@@ -210,7 +293,8 @@ def next_turn(request: HttpRequest, interview_id: int, sequence: int) -> HttpRes
         QuestionGenerationError,
         NextTurnPersistenceError,
         NextTurnStaleError,
-    ):
+    ) as error:
+        _log_pipeline_failure("next", interview.pk, sequence, error)
         template = (
             "reflections/_interview_next_error.html"
             if request.headers.get("HX-Request") == "true"
@@ -224,6 +308,7 @@ def next_turn(request: HttpRequest, interview_id: int, sequence: int) -> HttpRes
                 "turn": turn,
                 "previous_turns": _get_previous_turns(interview, turn),
                 "next_error": True,
+                **_pipeline_failure_details(error),
             },
             status=503,
             focus_error=True,
@@ -437,7 +522,7 @@ def _saved_response(
 
 
 def _question_error_response(
-    request: HttpRequest, interview: Interview
+    request: HttpRequest, interview: Interview, error: Exception
 ) -> HttpResponse:
     template = (
         "reflections/_interview_error.html"
@@ -447,7 +532,11 @@ def _question_error_response(
     return _interview_turn_response(
         request,
         template,
-        {"interview": interview, "question_error": True},
+        {
+            "interview": interview,
+            "question_error": True,
+            **_pipeline_failure_details(error),
+        },
         status=503,
         focus_error=True,
     )

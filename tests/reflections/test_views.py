@@ -1,4 +1,5 @@
 from datetime import date
+from urllib.error import HTTPError
 
 import pytest
 from django.db import DatabaseError
@@ -8,8 +9,10 @@ from django.utils import timezone
 
 from books.models import Book
 from integrations.llm.contracts import (
+    AnswerAnalysisRejected,
     ProposedNextQuestion,
     QuestionGenerationConfigurationError,
+    QuestionGenerationRejected,
     QuestionGenerationTimeout,
 )
 from integrations.llm.fake import FakeNextQuestionProvider
@@ -19,12 +22,162 @@ from reflections.services import (
     FirstAnswerPersistenceError,
     InterviewPolicyError,
     NextTurnPersistenceError,
+    NextTurnStaleError,
 )
 
 
 @pytest.fixture(autouse=True)
 def default_fake_llm_provider(settings) -> None:
     settings.LLM_PROVIDER = "fake"
+
+
+@pytest.mark.parametrize(
+    "error_type",
+    [
+        AnswerAnalysisRejected,
+        QuestionGenerationRejected,
+        NextTurnPersistenceError,
+        NextTurnStaleError,
+    ],
+)
+def test_next_failure_logs_types_without_sensitive_messages(
+    client, reading, monkeypatch, caplog, error_type
+):
+    """503 진단 로그는 원문 대신 chain 타입을 제공하고 답변을 보존한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="무엇이 남았나요?",
+        answer="보존할 답변",
+    )
+    secret = "credential-and-provider-answer-must-stay-private"
+
+    def fail(**kwargs):
+        try:
+            raise ValueError(secret)
+        except ValueError as cause:
+            raise error_type(secret) from cause
+
+    monkeypatch.setattr("reflections.views.process_next_turn", fail)
+    client.force_login(reading.user)
+    response = client.post(
+        reverse("reflections:next_turn", args=[interview.pk, 1]), HTTP_HX_REQUEST="true"
+    )
+    assert response.status_code == 503
+    assert "실패 사유:" in response.content.decode()
+    assert "다음 질문 다시 준비하기" in response.content.decode()
+    assert error_type.__name__ in caplog.text and "ValueError" in caplog.text
+    assert f"interview_id={interview.pk} sequence=1" in caplog.text
+    assert "stage=next" in caplog.text
+    assert secret not in caplog.text and secret not in response.content.decode()
+    assert turn.answer not in caplog.text
+    turn.refresh_from_db()
+    assert turn.answer == "보존할 답변"
+
+
+@pytest.mark.parametrize("htmx", [True, False])
+def test_analysis_validation_reason_is_visible_and_logged(
+    client, reading, monkeypatch, caplog, htmx
+):
+    """동일 상태 제안의 안전한 진단은 fragment와 전체 화면 모두 제공한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=3,
+        question="무엇이 남았나요?",
+        answer="저장된 답변",
+    )
+
+    def fail(**kwargs):
+        raise AnswerAnalysisRejected(
+            "private provider response", reason_code="analysis_non_increasing_coverage"
+        )
+
+    monkeypatch.setattr("reflections.views.process_next_turn", fail)
+    client.force_login(reading.user)
+    response = client.post(
+        reverse("reflections:next_turn", args=[interview.pk, 3]),
+        **({"HTTP_HX_REQUEST": "true"} if htmx else {}),
+    )
+    body = response.content.decode()
+    assert response.status_code == 503
+    assert "이미 반영된 상태와 같거나 낮은" in body
+    assert "analysis_non_increasing_coverage" in body and "질문 3" in body
+    assert "reason=analysis_non_increasing_coverage" in caplog.text
+    assert "private provider response" not in body + caplog.text
+    turn.refresh_from_db()
+    assert turn.answer == "저장된 답변"
+
+
+def test_first_failure_logs_safe_exception_chain(client, reading, monkeypatch, caplog):
+    """첫 질문 실패도 후속 질문과 동일한 비노출 진단 계약을 따른다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+
+    def fail(**kwargs):
+        raise QuestionGenerationTimeout("private provider details")
+
+    monkeypatch.setattr("reflections.views.ensure_first_question", fail)
+    client.force_login(reading.user)
+    response = client.post(
+        reverse("reflections:first_question", args=[interview.pk]),
+        HTTP_HX_REQUEST="true",
+    )
+    assert response.status_code == 503
+    assert "stage=first" in caplog.text and "QuestionGenerationTimeout" in caplog.text
+    assert "private provider details" not in caplog.text
+    assert "private provider details" not in response.content.decode()
+
+
+def test_pipeline_log_preserves_http_status_without_response_body(caplog):
+    """HTTP 오류의 상태만 추적하며 Provider 메시지와 header는 기록하지 않는다."""
+    from reflections.views import _log_pipeline_failure
+
+    error = HTTPError("http://private-provider", 500, "private error", {}, None)
+    _log_pipeline_failure("first", 12, 1, error)
+    assert "HTTPError[status=500]" in caplog.text
+    assert "private-provider" not in caplog.text and "private error" not in caplog.text
+
+
+def test_fake_first_answer_analysis_next_and_idempotent_retry(client, reading):
+    """세 LLM 작업과 실제 ORM 상태 전이를 연결하고 재제출 시 Turn을 재사용한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    client.force_login(reading.user)
+    first = client.post(
+        reverse("reflections:first_question", args=[interview.pk]),
+        HTTP_HX_REQUEST="true",
+    )
+    assert first.status_code == 200
+    saved = client.post(
+        reverse("reflections:turn_answer", args=[interview.pk, 1]),
+        {"answer": "푸른 표지가 기억에 남았어요. 차분한 느낌이 들었어요."},
+        HTTP_HX_REQUEST="true",
+    )
+    assert saved.status_code == 200
+    url = reverse("reflections:next_turn", args=[interview.pk, 1])
+    next_response = client.post(url, HTTP_HX_REQUEST="true")
+    repeated = client.post(url, HTTP_HX_REQUEST="true")
+    assert next_response.status_code == repeated.status_code == 200
+    assert interview.turns.count() == 2
+    first_turn = interview.turns.get(sequence=1)
+    assert first_turn.answer == "푸른 표지가 기억에 남았어요. 차분한 느낌이 들었어요."
+    assert interview.turns.get(sequence=2).answer is None
 
 
 def test_pending_soft_stop_hides_candidate_and_continue_uses_it(
@@ -428,6 +581,9 @@ def test_detail_loading_and_first_question_post_contract(
     assert loading.status_code == 200
     assert 'id="interview-turn-region"' in loading.content.decode()
     assert 'aria-busy="true"' in loading.content.decode()
+    assert 'hx-trigger="load delay:100ms, submit"' in loading.content.decode()
+    assert 'hx-sync="this:drop"' in loading.content.decode()
+    assert "hx-disabled-elt=\"find button[type='submit']\"" in loading.content.decode()
     assert fragment.status_code == 200
     assert "가장 오래 남은 장면" in fragment.content.decode()
     assert repeated.status_code == 302
@@ -722,7 +878,15 @@ def test_answer_next_question_and_second_answer_flow(client, reading) -> None:
     )
     client.force_login(reading.user)
     first_answer_url = reverse("reflections:first_answer", args=[interview.pk])
-    client.post(first_answer_url, {"answer": "한 장면이 남았습니다"})
+    saved_fragment = client.post(
+        first_answer_url, {"answer": "한 장면이 남았습니다"}, HTTP_HX_REQUEST="true"
+    )
+    assert 'hx-trigger="load delay:100ms, submit"' in saved_fragment.content.decode()
+    assert 'hx-sync="this:drop"' in saved_fragment.content.decode()
+    assert (
+        "hx-disabled-elt=\"find button[type='submit']\""
+        in saved_fragment.content.decode()
+    )
 
     next_url = reverse("reflections:next_turn", args=[interview.pk, 1])
     fragment = client.post(next_url, HTTP_HX_REQUEST="true")

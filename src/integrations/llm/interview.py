@@ -1,6 +1,7 @@
 """Provider 공통 Interview wire schema, prompt 및 payload 계약이다."""
 
 import json
+from copy import deepcopy
 
 from integrations.llm.contracts import (
     AnswerAnalysisContext,
@@ -74,6 +75,18 @@ _NEXT_QUESTION_SCHEMA = {
 }
 
 
+def _next_question_schema(context: NextQuestionContext) -> dict[str, object]:
+    """Application에서 생략할 수 없는 상태의 skip을 wire 계약에서도 금지한다."""
+    schema = deepcopy(_NEXT_QUESTION_SCHEMA)
+    if context.budget_mode != "CAP_EXTENSION" and any(
+        item.status != "COVERED" for item in context.coverage
+    ):
+        schema["properties"]["kind"]["enum"] = ["question"]
+        schema["properties"]["question"]["type"] = "string"
+        schema["properties"]["focus_axis"]["type"] = "string"
+    return schema
+
+
 def _next_question_instructions(context: NextQuestionContext) -> str:
     """질문 생성과 생략의 신뢰된 정책을 Provider에 제공한다."""
     knowledge_policy = (
@@ -81,13 +94,24 @@ def _next_question_instructions(context: NextQuestionContext) -> str:
         if context.question_context.policy is QuestionPolicy.KNOWLEDGE_GROUNDED
         else "책의 사건, 인물, 주장 등 확인되지 않은 사실을 전제하지 마세요."
     )
+    required_question = (
+        "현재 요청은 Coverage가 미완료이므로 kind는 반드시 question입니다. "
+        "low_information이어도 skip할 수 없으며, 아직 충분히 다루지 않은 축으로 "
+        "부담 없는 질문을 전환하세요. "
+        if context.budget_mode != "CAP_EXTENSION"
+        and any(item.status != "COVERED" for item in context.coverage)
+        else ""
+    )
     return (
+        f"{required_question}"
         "사용자 답변과 현재 Coverage에 맞는 한국어 열린 질문 하나를 만드세요. "
         "이미 충분한 축을 반복하지 마세요. "
         "low_information이면 같은 주제를 압박하지 마세요. "
         "question일 때 question은 한 문장, focus_axis는 네 Core 축 중 하나, "
         "grounding_quote는 확정 답변, 이전 답변 또는 검증된 Claim의 짧은 연속 인용이며 "
-        "질문 문구에 해당 인용이나 의미 있는 핵심 단어를 포함하세요. "
+        "질문 문구에 grounding_quote 전체를 그대로 포함하는 것이 가장 안전합니다. "
+        "전체 인용 대신 핵심 단어를 사용한다면 인용을 공백으로 나눈 단어 중 "
+        "3글자 이상인 단어 하나를 조사·어미까지 변경하지 않고 그대로 포함하세요. "
         "low_information에서 미충족 축으로 전환할 때만 인용을 생략할 수 있습니다. "
         "질문일 때 skip_reason은 null입니다. "
         "일반 모드에서는 네 축이 모두 COVERED이고 답변·이전 Turn에 구체적으로 "
@@ -272,7 +296,7 @@ class StructuredInterviewProvider:
                 task="next",
                 instructions=_next_question_instructions(context),
                 payload=_next_question_payload(context),
-                schema=_NEXT_QUESTION_SCHEMA,
+                schema=_next_question_schema(context),
             ),
             "next",
         )

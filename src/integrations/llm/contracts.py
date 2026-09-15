@@ -163,6 +163,11 @@ class AnswerAnalysisUnavailable(AnswerAnalysisError):
 class AnswerAnalysisRejected(AnswerAnalysisError):
     """Provider 출력을 안전한 답변 분석 결과로 사용할 수 없다."""
 
+    def __init__(self, *args, reason_code: str = "analysis_invalid_output"):
+        """원문 메시지와 분리된 고정 validation 코드를 진단에 제공한다."""
+        super().__init__(*args)
+        self.reason_code = reason_code
+
 
 class AnswerAnalysisConfigurationError(AnswerAnalysisError):
     """선택한 분석 Provider의 안전한 실행 설정이 없다."""
