@@ -12,8 +12,16 @@ from integrations.llm.contracts import (
     ProposedAnswerAnalysis,
     ProposedCoverageChange,
     ProposedNextQuestion,
+    ProposedReflectionDraft,
     QuestionGenerationRejected,
     QuestionPolicy,
+    ReflectionGenerationContext,
+)
+from integrations.llm.reflection import (
+    build_reflection_instructions,
+    build_reflection_payload,
+    build_reflection_schema,
+    decode_reflection_payload,
 )
 
 _QUESTION_SCHEMA = {
@@ -299,4 +307,16 @@ class StructuredInterviewProvider:
                 schema=_next_question_schema(context),
             ),
             "next",
+        )
+
+    def generate_reflection(
+        self, context: ReflectionGenerationContext
+    ) -> ProposedReflectionDraft:
+        return decode_reflection_payload(
+            self._request(
+                task="reflection",
+                instructions=build_reflection_instructions(),
+                payload=build_reflection_payload(context),
+                schema=build_reflection_schema(),
+            )
         )

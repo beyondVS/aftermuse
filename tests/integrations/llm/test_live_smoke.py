@@ -13,10 +13,13 @@ from integrations.llm.contracts import (
     InterviewQuestionContext,
     NextQuestionContext,
     QuestionPolicy,
+    ReflectionGenerationContext,
+    ReflectionSourceTurn,
 )
 from integrations.llm.gemini import GeminiInterviewProvider
 from integrations.llm.ollama import OllamaInterviewProvider
 from readings.models import Reading
+from reflections.drafts import build_validated_draft_result
 from reflections.models import Interview
 from reflections.services import (
     _validate_answer_analysis,
@@ -152,3 +155,73 @@ def test_ollama_live():
         timeout=120,
     )
     _smoke_three_tasks(provider)
+
+
+def _smoke_reflection_task(provider):
+    """실제 모델에서 Reflection 초안 제안 및 application 검증을 확인한다."""
+    turn1 = ReflectionSourceTurn(
+        sequence=1,
+        question="문명의 발전 과정에서 가장 인상 깊었던 변화는 무엇이었나요?",
+        answer=(
+            "농경의 시작으로 인간이 정착 생활을 하면서 "
+            "사회적 불평등과 계급이 생겨났다는 분석이 가장 흥미로웠습니다."
+        ),
+    )
+    turn2 = ReflectionSourceTurn(
+        sequence=2,
+        question="주인공의 방황과 내적 갈등에 공감하셨나요?",
+        answer=(
+            "어두운 방에서 혼자 고민하던 주인공의 고립감에는 깊이 공감했지만, "
+            "결말의 선택에는 여전히 의문이 남고 회의적입니다."
+        ),
+    )
+    context = ReflectionGenerationContext(turns=(turn1, turn2))
+    proposal = provider.generate_reflection(context)
+    result = build_validated_draft_result(
+        interview_id=9999,
+        turns=(turn1, turn2),
+        raw_sections=proposal.sections,
+    )
+    assert len(result.canonical_markdown) <= 22000
+    assert len(result.sections) >= 1
+    assert result.interview_id == 9999
+
+
+def test_openai_reflection_live():
+    key = os.environ.get("OPENAI_API_KEY", "")
+    model = os.environ.get("OPENAI_MODEL", "")
+    if not key or not model:
+        pytest.skip("OPENAI_API_KEY or OPENAI_MODEL is not configured")
+    from integrations.llm.openai import OpenAIInterviewProvider
+
+    provider = OpenAIInterviewProvider(
+        api_key=key,
+        model=model,
+        timeout=60,
+    )
+    _smoke_reflection_task(provider)
+
+
+def test_gemini_reflection_live():
+    key = os.environ.get("GEMINI_API_KEY", "")
+    model = os.environ.get("GEMINI_MODEL", "")
+    if not key or not model:
+        pytest.skip("GEMINI_API_KEY or GEMINI_MODEL is not configured")
+    provider = GeminiInterviewProvider(
+        api_key=key,
+        model=model,
+        timeout=60,
+    )
+    _smoke_reflection_task(provider)
+
+
+def test_ollama_reflection_live():
+    model = os.environ.get("OLLAMA_MODEL", "")
+    if os.environ.get("OLLAMA_LIVE_TEST") != "1" or not model:
+        pytest.skip("OLLAMA_LIVE_TEST or OLLAMA_MODEL is not configured")
+    provider = OllamaInterviewProvider(
+        base_url=os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
+        model=model,
+        timeout=180,
+    )
+    _smoke_reflection_task(provider)

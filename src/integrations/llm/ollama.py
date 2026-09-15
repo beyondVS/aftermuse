@@ -13,6 +13,9 @@ from integrations.llm.contracts import (
     QuestionGenerationRejected,
     QuestionGenerationTimeout,
     QuestionGenerationUnavailable,
+    ReflectionGenerationRejected,
+    ReflectionGenerationTimeout,
+    ReflectionGenerationUnavailable,
 )
 from integrations.llm.interview import StructuredInterviewProvider
 
@@ -45,6 +48,19 @@ class OllamaInterviewProvider(StructuredInterviewProvider):
         self._transport = transport or urlopen
 
     def _request(self, *, task, instructions, payload, schema):
+        if task == "reflection":
+            rejected_cls = ReflectionGenerationRejected
+            timeout_cls = ReflectionGenerationTimeout
+            unavailable_cls = ReflectionGenerationUnavailable
+        elif task == "analysis":
+            rejected_cls = AnswerAnalysisRejected
+            timeout_cls = AnswerAnalysisTimeout
+            unavailable_cls = AnswerAnalysisUnavailable
+        else:
+            rejected_cls = QuestionGenerationRejected
+            timeout_cls = QuestionGenerationTimeout
+            unavailable_cls = QuestionGenerationUnavailable
+
         body = {
             "model": self._model,
             "stream": False,
@@ -70,20 +86,8 @@ class OllamaInterviewProvider(StructuredInterviewProvider):
                 raise ValueError
             return content
         except (ValueError, KeyError, TypeError, AttributeError) as error:
-            raise (
-                AnswerAnalysisRejected
-                if task == "analysis"
-                else QuestionGenerationRejected
-            )() from error
+            raise rejected_cls() from error
         except TimeoutError as error:
-            raise (
-                AnswerAnalysisTimeout
-                if task == "analysis"
-                else QuestionGenerationTimeout
-            )() from error
+            raise timeout_cls() from error
         except (HTTPError, URLError, OSError) as error:
-            raise (
-                AnswerAnalysisUnavailable
-                if task == "analysis"
-                else QuestionGenerationUnavailable
-            )() from error
+            raise unavailable_cls() from error

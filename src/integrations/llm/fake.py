@@ -10,7 +10,10 @@ from integrations.llm.contracts import (
     NextQuestionContext,
     ProposedAnswerAnalysis,
     ProposedNextQuestion,
+    ProposedReflectionDraft,
     QuestionGenerationError,
+    ReflectionGenerationContext,
+    ReflectionGenerationError,
 )
 
 DEFAULT_QUESTION = "이 책에서 가장 오래 남은 장면이나 생각은 무엇인가요?"
@@ -133,3 +136,46 @@ class FakeNextQuestionProvider:
             else prompts[gap.axis]
         )
         return ProposedNextQuestion("question", question, gap.axis, quote, None)
+
+
+class FakeReflectionProvider:
+    """Reflection 초안 생성 결과와 오류를 network 없이 결정적으로 재현한다."""
+
+    def __init__(
+        self,
+        *,
+        result: ProposedReflectionDraft | None = None,
+        error: ReflectionGenerationError | None = None,
+    ) -> None:
+        self._result = result
+        self._error = error
+        self.contexts: list[ReflectionGenerationContext] = []
+
+    def generate_reflection(
+        self, context: ReflectionGenerationContext
+    ) -> ProposedReflectionDraft:
+        """Context를 기록하고 설정된 초안 또는 답변 원문 보존 초안을 반환한다."""
+        self.contexts.append(context)
+        if self._error is not None:
+            raise self._error
+        if self._result is not None:
+            return self._result
+
+        paragraphs = []
+        for turn in context.turns:
+            ans = turn.answer
+            quote = ans[: min(len(ans), 400)]
+            paragraphs.append(
+                {
+                    "text": ans,
+                    "evidence": [{"sequence": turn.sequence, "quote": quote}],
+                }
+            )
+
+        sections = [
+            {
+                "title": "독서 생각 정리",
+                "paragraphs": paragraphs,
+            }
+        ]
+        return ProposedReflectionDraft(sections=sections)

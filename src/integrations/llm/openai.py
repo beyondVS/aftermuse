@@ -12,12 +12,15 @@ from integrations.llm.contracts import (
     QuestionGenerationRejected,
     QuestionGenerationTimeout,
     QuestionGenerationUnavailable,
+    ReflectionGenerationRejected,
+    ReflectionGenerationTimeout,
+    ReflectionGenerationUnavailable,
 )
 from integrations.llm.interview import StructuredInterviewProvider
 
 
 class OpenAIInterviewProvider(StructuredInterviewProvider):
-    """세 Interview 작업을 같은 Responses API 호출로 처리한다."""
+    """네 Interview/Reflection 작업을 같은 Responses API 호출로 처리한다."""
 
     def __init__(
         self, *, api_key: str, model: str, timeout: float, client=None
@@ -28,21 +31,23 @@ class OpenAIInterviewProvider(StructuredInterviewProvider):
         self._client = client or OpenAI(api_key=api_key, timeout=timeout, max_retries=0)
 
     def _request(self, *, task, instructions, payload, schema):
-        rejected = (
-            AnswerAnalysisRejected if task == "analysis" else QuestionGenerationRejected
-        )
-        timeout_error = (
-            AnswerAnalysisTimeout if task == "analysis" else QuestionGenerationTimeout
-        )
-        unavailable = (
-            AnswerAnalysisUnavailable
-            if task == "analysis"
-            else QuestionGenerationUnavailable
-        )
+        if task == "reflection":
+            rejected = ReflectionGenerationRejected
+            timeout_error = ReflectionGenerationTimeout
+            unavailable = ReflectionGenerationUnavailable
+        elif task == "analysis":
+            rejected = AnswerAnalysisRejected
+            timeout_error = AnswerAnalysisTimeout
+            unavailable = AnswerAnalysisUnavailable
+        else:
+            rejected = QuestionGenerationRejected
+            timeout_error = QuestionGenerationTimeout
+            unavailable = QuestionGenerationUnavailable
         names = {
             "first": "first_question",
             "analysis": "answer_analysis",
             "next": "next_question",
+            "reflection": "reflection_draft",
         }
         try:
             response = self._client.responses.create(

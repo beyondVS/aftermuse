@@ -171,3 +171,84 @@ class AnswerAnalysisRejected(AnswerAnalysisError):
 
 class AnswerAnalysisConfigurationError(AnswerAnalysisError):
     """선택한 분석 Provider의 안전한 실행 설정이 없다."""
+
+
+@dataclass(frozen=True, slots=True)
+class ReflectionSourceTurn:
+    """초안 생성에 허용된 한 질문-답변 turn의 읽기 전용 snapshot이다."""
+
+    sequence: int
+    question: str
+    answer: str
+
+
+@dataclass(frozen=True, slots=True)
+class ReflectionGenerationContext:
+    """Reflection 초안 생성에 허용된 읽기 전용 Context payload다."""
+
+    turns: tuple[ReflectionSourceTurn, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProposedReflectionEvidence:
+    """Provider가 제안한 아직 신뢰되지 않은 인용 근거 후보다."""
+
+    sequence: object
+    quote: object
+
+
+@dataclass(frozen=True, slots=True)
+class ProposedReflectionParagraph:
+    """Provider가 제안한 아직 신뢰되지 않은 문단 후보다."""
+
+    text: object
+    evidence: object
+
+
+@dataclass(frozen=True, slots=True)
+class ProposedReflectionSection:
+    """Provider가 제안한 아직 신뢰되지 않은 section 후보다."""
+
+    title: object
+    paragraphs: object
+
+
+@dataclass(frozen=True, slots=True)
+class ProposedReflectionDraft:
+    """Provider가 반환한 아직 검증되지 않은 Reflection 초안 제안이다."""
+
+    sections: object
+
+
+class ReflectionProvider(Protocol):
+    """외부 Provider와 무관하게 Reflection 초안 제안을 생성하는 경계다."""
+
+    def generate_reflection(
+        self, context: ReflectionGenerationContext
+    ) -> ProposedReflectionDraft:
+        """주어진 Context에서 구조화된 Reflection 초안 제안을 생성한다."""
+
+
+class ReflectionGenerationError(Exception):
+    """Reflection 생성 실패를 안전한 application 오류로 변환하는 상위 오류다."""
+
+
+class ReflectionGenerationTimeout(ReflectionGenerationError):
+    """Provider가 설정된 시간 안에 Reflection 생성을 끝내지 못했다."""
+
+
+class ReflectionGenerationUnavailable(ReflectionGenerationError):
+    """Provider 연결 또는 서비스 상태로 Reflection을 생성할 수 없다."""
+
+
+class ReflectionGenerationRejected(ReflectionGenerationError):
+    """Provider 출력을 안전한 Reflection 결과로 사용할 수 없다."""
+
+    def __init__(self, *args, reason_code: str = "reflection_invalid_output"):
+        """원문 메시지와 분리된 고정 validation 코드를 진단에 제공한다."""
+        super().__init__(*args)
+        self.reason_code = reason_code
+
+
+class ReflectionGenerationConfigurationError(ReflectionGenerationError):
+    """선택한 Reflection Provider의 안전한 실행 설정이 없다."""

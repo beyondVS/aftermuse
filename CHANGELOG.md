@@ -16,8 +16,12 @@
 
 ### Added
 
+- Day 10 Reflection 기본 모델과 `OneToOneField(Interview)`, DB CHECK 제약 조건, additive migration(2초 lock_timeout) 및 최초 초안 불변·수정본 분리 보존 Service 구현 (IMP-090)
+- Day 10 확정 답변 기반 비영속 Reflection 초안 생성 계약(`generate_reflection_draft`), exact substring 인용 및 2자 이상 단어 토큰 접지 검증, 결정론적 canonical Markdown 렌더러 (IMP-091)
+- StructuredInterviewProvider의 네 번째 capability인 `generate_reflection`, OpenAI(`reflection_draft`, `store=False`), Gemini(`AFC disable`, `attempts=1`), Ollama(`stream=False`, `format: schema`) transport 어댑터 및 Reflection 전용 오류 격리 매핑 (IMP-091)
+- fake/openai/gemini/ollama를 독립 선택하고 자동 fallback을 차단하는 `get_reflection_provider()` 팩토리 (IMP-091)
+- Reflection 단위/통합/마이그레이션 테스트 및 OpenAI, Gemini, Ollama opt-in live smoke 테스트
 - Day 10 설계의 초안 상한을 22,000자로 조정하고 초안·수정본 금지 형식과 패턴 정규화 및 최대 입력 검증 조건을 명시
-
 - Day 10 Reflection 기본 모델과 답변 기반 초안 생성(IMP-090·IMP-091)의 기능 명세 및 품질 체크리스트 작성
 - Day 10 Reflection의 저장 관계·구조화 생성 계약·Provider 재사용·검증 절차에 대한 구현 계획과 설계 산출물 작성
 - Day 10 Reflection의 사용자 스토리별 구현·회귀 검증 작업과 의존성 및 병렬 실행 조건 정의

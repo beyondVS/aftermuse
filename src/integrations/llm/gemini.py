@@ -14,6 +14,9 @@ from integrations.llm.contracts import (
     QuestionGenerationRejected,
     QuestionGenerationTimeout,
     QuestionGenerationUnavailable,
+    ReflectionGenerationRejected,
+    ReflectionGenerationTimeout,
+    ReflectionGenerationUnavailable,
 )
 from integrations.llm.interview import StructuredInterviewProvider
 
@@ -34,6 +37,19 @@ class GeminiInterviewProvider(StructuredInterviewProvider):
         )
 
     def _request(self, *, task, instructions, payload, schema):
+        if task == "reflection":
+            rejected_cls = ReflectionGenerationRejected
+            timeout_cls = ReflectionGenerationTimeout
+            unavailable_cls = ReflectionGenerationUnavailable
+        elif task == "analysis":
+            rejected_cls = AnswerAnalysisRejected
+            timeout_cls = AnswerAnalysisTimeout
+            unavailable_cls = AnswerAnalysisUnavailable
+        else:
+            rejected_cls = QuestionGenerationRejected
+            timeout_cls = QuestionGenerationTimeout
+            unavailable_cls = QuestionGenerationUnavailable
+
         try:
             response = self._client.models.generate_content(
                 model=self._model,
@@ -48,29 +64,17 @@ class GeminiInterviewProvider(StructuredInterviewProvider):
                 ),
             )
             if not isinstance(response.text, str) or not response.text.strip():
-                raise (
-                    AnswerAnalysisRejected
-                    if task == "analysis"
-                    else QuestionGenerationRejected
-                )()
+                raise rejected_cls()
             return response.text
-        except AnswerAnalysisRejected, QuestionGenerationRejected:
+        except (
+            AnswerAnalysisRejected,
+            QuestionGenerationRejected,
+            ReflectionGenerationRejected,
+        ):
             raise
         except (TimeoutError, httpx.TimeoutException) as error:
-            raise (
-                AnswerAnalysisTimeout
-                if task == "analysis"
-                else QuestionGenerationTimeout
-            )() from error
+            raise timeout_cls() from error
         except errors.APIError as error:
-            raise (
-                AnswerAnalysisUnavailable
-                if task == "analysis"
-                else QuestionGenerationUnavailable
-            )() from error
+            raise unavailable_cls() from error
         except Exception as error:
-            raise (
-                AnswerAnalysisUnavailable
-                if task == "analysis"
-                else QuestionGenerationUnavailable
-            )() from error
+            raise unavailable_cls() from error
