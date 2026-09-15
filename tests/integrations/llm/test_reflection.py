@@ -108,6 +108,57 @@ def test_decode_reflection_payload_rejects_malformed_json_and_types() -> None:
         decode_reflection_payload({"missing_sections": []})
 
 
+def test_decode_reflection_payload_rejects_extra_root_keys_safely() -> None:
+    """Wire dict 또는 JSON의 최상위에 sections 외의 추가 키가 있으면 거부된다."""
+    valid_sections = [
+        {
+            "title": "제목",
+            "paragraphs": [
+                {
+                    "text": "문단 본문",
+                    "evidence": [{"sequence": 1, "quote": "인용구"}],
+                }
+            ],
+        }
+    ]
+
+    # dict에 extra key (markdown 등 별도 본문) 포함
+    dict_with_extra = {
+        "sections": valid_sections,
+        "markdown": "## 별도 본문이 포함됨",
+    }
+    with pytest.raises(ReflectionGenerationRejected) as exc:
+        decode_reflection_payload(dict_with_extra)
+    assert exc.value.reason_code == "invalid_wire_root_keys"
+
+    # JSON 문자열에 extra key 및 synthetic secret 포함 시 오류 문자열에 secret 비노출
+    secret_key = "SYNTHETIC_API_SECRET_KEY_9999"
+    secret_val = "SUPER_SECRET_PAYLOAD_VALUE_8888"
+    json_with_secret = json.dumps(
+        {
+            "sections": valid_sections,
+            secret_key: secret_val,
+        }
+    )
+    with pytest.raises(ReflectionGenerationRejected) as exc:
+        decode_reflection_payload(json_with_secret)
+    assert exc.value.reason_code == "invalid_wire_root_keys"
+    assert secret_key not in str(exc.value)
+    assert secret_val not in str(exc.value)
+
+
+def test_decode_reflection_payload_malformed_json_isolates_error_chain() -> None:
+    """JSON 파싱 실패 시 원문 시크릿이 오류 문자열이나 __cause__에 누출되지 않는다."""
+    secret_token = "MALFORMED_SECRET_TOKEN_XYZ_123"
+    malformed_json = f'{{ {secret_token}: "invalid json'
+
+    with pytest.raises(ReflectionGenerationRejected) as exc:
+        decode_reflection_payload(malformed_json)
+    assert exc.value.reason_code == "invalid_json_wire_format"
+    assert secret_token not in str(exc.value)
+    assert exc.value.__cause__ is None
+
+
 def test_validation_rejects_bool_sequence_and_missing_keys() -> None:
     """sequence가 bool이거나 키가 누락/초과된 제안은 거부된다."""
     turns = [

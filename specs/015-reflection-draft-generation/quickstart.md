@@ -135,13 +135,27 @@ Django check·Ruff format/lint·기본 pytest를 확인한다. 환경 실패는 
 
 - **실행 일시**: 2026-09-16
 - **실행 명령**: `uv run python scripts/verify.py`
-- **결과**: **전체 성공 (Exit code 0, 44.10s)**
+- **결과**: **전체 성공 (Exit code 0, 41.24s)**
 - **세부 검사 항목**:
-  1. **Django system check**: 0 errors (4 model.W045 warnings silenced as designed for RawSQL CheckConstraints)
+  1. **Django system check**: 0 errors (4 model.W045 warnings for RawSQL CheckConstraints)
   2. **Ruff format check**: 118 files already formatted
   3. **Ruff lint**: All checks passed! (0 errors)
-  4. **pytest**: 436 passed, 1 skipped, 7 deselected, 0 failures in 44.10s
+  4. **pytest**: 444 passed, 1 skipped, 7 deselected, 0 failures in 41.24s
 - **환경 상태**: 호스트 PostgreSQL 18 컨테이너 정상 연동, 모든 마이그레이션(0001~0007) 적용 상태에서 전체 회귀 없음 확인.
+
+---
+
+### Convergence 검증 결과 (T031–T033 완료)
+
+- **검증 일시**: 2026-09-16
+- **완료 항목**:
+  1. **T031 (최상위 wire root key 엄격 검증)**: `src/integrations/llm/reflection.py`의 `decode_reflection_payload`에서 sections 외 추가 키(`markdown`, `summary` 등)가 포함된 wire 출력을 Application 검증 이전에 `ReflectionGenerationRejected(reason_code="invalid_wire_root_keys")`로 차단함.
+  2. **T032 (에러 메시지 시크릿/외부값 노출 방지)**: `src/reflections/drafts.py`의 중복 evidence, 잘못된 evidence keys 및 sequence 오류에서 quote 원문, key 집합, sequence 외부 입력값을 제거하고 고정 안전 메시지를 사용하도록 정제함. `decode_reflection_payload`의 json 파싱 실패 시 `from None`을 통해 `__cause__` 및 `str(exc)` 누출을 원천 차단함.
+  3. **T033 (동시성 잠금 획득 후 재검증)**: `save_reflection_draft`에서 `select_for_update` 잠금 획득 후 사용자 소유권(`reading__user=user`), 책 관계(`book_id == reading.book_id`), 상태(`REFLECTION_READY`), 확정 턴 스냅샷 일치를 재조회 및 검증하여 stale/변조 결과를 안전하게 거부함. `save_reflection_revision`에서도 잠금 후 현재 사용자 범위를 재검증함.
+- **검증 명령 및 통과**:
+  - `uv run pytest tests/reflections/test_drafts.py tests/integrations/llm/test_reflection.py tests/integrations/llm/test_structured_providers.py` (60 passed)
+  - `uv run python scripts/verify.py` (444 passed, exit code 0)
+
 
 
 

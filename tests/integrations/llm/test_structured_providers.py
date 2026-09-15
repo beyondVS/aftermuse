@@ -518,3 +518,39 @@ def test_reflection_task_error_mapping_safe(provider_type):
 
     with pytest.raises(ReflectionGenerationRejected):
         get_provider("{}").generate_reflection(context)
+
+
+@pytest.mark.parametrize("provider_type", ["openai", "gemini", "ollama"])
+def test_reflection_task_rejects_extra_root_keys_before_application(provider_type):
+    """Wire의 sections 외 추가 키는 Application 검증 전 거부된다."""
+    context = _reflection_context()
+    valid_base = json.loads(_valid_reflection_output())
+    valid_base["markdown"] = "## 별도 마크다운 본문"
+    valid_base["summary"] = "추가 요약"
+    tampered_output = json.dumps(valid_base, ensure_ascii=False)
+
+    if provider_type == "openai":
+        provider = OpenAIInterviewProvider(
+            api_key="key",
+            model="exact",
+            timeout=2,
+            client=OpenAIClient(tampered_output),
+        )
+    elif provider_type == "gemini":
+        provider = GeminiInterviewProvider(
+            api_key="key",
+            model="exact",
+            timeout=2,
+            client=GeminiClient(tampered_output),
+        )
+    else:
+        provider = OllamaInterviewProvider(
+            base_url="http://localhost:11434",
+            model="exact",
+            timeout=2,
+            transport=Transport(tampered_output),
+        )
+
+    with pytest.raises(ReflectionGenerationRejected) as exc:
+        provider.generate_reflection(context)
+    assert exc.value.reason_code == "invalid_wire_root_keys"

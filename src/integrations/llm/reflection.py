@@ -103,11 +103,11 @@ def decode_reflection_payload(raw_data: Any) -> ProposedReflectionDraft:
     if isinstance(raw_data, (str, bytes)):
         try:
             parsed = json.loads(raw_data)
-        except (ValueError, TypeError) as exc:
+        except ValueError, TypeError:
             raise ReflectionGenerationRejected(
                 "Wire output is not a valid JSON string",
                 reason_code="invalid_json_wire_format",
-            ) from exc
+            ) from None
     elif isinstance(raw_data, dict):
         parsed = raw_data
     else:
@@ -122,10 +122,15 @@ def decode_reflection_payload(raw_data: Any) -> ProposedReflectionDraft:
             reason_code="invalid_wire_root_type",
         )
 
-    if "sections" not in parsed:
+    if set(parsed.keys()) != {"sections"}:
+        if "sections" not in parsed:
+            raise ReflectionGenerationRejected(
+                "Wire data missing required 'sections' key",
+                reason_code="missing_sections_key",
+            )
         raise ReflectionGenerationRejected(
-            "Wire data missing required 'sections' key",
-            reason_code="missing_sections_key",
+            "Wire data contains invalid root keys",
+            reason_code="invalid_wire_root_keys",
         )
 
     raw_sections = parsed["sections"]

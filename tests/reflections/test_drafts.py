@@ -520,3 +520,240 @@ def test_save_reflection_revision_markdown_allowed_and_rejected_patterns(
             markdown="여기에 이전   지시를\t무시 라는 문구가 있음",
         )
     assert exc.value.reason_code == "prohibited_instruction_pattern"
+
+
+def test_validation_errors_do_not_leak_quote_or_keys_secrets(
+    reflection_user, ready_interview, confirmed_turns
+) -> None:
+    """오류 발생 시 secret/원문이 오류 메시지에 노출되지 않는다."""
+    secret_quote = "SECRET_USER_QUOTE_TOKEN_9999"
+    secret_key = "SECRET_EXTRA_KEY_TOKEN_8888"
+    secret_seq = "SECRET_SEQUENCE_TOKEN_7777"
+
+    turn1 = confirmed_turns[0]
+
+    # 1. 중복 evidence에 secret_quote 포함
+    dup_evidence_sections = [
+        {
+            "title": "안전한 제목",
+            "paragraphs": [
+                {
+                    "text": f"문단 본문입니다. {secret_quote}",
+                    "evidence": [
+                        {"sequence": turn1.sequence, "quote": secret_quote},
+                        {"sequence": turn1.sequence, "quote": secret_quote},
+                    ],
+                }
+            ],
+        }
+    ]
+
+    turns_tuple = (
+        ReflectionSourceTurn(
+            sequence=turn1.sequence,
+            question=turn1.question,
+            answer=f"{turn1.answer} {secret_quote}",
+        ),
+    )
+    with pytest.raises(ReflectionValidationError) as exc_dup:
+        build_validated_draft_result(
+            interview_id=ready_interview.pk,
+            turns=turns_tuple,
+            raw_sections=dup_evidence_sections,
+        )
+    assert exc_dup.value.reason_code == "duplicate_evidence"
+    assert secret_quote not in str(exc_dup.value)
+
+    # 2. 잘못된 evidence key에 secret_key 포함
+    bad_key_sections = [
+        {
+            "title": "안전한 제목",
+            "paragraphs": [
+                {
+                    "text": f"문단 본문 {turn1.answer[:20]}",
+                    "evidence": [
+                        {
+                            "sequence": turn1.sequence,
+                            "quote": turn1.answer[:10],
+                            secret_key: "value",
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+    with pytest.raises(ReflectionValidationError) as exc_key:
+        build_validated_draft_result(
+            interview_id=ready_interview.pk,
+            turns=turns_tuple,
+            raw_sections=bad_key_sections,
+        )
+    assert exc_key.value.reason_code == "invalid_evidence_keys"
+    assert secret_key not in str(exc_key.value)
+
+    # 3. 잘못된 evidence sequence에 secret_seq 포함
+    bad_seq_sections = [
+        {
+            "title": "안전한 제목",
+            "paragraphs": [
+                {
+                    "text": f"문단 본문 {turn1.answer[:20]}",
+                    "evidence": [
+                        {
+                            "sequence": secret_seq,
+                            "quote": turn1.answer[:10],
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+    with pytest.raises(ReflectionValidationError) as exc_seq:
+        build_validated_draft_result(
+            interview_id=ready_interview.pk,
+            turns=turns_tuple,
+            raw_sections=bad_seq_sections,
+        )
+    assert exc_seq.value.reason_code == "invalid_evidence_sequence"
+    assert secret_seq not in str(exc_seq.value)
+
+    # 기존 DB 레코드 보존 확인
+    ready_interview.refresh_from_db()
+    assert ready_interview.status == Interview.Status.REFLECTION_READY
+    assert Reflection.objects.filter(interview=ready_interview).count() == 0
+
+
+def test_save_reflection_draft_revalidates_under_lock_on_concurrent_change(
+    reflection_user, other_reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    """save_reflection_draft는 잠금 후 상태, 관계, 스냅샷을 재검증한다."""
+    from books.models import Book
+
+    # 1. 잠금 전후 상태 변경 (REFLECTION_READY -> IN_PROGRESS)
+    ready_interview.status = Interview.Status.IN_PROGRESS
+    ready_interview.save(update_fields=["status"])
+    with pytest.raises(ReflectionPolicyError) as exc_status:
+        save_reflection_draft(
+            user=reflection_user,
+            interview=ready_interview,
+            result=prepared_draft_result,
+        )
+    assert exc_status.value.reason_code == "interview_not_reflection_ready"
+    assert Reflection.objects.filter(interview=ready_interview).count() == 0
+
+    # 상태 복원
+    ready_interview.status = Interview.Status.REFLECTION_READY
+    ready_interview.save(update_fields=["status"])
+
+    # 2. 잠금 전후 책 관계 불일치 발생 (Reading의 Book이 달라짐)
+    other_book = Book.objects.create(
+        isbn13="9781234567890",
+        title="다른 책",
+        authors="다른 저자",
+        publisher="다른 출판사",
+    )
+    original_book = ready_interview.reading.book
+    from readings.models import Reading
+
+    Reading.objects.filter(pk=ready_interview.reading_id).update(book=other_book)
+    with pytest.raises(ReflectionPolicyError) as exc_book:
+        save_reflection_draft(
+            user=reflection_user,
+            interview=ready_interview,
+            result=prepared_draft_result,
+        )
+    assert exc_book.value.reason_code == "book_relationship_mismatch"
+    assert Reflection.objects.filter(interview=ready_interview).count() == 0
+
+    # 책 복원
+    Reading.objects.filter(pk=ready_interview.reading_id).update(book=original_book)
+
+    # 3. 잠금 전후 턴 답변 내용 변경 (스냅샷 불일치)
+    first_turn = (
+        InterviewTurn.objects.filter(interview=ready_interview)
+        .order_by("sequence")
+        .first()
+    )
+    assert first_turn is not None
+    original_answer = first_turn.answer
+    first_turn.answer = "수정된 다른 답변 내용입니다."
+    first_turn.save(update_fields=["answer"])
+
+    with pytest.raises(ReflectionValidationError) as exc_turn:
+        save_reflection_draft(
+            user=reflection_user,
+            interview=ready_interview,
+            result=prepared_draft_result,
+        )
+    assert exc_turn.value.reason_code == "turn_snapshot_mismatch"
+    assert Reflection.objects.filter(interview=ready_interview).count() == 0
+
+    # 턴 복원
+    first_turn.answer = original_answer
+    first_turn.save(update_fields=["answer"])
+
+    # 4. 잠금 전후 소유권 변경 (타 사용자)
+    with pytest.raises(ReflectionPolicyError) as exc_owner:
+        save_reflection_draft(
+            user=other_reflection_user,
+            interview=ready_interview,
+            result=prepared_draft_result,
+        )
+    assert exc_owner.value.reason_code == "interview_not_found_or_forbidden"
+    assert Reflection.objects.filter(interview=ready_interview).count() == 0
+
+    # 정상 저장 성공 확인
+    saved = save_reflection_draft(
+        user=reflection_user,
+        interview=ready_interview,
+        result=prepared_draft_result,
+    )
+    assert saved.pk is not None
+    assert Reflection.objects.filter(interview=ready_interview).count() == 1
+
+
+def test_save_reflection_revision_revalidates_under_lock_on_concurrent_change(
+    reflection_user, other_reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    """save_reflection_revision은 잠금 후 소유권 및 DRAFT 상태를 재검증한다."""
+    from readings.models import Reading
+
+    reflection = save_reflection_draft(
+        user=reflection_user,
+        interview=ready_interview,
+        result=prepared_draft_result,
+    )
+    original_revised = reflection.revised_markdown
+
+    # 1. 타 사용자의 수정 요청 거부
+    with pytest.raises(ReflectionPolicyError) as exc_owner:
+        save_reflection_revision(
+            user=other_reflection_user,
+            reflection=reflection,
+            markdown="타인이 수정을 시도함",
+        )
+    assert exc_owner.value.reason_code == "reflection_not_found_or_forbidden"
+
+    reflection.refresh_from_db()
+    assert reflection.revised_markdown == original_revised
+
+    # 2. 잠금 중 소유권 이전/변경 발생 시 거부 (Reading의 소유자가 타인으로 변경됨)
+    Reading.objects.filter(pk=ready_interview.reading_id).update(
+        user=other_reflection_user
+    )
+
+    with pytest.raises(ReflectionPolicyError) as exc_transfer:
+        save_reflection_revision(
+            user=reflection_user,
+            reflection=reflection,
+            markdown="소유권 이전 후 기존 사용자의 수정 시도",
+        )
+    assert exc_transfer.value.reason_code == "reflection_not_found_or_forbidden"
+
+    # Reading 소유권 복원
+    Reading.objects.filter(pk=ready_interview.reading_id).update(user=reflection_user)
+    reflection.refresh_from_db()
+    assert reflection.revised_markdown == original_revised
+
+    reflection.refresh_from_db()
+    assert reflection.revised_markdown == original_revised

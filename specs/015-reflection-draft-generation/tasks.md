@@ -125,3 +125,10 @@ T001 → T002 → T003 → (T004 ∥ T005)
 ## 구현 전략
 
 첫 증가분은 Phase 1–3의 US1, 즉 생성 없이 prepared 초안을 저장·조회하고 수정본을 보존하는 IMP-090 기반이다. 다음 증가분은 US2의 fake/주입 Provider 생성 계약, 마지막 증가분은 US3의 실제 transport capability·실패 보존이다. 각 체크포인트에서 독립 인수 조건을 검증하고 계속 진행한다. 생성 결과를 만든 것만으로 저장·최종 완료를 처리하지 않는다. 실제 연결·품질의 미검증은 기본 자동 검사 통과와 별도로 보고한다.
+
+
+## Phase 7: Convergence
+
+- [x] T031 CRITICAL `src/integrations/llm/reflection.py`의 decode_reflection_payload에서 최상위 key set이 sections만 포함하는지 검증하고 추가 키를 안전한 ReflectionGenerationRejected로 거부하라. `tests/integrations/llm/test_reflection.py` 및 `tests/integrations/llm/test_structured_providers.py`에서 dict/JSON wire의 추가 키가 Application 검증 이전에 거부되고 별도 본문이 무시된 채 정상 초안으로 인정되지 않음을 검증하라. per Constitution III, FR-011, T013 (partial)
+- [x] T032 `src/reflections/drafts.py`의 중복 evidence 오류에 포함된 quote 원문과 잘못된 key/sequence의 외부 입력 값을 제거하고 고정 안전 메시지·reason code를 사용하라. `src/integrations/llm/reflection.py`의 출력 거부 및 오류 chain을 함께 확인하고 `tests/integrations/llm/test_reflection.py`, `tests/reflections/test_drafts.py`에서 synthetic 원문·secret을 실제 잘못된 출력과 중복 evidence에 삽입하여 오류 문자열·진단 로그에 노출되지 않으며 기존 기록이 보존됨을 검증하라. 기존 T023의 secret 인자를 사용하지 않는 error_factory만으로 비노출을 판정하지 마라. per FR-012, T023, plan: 안전 오류 경계 (contradicts)
+- [x] T033 `src/reflections/drafts.py`의 save_reflection_draft에서 Interview 잠금 획득 후 현재 소유자 범위·Reading/책 관계·REFLECTION_READY 상태와 확정 Turn snapshot을 다시 조회·검증한 뒤 최초 초안을 저장하라. save_reflection_revision도 잠금 후 현재 소유자 범위를 재확인하라. `tests/reflections/test_drafts.py`에서 사전 조회와 잠금 사이에 상태·관계·답변이 바뀌면 stale/부적합 결과와 타인 수정 요청이 거부되고 기존 초안·수정본이 보존됨을 실제 ORM 경로로 검증하라. Day 11의 Retry·생성 중 화면·동시 요청 상태 전이는 추가하지 마라. per FR-004, T010, plan: 잠금·snapshot 저장 재검증 (partial)

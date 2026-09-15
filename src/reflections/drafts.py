@@ -326,19 +326,19 @@ def _validate_evidence_item(
         )
     if set(raw_ev.keys()) != {"sequence", "quote"}:
         raise ReflectionValidationError(
-            f"Evidence {e_idx} has invalid keys: {set(raw_ev.keys())}",
+            f"Evidence {e_idx} has invalid keys",
             reason_code="invalid_evidence_keys",
         )
 
     seq = raw_ev["sequence"]
     if not (isinstance(seq, int) and not isinstance(seq, bool) and seq > 0):
         raise ReflectionValidationError(
-            f"Evidence sequence must be a positive integer, got {seq!r}",
+            "Evidence sequence must be a positive integer",
             reason_code="invalid_evidence_sequence",
         )
     if seq not in turns_by_seq:
         raise ReflectionValidationError(
-            f"Evidence sequence {seq} does not match any confirmed turn in snapshot",
+            "Evidence sequence does not match any confirmed turn in snapshot",
             reason_code="unknown_evidence_sequence",
         )
 
@@ -363,7 +363,7 @@ def _validate_evidence_item(
     ev_key = (seq, quote)
     if ev_key in seen_evidence_keys:
         raise ReflectionValidationError(
-            f"Duplicate evidence (sequence={seq}, quote={quote!r}) in same paragraph",
+            "Duplicate evidence in same paragraph",
             reason_code="duplicate_evidence",
         )
     seen_evidence_keys.add(ev_key)
@@ -392,8 +392,7 @@ def _validate_single_paragraph(
         )
     if set(raw_p.keys()) != {"text", "evidence"}:
         raise ReflectionValidationError(
-            f"Paragraph {p_idx} in section {s_idx} has invalid keys: "
-            f"{set(raw_p.keys())}",
+            f"Paragraph {p_idx} in section {s_idx} has invalid keys",
             reason_code="invalid_paragraph_keys",
         )
 
@@ -437,7 +436,7 @@ def _validate_single_section(
         )
     if set(raw_sec.keys()) != {"title", "paragraphs"}:
         raise ReflectionValidationError(
-            f"Section {s_idx} has invalid keys: {set(raw_sec.keys())}",
+            f"Section {s_idx} has invalid keys",
             reason_code="invalid_section_keys",
         )
 
@@ -737,13 +736,28 @@ def save_reflection_draft(
 
     with transaction.atomic():
         locked_interview = (
-            Interview.objects.select_for_update().filter(pk=scoped_interview.pk).first()
+            Interview.objects.select_for_update()
+            .filter(pk=scoped_interview.pk, reading__user=user)
+            .select_related("reading", "book")
+            .first()
         )
         if locked_interview is None:
             raise ReflectionPolicyError(
-                "Interview does not exist",
-                reason_code="interview_not_found",
+                "Interview does not exist or does not belong to the user",
+                reason_code="interview_not_found_or_forbidden",
             )
+        _validate_save_scope_and_interview(locked_interview, result)
+
+        locked_db_turns = list(
+            InterviewTurn.objects.filter(interview=locked_interview).order_by(
+                "sequence"
+            )
+        )
+        locked_confirmed_turns = [
+            t for t in locked_db_turns if t.answer and t.answer.strip()
+        ]
+        _validate_save_turns(result.turns, locked_confirmed_turns)
+
         if Reflection.objects.filter(interview=locked_interview).exists():
             raise ReflectionDraftConflict(
                 f"Reflection draft already exists for interview {locked_interview.pk}"
@@ -794,12 +808,13 @@ def save_reflection_revision(
     with transaction.atomic():
         locked_ref = (
             Reflection.objects.select_for_update()
-            .filter(pk=scoped_reflection.pk)
+            .filter(pk=scoped_reflection.pk, interview__reading__user=user)
             .first()
         )
         if locked_ref is None:
             raise ReflectionPolicyError(
-                "Reflection does not exist", reason_code="reflection_not_found"
+                "Reflection does not exist or does not belong to the user",
+                reason_code="reflection_not_found_or_forbidden",
             )
         if locked_ref.status != Reflection.Status.DRAFT:
             raise ReflectionPolicyError(
