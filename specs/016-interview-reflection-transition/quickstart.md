@@ -108,7 +108,7 @@ uv run python scripts/verify.py
 - **Django system check**: 정상 통과 (0 errors, 4 RawSQL W045 경고는 DB CHECK 제약 특성으로 유지)
 - **Ruff format check**: 120 files already formatted
 - **Ruff lint**: All checks passed! (0 errors, 0 warnings, McCabe complexity <= 10)
-- **pytest 전체 스위트**: 491 passed, 1 skipped, 7 deselected, 1 warning (48.09s)
+- **pytest 전체 스위트**: 492 passed, 1 skipped, 7 deselected, 1 warning (47.29s)
 
 ### 5. Convergence (T034, T035) 검증 결과
 
