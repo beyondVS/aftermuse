@@ -2447,7 +2447,7 @@ def test_decide_interview_progress_on_user_skipped_turn_cap_extension(
     completed_reading,
 ) -> None:
     """건너뛴 Turn의 CAP_EXTENSION decision에서
-    END와 CONTINUE가 정상 동작한다."""
+    CONTINUE 및 반복 호출이 정상 동작한다."""
     coverage = dict.fromkeys(
         ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "PARTIAL"
     )
@@ -2494,6 +2494,67 @@ def test_decide_interview_progress_on_user_skipped_turn_cap_extension(
         decision="continue",
     )
     assert repeated.turn.pk == ninth.turn.pk
+
+
+@pytest.mark.django_db
+def test_decide_interview_progress_on_user_skipped_turn_cap_extension_end(
+    completed_reading,
+) -> None:
+    """건너뛴 Turn의 CAP_EXTENSION decision에서 END 선택 시
+    새 Turn 생성 없이 REFLECTION_READY로 안전하게 전이한다."""
+    coverage = dict.fromkeys(
+        ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "PARTIAL"
+    )
+    coverage["AFTERTHOUGHT"] = "UNCOVERED"
+    interview, seventh = _answered_at(completed_reading, 7, coverage)
+    turn8 = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=seventh,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    ).turn
+    candidate_proposal = ProposedNextQuestion(
+        kind="question",
+        question="‘장면’과 관련해 책을 덮은 뒤에도 남아 있는 생각은 무엇인가요?",
+        focus_axis="AFTERTHOUGHT",
+        grounding_quote="장면",
+        skip_reason=None,
+    )
+    skip_interview_turn(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(result=candidate_proposal),
+    )
+    choice = InterviewProgressDecision.objects.get(turn=turn8)
+    assert choice.kind == InterviewProgressDecision.Kind.CAP_EXTENSION
+    turns_before = InterviewTurn.objects.filter(interview=interview).count()
+
+    ended = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        decision="end",
+    )
+    assert ended.skipped
+    assert ended.turn.pk == turn8.pk
+    interview.refresh_from_db()
+    turn8.refresh_from_db()
+    assert interview.status == Interview.Status.REFLECTION_READY
+    assert InterviewTurn.objects.filter(interview=interview).count() == turns_before
+    assert turn8.user_skipped_at is not None
+    assert turn8.answer is None
+
+    repeated = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        decision="end",
+    )
+    assert repeated.skipped
+    assert repeated.turn.pk == turn8.pk
+    assert InterviewTurn.objects.filter(interview=interview).count() == turns_before
 
 
 @pytest.mark.django_db

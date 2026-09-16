@@ -116,15 +116,15 @@ uv run python scripts/verify.py
   - `src/reflections/services.py`의 `skip_interview_turn`에서 `_validate_interview_state` 호출 순서를 재구성하여, 이미 건너뛴 마지막 Turn의 재요청이 `ENDED_NO_REFLECTION` 또는 `REFLECTION_READY` terminal 상태에서도 409 Conflict 없이 목적지로 정상 멱등 수렴하도록 수정.
   - 검증: `test_skip_interview_turn_idempotent_on_ended_no_reflection_last_turn`, `test_skip_interview_turn_idempotent_on_reflection_ready_last_turn` (서비스), `test_turn_skip_repeated_post_on_ended_no_reflection_converges_idempotently`, `test_turn_skip_repeated_post_on_reflection_ready_converges_idempotently` (HTTP/HTMX) 통과.
 - **T035 (Answer/Skip 동시 경합 검증 및 상호 배타 보장)**:
-  - `select_for_update` 및 상호 배타 체크를 통해 별도 DB connection에서 동일 Turn에 answer 제출과 Skip이 동시 발생해도 정확히 하나의 결과만 확정되고 `answer`와 `user_skipped_at`이 절대 공존하지 않음을 확인.
-  - 검증: `test_concurrent_answer_and_skip_on_same_turn` 통과.
+  - 별도 DB connection에서 동일 Turn의 answer 제출과 Skip이 경합할 때 `select_for_update` 잠금을 통해 정확히 하나의 결과만 확정되고 `answer`와 `user_skipped_at`의 상호 배타성이 유지됨을 확인. (후속 상태 전이 및 중복 방지는 멱등성 및 stale replay 테스트에서 검증)
+  - 검증: `test_services.py::test_concurrent_answer_and_skip_on_same_turn` 통과.
 
 ### 6. Convergence Correction 3 (T036~T040) 검증 결과
 
 - **T036 (Skip된 Turn의 ProgressDecision 처리 정합성)**:
   - `InterviewProgressDecision.clean()`: `turn.answer is None and turn.user_skipped_at is None`으로 수정하여 확정 건너뛰기 Turn도 ProgressDecision 대상으로 허용.
   - `decide_interview_progress()`: Turn 조회 시 `Q(answer__isnull=False) | Q(user_skipped_at__isnull=False)`로 수정하여 Skip Turn의 의사결정 처리 지원.
-  - 검증: `test_progress_decision_allows_explicit_user_skipped_turn` (모델), `test_decide_interview_progress_on_user_skipped_turn_soft_stop_end`, `test_decide_interview_progress_on_user_skipped_turn_soft_stop_continue`, `test_decide_interview_progress_on_user_skipped_turn_cap_extension` (서비스).
+  - 검증: `test_models.py::test_progress_decision_allows_explicit_user_skipped_turn` (모델), `test_services.py::test_decide_interview_progress_on_user_skipped_turn_soft_stop_end`, `test_services.py::test_decide_interview_progress_on_user_skipped_turn_soft_stop_continue`, `test_services.py::test_decide_interview_progress_on_user_skipped_turn_cap_extension`, `test_services.py::test_decide_interview_progress_on_user_skipped_turn_cap_extension_end` (서비스).
 - **T037 (HTMX Soft Stop END 후 Reflection 생성 버튼 누락 보정)**:
   - `src/reflections/views.py`: `interview_decision`의 HTMX 성공 분기에서 `reflections/_interview_reflection_ready.html` 렌더링 시 `{"interview": interview}` context 전달 누락 보정.
   - 검증: `test_interview_decision_soft_stop_end_htmx_renders_reflection_generate_button` (뷰).
@@ -142,16 +142,16 @@ uv run python scripts/verify.py
 
 | 성공 기준 | 구현 내용 및 검증 증거 |
 | --- | --- |
-| **SC-001 (생성 진행 및 최소 임시 결과 화면 도달)** | Soft Stop 종료 및 질문 한도 도달 후 Reflection 생성 성공 시 최소 임시 결과 화면(`reflection_draft_ready.html`)으로 자동 도달 검증 (`test_views.py::test_reflection_generate_success_redirects_to_draft_ready`, `test_interview_decision_soft_stop_end_htmx_renders_reflection_generate_button`) |
-| **SC-002 (생성 실패/재시도 시 답변 보존 및 재시도 제공)** | 생성 실패·시간 초과·비정상 응답 시 기존 질문/답변/Coverage 유실 0건, 503 안전 오류와 Retry 폼 제공 검증 (`test_drafts.py`, `test_views.py::test_reflection_generate_provider_failure_returns_503_and_retry`) |
-| **SC-003 (동일 Interview 단일 Reflection 및 덮어쓰기 방지)** | 반복 요청, 동시 생성 경합(`ReflectionDraftConflict`), 유실 후 재요청 시 최종 Reflection 1개 및 기존 초안 보존 검증 (`test_drafts.py`, `test_views.py::test_reflection_generate_conflict_converges_to_existing_draft`) |
-| **SC-004 (질문 Skip 단방향 확정 및 답변/Skip 상호 배타)** | 질문 Skip 시 한 번의 동작으로 후속 상태 전이, 빈 Answer 미생성, `answer`와 `user_skipped_at` 상호 배타 보장 (`test_models.py`, `test_services.py::test_concurrent_answer_and_skip_on_same_turn`, `test_views.py::test_turn_skip_success_advances_to_next_question`) |
-| **SC-005 (Skip/저정보 답변/다음 질문 생략 구분 및 Coverage 불변)** | Skip과 저정보 텍스트 답변(`low_information=False`), 확정 답변 후 생략 구분, Skip으로 Coverage 미증가 확인 (`test_structured_providers.py`, `test_services.py`) |
-| **SC-006 (READY/READY_LIMITED 친화적 안내 및 내부 용어 격리)** | READY 및 READY_LIMITED fixture에서 정상 동작, `READY`, `READY_LIMITED`, `RAG`, `Knowledge readiness` 등 기술 용어 노출 0건 및 친화적 안내문 제공 검증 (`test_views.py::test_interview_start_and_detail_hide_internal_readiness_terms`) |
-| **SC-007 (제한적 도서 정보 시 사실 왜곡 방지 및 기억/감상 중심 질문)** | READY_LIMITED 및 skip 누적 상태에서 미확인 책 사실 전제 0건, 기억·인상 중심 질문 생성 검증 (`test_reflection.py::test_ready_limited_avoids_unsupported_book_facts_in_questions`) |
-| **SC-008 (로딩/Disabled 즉시 표시, 키보드 접근성 및 반응형 유지)** | 생성·Retry·Skip 흐름에서 `aria-live`, `aria-busy`, `disabled`, `hx-sync="this:drop"` 즉시 적용, 시맨틱 버튼 및 Desktop/Mobile 폭 지원 (`test_views.py`, `app.css`) |
-| **SC-009 (소유권 격리, 부적합 상태 거부 및 민감 정보 보호)** | 비소유자 404 차단, terminal/stale 상태 409, 예외 원문/credential 비노출 검증 (`test_views.py::test_views_enforce_owner_boundaries_and_mask_internal_diagnostics`) |
-| **SC-010 (All-skip 시 Reflection 없는 종결 및 안내)** | 모든 질문 Skip 시 `ENDED_NO_REFLECTION`으로 종결, Reflection 0개 생성, 답변 부족 안내 문구 제공 검증 (`test_services.py`, `test_views.py::test_turn_skip_htmx_all_skip_returns_fragment_without_full_page`) |
+| **SC-001 (생성 진행 및 최소 임시 결과 화면 도달)** | Soft Stop 종료 및 질문 한도 도달 후 Reflection 생성 성공 시 최소 임시 결과 화면(`reflection_draft_ready.html`)으로 자동 도달 검증 (`test_views.py::test_reflection_generate_success_redirects_and_creates_draft`, `test_views.py::test_interview_decision_soft_stop_end_htmx_renders_reflection_generate_button`) |
+| **SC-002 (생성 실패/재시도 시 답변 보존 및 재시도 제공)** | 생성 실패·시간 초과·비정상 응답 시 기존 질문/답변/Coverage 유실 0건, 503 안전 오류와 Retry 폼 제공 검증 (`test_views.py::test_reflection_generate_provider_failure_returns_503_and_retry_ui`, `test_drafts.py::test_generate_or_get_reflection_draft_preserves_answers_on_provider_failure`, `test_drafts.py::test_provider_failure_isolates_db_state_and_calls_once`) |
+| **SC-003 (동일 Interview 단일 Reflection 및 덮어쓰기 방지)** | 반복 요청, 동시 생성 경합(`ReflectionDraftConflict`), 유실 후 재요청 시 최종 Reflection 1개 및 기존 초안 보존 검증 (`test_drafts.py::test_generate_or_get_reflection_draft_converges_on_conflict`, `test_drafts.py::test_generate_or_get_reflection_draft_creates_single_reflection_on_success`, `test_drafts.py::test_duplicate_save_raises_draft_conflict_and_preserves_original`) |
+| **SC-004 (질문 Skip 단방향 확정 및 답변/Skip 상호 배타)** | 질문 Skip 시 한 번의 동작으로 후속 상태 전이, 빈 Answer 미생성, `answer`와 `user_skipped_at` 상호 배타 보장 (`test_models.py::test_turn_user_skipped_at_and_answer_mutual_exclusivity`, `test_services.py::test_skip_interview_turn_preserves_null_answer_and_coverage`, `test_services.py::test_skip_interview_turn_mutual_exclusivity_with_answer`, `test_services.py::test_concurrent_answer_and_skip_on_same_turn`, `test_views.py::test_skip_turn_htmx_and_normal_success_flow`) |
+| **SC-005 (Skip/저정보 답변/다음 질문 생략 구분 및 Coverage 불변)** | Skip(`user_skipped=True, answer=None`)과 저정보 텍스트 답변(`low_information=True`), 확정 답변 후 생략 구분, Skip으로 Coverage 미증가 확인 (`tests/integrations/llm/test_structured_providers.py::test_next_question_context_explicit_skip_distinguished_from_low_info`, `tests/reflections/test_services.py::test_skip_interview_turn_preserves_null_answer_and_coverage`) |
+| **SC-006 (READY/READY_LIMITED 친화적 안내 및 내부 용어 격리)** | READY 및 READY_LIMITED fixture에서 정상 동작, `READY`, `READY_LIMITED`, `RAG`, `Knowledge readiness` 등 기술 용어 노출 0건 및 친화적 안내문 제공 검증 (`test_views.py::test_interview_start_and_detail_hide_internal_enums_and_show_friendly_notice`) |
+| **SC-007 (제한적 도서 정보 시 사실 왜곡 방지 및 기억/감상 중심 질문)** | READY_LIMITED 및 skip 누적 상태에서 미확인 책 사실 전제 0건, 기억·인상 중심 질문 생성 검증 (`tests/integrations/llm/test_reflection.py::test_ready_limited_and_skip_rejects_unsupported_facts_and_allows_feeling`) |
+| **SC-008 (로딩/Disabled 즉시 표시, 키보드 접근성 및 반응형 유지)** | 생성·Retry·Skip 흐름에서 `aria-live`, `aria-busy`, `disabled`, `hx-sync="this:drop"` 즉시 적용, 시맨틱 버튼 및 Desktop/Mobile 폭 지원 (`test_views.py::test_detail_loading_and_first_question_post_contract`, `test_views.py::test_skip_turn_provider_failure_returns_503_recovery_fragment`, `test_views.py::test_reflection_generate_provider_failure_returns_503_and_retry_ui`, `src/static/css/app.css`) |
+| **SC-009 (소유권 격리, 부적합 상태 거부 및 민감 정보 보호)** | 소유권 격리(`test_views.py::test_reflection_generate_auth_and_ownership`, `test_views.py::test_skip_turn_auth_and_ownership`, `test_views.py::test_decision_end_ready_and_owner_boundary`), 부적합/stale 상태 거부(`test_views.py::test_reflection_generate_stale_or_invalid_status_returns_409`, `test_views.py::test_skip_turn_stale_or_invalid_sequence_returns_409`, `test_views.py::test_reflection_generate_with_unexpected_form_field_returns_409`), 민감 진단 마스킹(`test_views.py::test_next_failure_logs_types_without_sensitive_messages`, `test_drafts.py::test_validation_errors_do_not_leak_quote_or_keys_secrets`) |
+| **SC-010 (All-skip 시 Reflection 없는 종결 및 안내)** | 모든 질문 Skip 시 `ENDED_NO_REFLECTION`으로 종결, Reflection 0개 생성, 답변 부족 안내 문구 제공 검증 (`test_models.py::test_interview_status_ended_no_reflection`, `test_services.py::test_skip_interview_turn_all_skips_reach_ended_no_reflection`, `test_views.py::test_turn_skip_htmx_all_skip_returns_fragment_without_full_page`) |
 
 ### 8. 미검증 범위 및 잔여 위험
 
