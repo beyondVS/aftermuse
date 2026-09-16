@@ -5,7 +5,6 @@
   <p class="eyebrow-pill">Interview</p>
   <h1 id="interview-title">{{ interview.book.title }}</h1>
   <p>인터뷰를 시작했습니다.</p>
-  <p>준비 수준: {{ interview.knowledge_readiness }}</p>
   {% if interview.knowledge_readiness == "READY_LIMITED" %}<p class="interview-notice">기억에 남은 내용부터 정리해 볼게요.</p>{% endif %}
   {% if previous_turns %}
     <section class="interview-history" aria-label="이전 질문과 답변">
@@ -27,6 +26,8 @@
       {% include "reflections/_interview_error.html" %}
     {% elif next_error %}
       {% include "reflections/_interview_next_error.html" %}
+    {% elif skip_error or turn.user_skipped_at and turn.answer is None %}
+      {% include "reflections/_interview_skip_error.html" %}
     {% elif turn %}
       {% if turn.answer is None %}
         {% include "reflections/_interview_question.html" %}

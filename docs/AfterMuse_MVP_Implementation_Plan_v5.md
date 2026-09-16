@@ -372,7 +372,7 @@ Interview 결과를 저장할 Reflection 모델을 구현하고, 사용자 답�
 Interview 도중 질문을 건너뛸 수 있는 액션을 추가하고, 내부 도서 지식 안내 표현을 친화적으로 정리하며, 인터뷰 종료 후 Reflection 생성 중 로딩 및 재시도/멱등성 전이 흐름을 완성한다.
 *(과밀 주의 & Scope Gate 적용: Day 12 결과 화면 및 Day 13 전체 E2E 선행 필수 작업들이므로 Day 11에 유지하되, 각 항목의 구현 상한선을 엄격히 통제하여 세션 폭주를 방지한다.)*
 
-- [ ] **IMP-092 — Reflection 생성 Transition 구현**
+- [x] **IMP-092 — Reflection 생성 Transition 구현**
   - **선행 작업:** IMP-080, IMP-081, IMP-091
   - Soft Stop에서 종료를 선택하거나 질문 budget/safety cap에 도달했을 때 Reflection 생성 화면으로 이동하며, LLM 생성 과정의 UI 상태(생성 중, 성공, 실패, 재시도)를 처리한다.
   - **Scope Gate:** 복잡한 백그라운드 폴링 체계 대신 단일 트랜잭션/API 기반의 로딩 및 에러 처리, 멱등성 보장(기존 답변 유지)에 집중한다.
@@ -384,8 +384,9 @@ Interview 도중 질문을 건너뛸 수 있는 액션을 추가하고, 내부 �
     - Retry가 가능하며, 재시도 시 기존 Interview 답변이 절대 유실되지 않는다.
     - Retry로 인해 동일 Interview에 중복 Reflection이 만들어지지 않는다 (멱등성 보장).
     - 생성 완료 시 Reflection 결과 화면으로 자동 전환된다.
+  - **검증 (2026-09-16):** `generate_or_get_reflection_draft` 선조회 및 동시 저장 충돌 수렴(`ReflectionDraftConflict`), `POST /reflections/interviews/{id}/reflection/generate/`의 302/503 및 HTMX `HX-Redirect`/오류 fragment, aria-busy/aria-live/disabled Loading UI, 답변 보존 503 및 Retry UI, 임시 결과 화면(`GET /reflections/{reflection_id}/`) 소유권 격리를 단위/통합/뷰 테스트와 `scripts/verify.py`로 검증했다.
 
-- [ ] **IMP-095 — Book Knowledge 사용자용 상태 표현 정리**
+- [x] **IMP-095 — Book Knowledge 사용자용 상태 표현 정리**
   - **선행 작업:** IMP-042, IMP-051, IMP-063
   - 기존 `READY / READY_LIMITED` 도메인 상태는 유지하되, 사용자에게 보이는 표현 계층만 친화적으로 정리한다.
   - **원칙:**
@@ -396,8 +397,9 @@ Interview 도중 질문을 건너뛸 수 있는 액션을 추가하고, 내부 �
     - Interview 시작 화면, 질문 화면 등 사용자 접점 UI에 내부 Knowledge enum이 직접 나타나지 않는다.
     - `READY_LIMITED` 상태에서도 자연스럽게 Interview를 시작하고 진행할 수 있다.
     - Knowledge가 부족한 상태에서 AI가 책 내용을 아는 척하지 않는다.
+  - **검증 (2026-09-16):** 시작 화면(`interview_start.html`) 및 질문 상세 화면(`interview_detail.html`)에서 `READY`, `READY_LIMITED`, `Knowledge readiness`, `RAG`, `준비 수준` 노출을 제거하고 비오류성 기억/감상 안내를 제공하도록 변경했다. `READY_LIMITED` 및 skip 누적 context에서 미확인 책 사실 전제(`_BOOK_FACT_CUES`) 질문 거부 및 기억/감정 질문 fallback을 단위/뷰 테스트로 검증했다.
 
-- [ ] **IMP-096 — Interview 질문 건너뛰기 구현**
+- [x] **IMP-096 — Interview 질문 건너뛰기 구현**
   - **선행 작업:** IMP-073, IMP-080
   - 사용자가 현재 질문에 답하기 어렵거나 답하고 싶지 않을 경우 명시적으로 건너뛸 수 있는 기능을 추가한다.
   - **실질적 구현 규모 및 Scope Gate:**
@@ -414,6 +416,7 @@ Interview 도중 질문을 건너뛸 수 있는 액션을 추가하고, 내부 �
     - 빈 문자열 Answer 저장으로 구현하지 않고 명시적 스킵 상태로 관리된다.
     - Skip된 Turn과 실제 Answer를 구분할 수 있다.
     - Skip 후 다음 질문 생성 또는 Interview 종료 판단이 정상 진행된다.
+  - **검증 (2026-09-16):** `InterviewTurn.user_skipped_at` nullable 컬럼 및 answer 배타 CHECK 제약(`0008`, `0009` migration), `skip_interview_turn` 2단계 원자성(선저장 + 외부호출 + 확정), budget 반영, all-skip 시 `ENDED_NO_REFLECTION` 종결 및 Reflection 생성 차단(409), `POST /turns/{seq}/skip/` endpoint, 질문별 건너뛰기 폼 및 HTMX fragment, 반응형/접근성 CSS를 모델/서비스/뷰/마이그레이션 테스트로 검증했다.
 
 ### Day 12 — Reflection 결과/수정과 Home 재진입 및 검증 준비
 

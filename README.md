@@ -17,37 +17,36 @@ Knowledge Research·공개/공유 기능은 후속 범위입니다.
 
 ## 현재 구현 상태
 
-2026-09-16 기준, Day 10의 데이터·생성 기반까지 구현했습니다.
+2026-09-16 기준, Day 11의 질문 건너뛰기(Skip), 친화적 안내, Reflection 생성 Transition까지 구현했습니다.
 
 | 영역 | 사용할 수 있는 기능 |
 | --- | --- |
 | 인증 | 세션 기반 회원가입·로그인·POST 로그아웃 |
 | 책 검색 | Kakao 검색, HTMX Loading·Empty·Error, 판본 확인 및 Book 등록·재사용 |
 | Reading | 명시적 시작·재독, 상태·완독일 변경, 소유자 전용 상세 |
-| Interview | 완독 후 시작, 첫 질문·답변 분석·후속 질문, Coverage·Soft Stop·질문 상한, 실패 재시도 |
+| Interview | 완독 후 시작, 첫 질문·답변 분석·후속 질문, 질문 건너뛰기(Skip), Coverage·Soft Stop·상한, all-skip 종결 |
+| Knowledge 안내 | 내부 enum(`READY`/`READY_LIMITED`)·기술 용어 숨김, 기억·감상 중심 친화적 안내, 책 사실 전제 방지 |
 | Home | 실제 Reading 상태별 카드·빈 상태, 진행 중 Interview 재진입과 확정 질문·답변 조회 |
-| Reflection 기반 | Interview당 하나의 초안 저장·조회, 별도 수정본 보존, 답변 기반 비영속 생성 Service |
+| Reflection 기반 | 단일 초안 생성·선조회 수렴, 멱등성 보장, HTMX Loading/Error/Retry, 최소 임시 결과 화면 |
 
-Interview는 `READY`에서 검증된 Claim을 사용하고, `READY_LIMITED`에서는 기억·인상 중심으로
-질문합니다. 확정 답변은 보존하며 기존 질문을 재사용하고, 실패 시 명시적으로 재시도합니다.
-네 Core Coverage 축 완료 후 네 번째~일곱 번째 답변에서 Soft Stop을 선택할 수 있습니다.
-여덟 번째 답변에 일반 상한을 적용하며, 미충족 축의 근거 있는 질문을 사용자가 선택한 경우에만
-최대 열 번째 질문까지 진행합니다.
+Interview는 사용자가 답하기 어려운 질문을 명시적으로 건너뛸 수 있는 `[건너뛰기]` 액션을 제공합니다.
+건너뛴 턴은 `user_skipped_at`으로 기록되어 답변과 상호 배타적으로 보존되며, Coverage를 무리하게 올리지 않고
+질문 Budget에 포함되어 다음 질문 또는 종료 판단으로 이어집니다. 모든 질문을 건너뛴 경우 Reflection 없는
+종결 상태(`ENDED_NO_REFLECTION`)로 안전하게 종료됩니다.
 
-Reflection 생성 대상은 최종 완료된 Interview가 아니라 `REFLECTION_READY` 상태입니다.
-생성은 DB transaction 밖에서 비영속 결과를 반환하고, 별도의 저장 Service가 초안을 보존합니다.
-최초 초안은 Model 검증으로 변경을 거부하고, DB는 Interview당 하나·길이·Draft 상태를 제한합니다.
-수정본은 초안과 분리하며 생성·수정본 저장만으로 완료 처리하지 않습니다.
-저장 잠금 후 소유자·책 관계·상태·확정 답변 snapshot을 다시 검증합니다.
+도서 정보 준비 상태는 사용자 UI에서 `READY`, `READY_LIMITED`, `준비 수준`, `RAG` 등의 내부 용어를 노출하지
+않으며, 정보가 제한적인 경우에도 오류가 아닌 기억·감상 중심의 친화적 진행 안내를 제공합니다.
 
-fake·OpenAI·Gemini·Ollama는 같은 구조화 생성 계약을 사용합니다. 서버는 최상위·중첩 키,
-길이, 답변 원문 인용, 표현 연결과 금지 형식을 검증하고 canonical Markdown을 조립합니다.
-이 검사는 실제 LLM 출력의 의미적 충실성을 완전히 증명하지 않습니다.
+Reflection 생성은 `REFLECTION_READY` 상태에서 동기식 `POST /reflections/interviews/{id}/reflection/generate/`로
+호출되며, 이미 생성된 Reflection이 존재하면 Provider 호출 없이 기존 결과를 재사용합니다.
+생성 과정에서는 `aria-busy`와 disabled 상태의 Loading UI를 즉시 제공하고, 실패 시 기존 Interview 답변을
+온전히 보존한 채 재시도(Retry)할 수 있습니다. 생성이 완료되면 최소 임시 결과 화면(`GET /reflections/{reflection_id}/`)으로
+자동 이동합니다.
 
-**남은 범위:** Reflection 생성/실패/Retry 화면(Day 11), 결과·수정 화면과 Home 재진입(Day 12).
+**남은 범위:** Reflection 정식 결과 에세이 화면, 사용자 수정 UX, 최종 완료 확인 및 Home 독서노트 연계(Day 12).
 실제 Reflection Provider 연결·의미 품질 평가는 별도 opt-in 인수로 남아 있습니다.
 자세한 완료 상태는 [구현 계획](docs/AfterMuse_MVP_Implementation_Plan_v5.md), 검증 근거는
-[Day 10 검증 기록](specs/015-reflection-draft-generation/quickstart.md)을 참조합니다.
+[Day 11 검증 기록](specs/016-interview-reflection-transition/quickstart.md)을 참조합니다.
 
 ## 기술 스택
 

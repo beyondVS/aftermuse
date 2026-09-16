@@ -555,7 +555,9 @@ def test_start_and_detail_method_and_html_contracts(client, reading) -> None:
 
     assert client.post(start_url).status_code == 405
     assert client.get(create_url).status_code == 405
-    assert "준비 수준: READY_LIMITED" in start_response.content.decode()
+    assert "기억에 남은 내용부터 정리해 볼게요" in start_response.content.decode()
+    assert "준비 수준" not in start_response.content.decode()
+    assert "READY_LIMITED" not in start_response.content.decode()
     assert 'role="alert"' not in start_response.content.decode()
     assert created.status_code == 302
     assert "첫 질문을 준비하고 있어요." in detail_response.content.decode()
@@ -1239,3 +1241,577 @@ def test_interview_detail_resume_multiple_turns_preserves_previous_answers(
     turn2.refresh_from_db()
     assert turn1.answer == "주인공의 용기가 가장 큰 울림을 주었습니다."
     assert turn2.answer is None
+
+
+# ---------------------------------------------------------------------------
+# User Story 1 View Tests
+# ---------------------------------------------------------------------------
+
+
+def test_reflection_generate_auth_and_ownership(
+    client, reading, django_user_model
+) -> None:
+    """인증되지 않은 사용자는 로그인으로 redirect되고, 타인은 404를 받는다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="질문", answer="답변"
+    )
+    url = reverse("reflections:reflection_generate", args=[interview.pk])
+
+    # 1. Anonymous -> 302 login
+    anon_res = client.post(url)
+    assert anon_res.status_code == 302
+    assert "/accounts/login/" in anon_res.url
+
+    # 2. Other user -> 404
+    other_user = django_user_model.objects.create_user(username="other-ref-gen-user")
+    client.force_login(other_user)
+    other_res = client.post(url)
+    assert other_res.status_code == 404
+
+
+def test_reflection_detail_auth_and_ownership(
+    client, reading, django_user_model
+) -> None:
+    """최소 결과 화면은 소유자만 볼 수 있고 타인 및 익명은 접근할 수 없다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="질문", answer="답변"
+    )
+    from reflections.models import Reflection
+
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="## 초안 본문",
+        draft_sections=[
+            {"title": "초안", "paragraphs": [{"text": "답변", "evidence": []}]}
+        ],
+        status=Reflection.Status.DRAFT,
+    )
+    url = reverse("reflections:reflection_detail", args=[reflection.pk])
+
+    # 1. Anonymous -> 302 login
+    anon_res = client.get(url)
+    assert anon_res.status_code == 302
+
+    # 2. Other user -> 404
+    other_user = django_user_model.objects.create_user(username="other-ref-detail-user")
+    client.force_login(other_user)
+    other_res = client.get(url)
+    assert other_res.status_code == 404
+
+    # 3. Owner -> 200
+    client.force_login(reading.user)
+    owner_res = client.get(url)
+    assert owner_res.status_code == 200
+
+
+def test_reflection_generate_stale_or_invalid_status_returns_409(
+    client, reading
+) -> None:
+    """REFLECTION_READY 상태가 아닌 Interview의 생성 요청은 409를 반환한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.IN_PROGRESS,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="질문", answer="답변"
+    )
+    client.force_login(reading.user)
+    url = reverse("reflections:reflection_generate", args=[interview.pk])
+
+    res = client.post(url)
+    assert res.status_code == 409
+
+
+def test_reflection_generate_provider_failure_returns_503_and_retry_ui(
+    client, reading, monkeypatch
+) -> None:
+    """Provider 실패 시 503과 재시도 UI를 제공하며 원본 답변을 보존한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="질문", answer="보존되어야 할 답변"
+    )
+
+    def mock_fail(**kwargs):
+        from integrations.llm.contracts import ReflectionGenerationUnavailable
+
+        raise ReflectionGenerationUnavailable("Provider is down")
+
+    monkeypatch.setattr("reflections.drafts.generate_reflection_draft", mock_fail)
+
+    client.force_login(reading.user)
+    url = reverse("reflections:reflection_generate", args=[interview.pk])
+
+    # 1. Normal POST -> 503 with retry button
+    res_normal = client.post(url)
+    assert res_normal.status_code == 503
+    content_normal = res_normal.content.decode()
+    assert "다시 시도" in content_normal or "재시도" in content_normal
+    assert "답변은 안전하게 보존" in content_normal or "보존" in content_normal
+
+    # 2. HTMX POST -> 503 fragment with role="alert"
+    res_htmx = client.post(url, HTTP_HX_REQUEST="true")
+    assert res_htmx.status_code == 503
+    content_htmx = res_htmx.content.decode()
+    assert 'role="alert"' in content_htmx
+    assert "다시 시도" in content_htmx or "재시도" in content_htmx
+
+    turn.refresh_from_db()
+    assert turn.answer == "보존되어야 할 답변"
+
+
+def test_reflection_generate_success_redirects_and_creates_draft(
+    client, reading
+) -> None:
+    """생성 성공 시 일반 요청은 302,
+    HTMX 요청은 HX-Redirect로 최소 결과 URL로 이동한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="질문", answer="생성 근거가 될 답변"
+    )
+    client.force_login(reading.user)
+    url = reverse("reflections:reflection_generate", args=[interview.pk])
+
+    # 1. Normal POST
+    res = client.post(url)
+    assert res.status_code == 302
+    from reflections.models import Reflection
+
+    reflection = Reflection.objects.get(interview=interview)
+    expected_url = reverse("reflections:reflection_detail", args=[reflection.pk])
+    assert res.url == expected_url
+
+    # 2. HTMX POST with existing reflection -> HX-Redirect
+    res_htmx = client.post(url, HTTP_HX_REQUEST="true")
+    assert res_htmx.status_code == 200
+    assert res_htmx.headers.get("HX-Redirect") == expected_url
+
+
+def test_reflection_detail_minimal_result_screen_scope(client, reading) -> None:
+    """최소 결과 화면은 책 제목과 생성 완료 사실만 표시하고
+    본문/수정/완료는 표시하지 않는다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    from reflections.models import Reflection
+
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown=(
+            "## 비공개 초안 본문\n\n이 본문은 최소 결과 화면에 노출되지 않는다."
+        ),
+        draft_sections=[{"title": "초안", "paragraphs": []}],
+        status=Reflection.Status.DRAFT,
+    )
+    client.force_login(reading.user)
+    url = reverse("reflections:reflection_detail", args=[reflection.pk])
+
+    res = client.get(url)
+    assert res.status_code == 200
+    content = res.content.decode()
+
+    # 표시되어야 할 항목: 도서명, 초안 생성 완료
+    assert reading.book.title in content
+    assert "초안 생성 완료" in content or "독서노트 초안" in content
+
+    # 노출되지 않아야 할 항목 (Day 12 범위):
+    # 본문 전체 내용, 수정 form/textarea, 완료 버튼
+    assert "비공개 초안 본문" not in content
+    assert "<textarea" not in content
+    assert "완료하기" not in content
+
+
+def test_skip_turn_auth_and_ownership(client, reading, other_reflection_user) -> None:
+    """인증되지 않은 사용자는 로그인으로 이동하고,
+    타인의 인터뷰 skip 요청은 404를 반환한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.IN_PROGRESS,
+    )
+    InterviewTurn.objects.create(interview=interview, sequence=1, question="질문 1")
+    url = reverse("reflections:turn_skip", args=[interview.pk, 1])
+
+    # 1. Anonymous user
+    res_anon = client.post(url)
+    assert res_anon.status_code == 302
+    assert "/accounts/login/" in res_anon.url
+
+    # 2. Non-owner user
+    client.force_login(other_reflection_user)
+    res_non_owner = client.post(url)
+    assert res_non_owner.status_code == 404
+
+
+def test_skip_turn_stale_or_invalid_sequence_returns_409(client, reading) -> None:
+    """이미 완료/답변된 turn, 또는 terminal 인터뷰 skip 요청은 409를 반환한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.IN_PROGRESS,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="질문 1", answer="이미 답변 완료"
+    )
+    InterviewTurn.objects.create(interview=interview, sequence=2, question="질문 2")
+    client.force_login(reading.user)
+
+    # 1. 이미 답변된 1번 turn에 skip 요청 -> 409
+    url_stale = reverse("reflections:turn_skip", args=[interview.pk, 1])
+    res1 = client.post(url_stale)
+    assert res1.status_code == 409
+
+    # 2. terminal 인터뷰 skip 요청 -> 409
+    interview.status = Interview.Status.REFLECTION_READY
+    interview.save(update_fields=("status", "updated_at"))
+    url_terminal = reverse("reflections:turn_skip", args=[interview.pk, 2])
+    res2 = client.post(url_terminal)
+    assert res2.status_code == 409
+
+    # 3. 존재하지 않는 turn은 404
+    url_nonexistent = reverse("reflections:turn_skip", args=[interview.pk, 99])
+    res3 = client.post(url_nonexistent)
+    assert res3.status_code == 404
+
+
+def test_skip_turn_provider_failure_returns_503_recovery_fragment(
+    client, reading, monkeypatch
+) -> None:
+    """Provider 오류 시 503과 함께 재시도 가능한 복구 fragment를 반환하며,
+    skip 사실은 보존된다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.IN_PROGRESS,
+    )
+    InterviewTurn.objects.create(interview=interview, sequence=1, question="질문 1")
+    client.force_login(reading.user)
+    url = reverse("reflections:turn_skip", args=[interview.pk, 1])
+
+    from integrations.llm.contracts import QuestionGenerationUnavailable
+
+    def fail_skip(**kwargs):
+        raise QuestionGenerationUnavailable()
+
+    monkeypatch.setattr("reflections.views.skip_interview_turn", fail_skip)
+
+    res = client.post(url, HTTP_HX_REQUEST="true")
+    assert res.status_code == 503
+    content = res.content.decode()
+    assert "다시 준비" in content or "다시 시도" in content or "재시도" in content
+
+
+def test_skip_turn_htmx_and_normal_success_flow(client, reading) -> None:
+    """정상 skip 시 일반 요청은 redirect되고,
+    HTMX 요청은 다음 질문 fragment를 반환한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.IN_PROGRESS,
+    )
+    InterviewTurn.objects.create(interview=interview, sequence=1, question="질문 1")
+    client.force_login(reading.user)
+    url = reverse("reflections:turn_skip", args=[interview.pk, 1])
+
+    # HTMX skip
+    res = client.post(url, HTTP_HX_REQUEST="true")
+    assert res.status_code == 200
+    content = res.content.decode()
+    assert (
+        'id="interview-turn-region"' in content or 'data-turn-sequence="2"' in content
+    )
+
+
+def test_interview_detail_ended_no_reflection_screen(client, reading) -> None:
+    """ENDED_NO_REFLECTION 상태의 인터뷰는
+    reflection 없이 종료된 안내 화면을 렌더링한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.ENDED_NO_REFLECTION,
+    )
+    client.force_login(reading.user)
+    url = reverse("reflections:interview_detail", args=[interview.pk])
+
+    res = client.get(url)
+    assert res.status_code == 200
+    content = res.content.decode()
+    assert "독서노트" in content
+    assert "답변" in content
+
+
+def test_interview_start_and_detail_hide_internal_enums_and_show_friendly_notice(
+    client, reading
+) -> None:
+    """READY 및 READY_LIMITED 상태에서 내부 enum, RAG, Knowledge readiness,
+    준비 수준이 노출되지 않고, 제한 상태에서는 친화적인 비오류 문구를 제공한다."""
+    from knowledge.models import BookKnowledge, KnowledgeKind
+
+    forbidden_strings = [
+        "READY_LIMITED",
+        "READY",
+        "Knowledge readiness",
+        "knowledge_readiness",
+        "준비 수준",
+        "RAG",
+    ]
+
+    # 1. READY_LIMITED: start view
+    client.force_login(reading.user)
+    start_url = reverse("reflections:interview_start", args=[reading.pk])
+    res_start_limited = client.get(start_url)
+    assert res_start_limited.status_code == 200
+    start_limited_content = res_start_limited.content.decode()
+
+    for forbidden in forbidden_strings:
+        assert forbidden not in start_limited_content, (
+            f"Found '{forbidden}' in start (READY_LIMITED)"
+        )
+
+    # 비오류 안내 문구 포함 확인 & alert 없음 확인
+    assert "기억에 남은" in start_limited_content
+    assert 'role="alert"' not in start_limited_content
+
+    # 2. READY_LIMITED: detail view
+    interview_limited = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+        status=Interview.Status.IN_PROGRESS,
+    )
+    detail_url = reverse("reflections:interview_detail", args=[interview_limited.pk])
+    res_detail_limited = client.get(detail_url)
+    assert res_detail_limited.status_code == 200
+    detail_limited_content = res_detail_limited.content.decode()
+
+    for forbidden in forbidden_strings:
+        assert forbidden not in detail_limited_content, (
+            f"Found '{forbidden}' in detail (READY_LIMITED)"
+        )
+
+    assert "기억에 남은" in detail_limited_content
+    assert 'role="alert"' not in detail_limited_content
+
+    # 3. READY: start view
+    BookKnowledge.objects.create(
+        book=reading.book, kind=KnowledgeKind.THEME, content="검증된 지식 클레임"
+    )
+    other_reading = Reading.objects.create(
+        user=reading.user,
+        book=reading.book,
+        status=Reading.Status.COMPLETED,
+        completed_on=date(2026, 9, 15),
+    )
+    start_url_ready = reverse("reflections:interview_start", args=[other_reading.pk])
+    res_start_ready = client.get(start_url_ready)
+    assert res_start_ready.status_code == 200
+    start_ready_content = res_start_ready.content.decode()
+
+    for forbidden in forbidden_strings:
+        assert forbidden not in start_ready_content, (
+            f"Found '{forbidden}' in start (READY)"
+        )
+    assert 'role="alert"' not in start_ready_content
+
+    # 4. READY: detail view
+    interview_ready = Interview.objects.create(
+        reading=other_reading,
+        book=other_reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.IN_PROGRESS,
+    )
+    detail_url_ready = reverse(
+        "reflections:interview_detail", args=[interview_ready.pk]
+    )
+    res_detail_ready = client.get(detail_url_ready)
+    assert res_detail_ready.status_code == 200
+    detail_ready_content = res_detail_ready.content.decode()
+
+    for forbidden in forbidden_strings:
+        assert forbidden not in detail_ready_content, (
+            f"Found '{forbidden}' in detail (READY)"
+        )
+    assert 'role="alert"' not in detail_ready_content
+
+
+def test_cross_story_full_lifecycle_and_security_boundaries(
+    client, reading, other_reflection_user
+) -> None:
+    """답변과 skip이 혼합된 인터뷰의 Reflection 생성, 중복 방지,
+    all-skip 종결, 소유권 경계를 교차 검증한다."""
+    from reflections.models import Reflection
+
+    # 1. 혼합 상호작용 후 REFLECTION_READY 전이
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.IN_PROGRESS,
+    )
+    InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="1번 질문", answer="1번 답변"
+    )
+    turn2 = InterviewTurn.objects.create(
+        interview=interview, sequence=2, question="2번 질문"
+    )
+
+    # 1-1. 비소유자 접근 차단 (404)
+    client.force_login(other_reflection_user)
+    skip_url = reverse("reflections:turn_skip", args=[interview.pk, 2])
+    assert client.post(skip_url).status_code == 404
+
+    # 1-2. 소유자 skip 실행
+    client.force_login(reading.user)
+    skip_res = client.post(skip_url)
+    assert skip_res.status_code == 302
+    turn2.refresh_from_db()
+    assert turn2.user_skipped_at is not None
+    assert turn2.answer is None
+
+    # 1-3. 이미 skip된 turn에 답변 시도 (409)
+    answer_url = reverse("reflections:turn_answer", args=[interview.pk, 2])
+    conflict_answer = client.post(answer_url, {"answer": "뒤늦은 답변"})
+    assert conflict_answer.status_code == 409
+
+    # 1-4. REFLECTION_READY 상태로 전환
+    interview.status = Interview.Status.REFLECTION_READY
+    interview.save()
+
+    # 2. Reflection 생성 흐름
+    gen_url = reverse("reflections:reflection_generate", args=[interview.pk])
+
+    # 2-1. 비소유자 생성 시도 차단 (404)
+    client.force_login(other_reflection_user)
+    assert client.post(gen_url).status_code == 404
+
+    # 2-2. 소유자 생성 성공 및 단일 Reflection 확인
+    client.force_login(reading.user)
+    gen_res = client.post(gen_url)
+    assert gen_res.status_code == 302
+    assert Reflection.objects.filter(interview=interview).count() == 1
+    reflection = Reflection.objects.get(interview=interview)
+    assert gen_res.url == reverse("reflections:reflection_detail", args=[reflection.pk])
+
+    # 2-3. 중복 생성 시도 시 기존 Reflection으로 수렴 (idempotent, 1개 유지)
+    repeat_gen_res = client.post(gen_url)
+    assert repeat_gen_res.status_code == 302
+    assert repeat_gen_res.url == reverse(
+        "reflections:reflection_detail", args=[reflection.pk]
+    )
+    assert Reflection.objects.filter(interview=interview).count() == 1
+
+    # 2-4. Reflection 상세 화면 소유권 검증
+    detail_url = reverse("reflections:reflection_detail", args=[reflection.pk])
+    owner_view_res = client.get(detail_url)
+    assert owner_view_res.status_code == 200
+    assert "독서노트 초안 생성 완료" in owner_view_res.content.decode()
+
+    client.force_login(other_reflection_user)
+    assert client.get(detail_url).status_code == 404
+
+    # 3. All-skip 종결 인터뷰의 Reflection 생성 거부 (409)
+    all_skip_reading = Reading.objects.create(
+        user=reading.user,
+        book=reading.book,
+        status=Reading.Status.COMPLETED,
+        completed_on=date(2026, 9, 15),
+    )
+    all_skip_interview = Interview.objects.create(
+        reading=all_skip_reading,
+        book=all_skip_reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+        status=Interview.Status.ENDED_NO_REFLECTION,
+    )
+    client.force_login(reading.user)
+    all_skip_gen_url = reverse(
+        "reflections:reflection_generate", args=[all_skip_interview.pk]
+    )
+    assert client.post(all_skip_gen_url).status_code == 409
+    assert Reflection.objects.filter(interview=all_skip_interview).count() == 0
+
+
+def test_reflection_generate_with_unexpected_form_field_returns_409(
+    client, reading
+) -> None:
+    """reflection_generate는 허용되지 않은 추가 form field가 포함된 POST에
+    409를 반환한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    client.force_login(reading.user)
+    url = reverse("reflections:reflection_generate", args=[interview.pk])
+    response = client.post(url, {"unexpected_field": "disallowed"})
+    assert response.status_code == 409
+
+
+def test_turn_skip_htmx_all_skip_returns_fragment_without_full_page(
+    client, reading
+) -> None:
+    """all-skip 종결 시 HTMX skip 요청은 base.html이 포함되지 않은
+    fragment를 반환한다."""
+    from django.conf import settings
+
+    normal_cap = settings.INTERVIEW_QUESTION_NORMAL_CAP
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.IN_PROGRESS,
+    )
+    for seq in range(1, normal_cap):
+        InterviewTurn.objects.create(
+            interview=interview,
+            sequence=seq,
+            question=f"질문 {seq}",
+            user_skipped_at=timezone.now(),
+        )
+    last_turn = InterviewTurn.objects.create(
+        interview=interview, sequence=normal_cap, question=f"질문 {normal_cap}"
+    )
+    client.force_login(reading.user)
+    skip_url = reverse("reflections:turn_skip", args=[interview.pk, last_turn.sequence])
+
+    res = client.post(skip_url, HTTP_HX_REQUEST="true")
+    assert res.status_code == 200
+    content = res.content.decode()
+
+    # fragment 검증: turn-region 포함, 전체 HTML 뼈대(DOCTYPE/html) 없음
+    assert 'id="interview-turn-region"' in content
+    assert "<!DOCTYPE html>" not in content
+    assert "<html" not in content
+    assert "독서노트를 생성하지 않고 인터뷰를 종료했습니다" in content

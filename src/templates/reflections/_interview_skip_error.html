@@ -1,0 +1,11 @@
+<section id="interview-turn-region" role="alert" tabindex="-1" data-interview-focus autofocus>
+  <p>질문 건너뛰기 후 다음 단계를 준비하지 못했습니다. 질문은 건너뛴 상태로 보존되어 있습니다.</p>
+  {% if pipeline_error_reason %}
+    <p>실패 사유: {{ pipeline_error_reason }}</p>
+    <p>오류 코드: <code>{{ pipeline_error_code }}</code> · Interview {{ interview.pk }} · 질문 {{ turn.sequence }}</p>
+  {% endif %}
+  <form method="post" action="{% url 'reflections:turn_skip' interview.pk turn.sequence %}" hx-post="{% url 'reflections:turn_skip' interview.pk turn.sequence %}" hx-target="#interview-turn-region" hx-swap="outerHTML">
+    {% csrf_token %}
+    <button type="submit">다음 질문 다시 준비하기</button>
+  </form>
+</section>

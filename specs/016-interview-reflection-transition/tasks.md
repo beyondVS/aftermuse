@@ -17,7 +17,7 @@
 
 **Purpose**: 구현 전에 실제 migration graph와 설계 문서의 파일명을 일치시킨다.
 
-- [ ] T001 `src/reflections/migrations/`의 현재 leaf가 `0007_reflection`인지 확인한다. 다르면 구현을 시작하지 않고 실제 leaf에 맞춰 T005, T028 및 `specs/016-interview-reflection-transition/quickstart.md`의 migration 번호를 함께 조정한다.
+- [X] T001 `src/reflections/migrations/`의 현재 leaf가 `0007_reflection`인지 확인한다. 다르면 구현을 시작하지 않고 실제 leaf에 맞춰 T005, T028 및 `specs/016-interview-reflection-transition/quickstart.md`의 migration 번호를 함께 조정한다.
 
 ---
 
@@ -27,11 +27,11 @@
 
 **⚠️ CRITICAL**: 이 단계가 완료되기 전에는 사용자 스토리 구현을 시작하지 않는다.
 
-- [ ] T002 [P] `InterviewTurn.user_skipped_at`의 nullable/불변성/answer 상호 배타 계약과 `Interview.Status.ENDED_NO_REFLECTION`을 검증하는 실패 테스트를 `tests/reflections/test_models.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
-- [ ] T003 [P] 기존 answer 데이터 보존, `answer`와 `user_skipped_at` 동시 설정 거부, 신규 status 허용, forward/reverse migration을 검증하는 실패 테스트를 `tests/reflections/test_migrations.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
-- [ ] T004 `InterviewTurn.user_skipped_at`, model validation/immutability, `ENDED_NO_REFLECTION`, DB constraint state를 `src/reflections/models.py`에 구현해 T002의 모델 계약을 충족한다.
-- [ ] T005 T001에서 `0007_reflection` leaf가 확인된 경우에만 `SET LOCAL lock_timeout='2s'`, nullable column 추가, 두 CHECK constraint의 `NOT VALID` 설치와 별도 `VALIDATE CONSTRAINT`를 `src/reflections/migrations/0008_interview_turn_user_skip.py` 및 `src/reflections/migrations/0009_validate_interview_turn_user_skip.py`에 `SeparateDatabaseAndState`와 `atomic=False` 요구사항에 맞게 구현한다.
-- [ ] T006 `tests/reflections/test_models.py`와 `tests/reflections/test_migrations.py`를 실행하고 `src/manage.py makemigrations --check --dry-run reflections`로 foundational schema 계약과 migration state 일치를 검증한다.
+- [X] T002 [P] `InterviewTurn.user_skipped_at`의 nullable/불변성/answer 상호 배타 계약과 `Interview.Status.ENDED_NO_REFLECTION`을 검증하는 실패 테스트를 `tests/reflections/test_models.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
+- [X] T003 [P] 기존 answer 데이터 보존, `answer`와 `user_skipped_at` 동시 설정 거부, 신규 status 허용, forward/reverse migration을 검증하는 실패 테스트를 `tests/reflections/test_migrations.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
+- [X] T004 `InterviewTurn.user_skipped_at`, model validation/immutability, `ENDED_NO_REFLECTION`, DB constraint state를 `src/reflections/models.py`에 구현해 T002의 모델 계약을 충족한다.
+- [X] T005 T001에서 `0007_reflection` leaf가 확인된 경우에만 `SET LOCAL lock_timeout='2s'`, nullable column 추가, 두 CHECK constraint의 `NOT VALID` 설치와 별도 `VALIDATE CONSTRAINT`를 `src/reflections/migrations/0008_interview_turn_user_skip.py` 및 `src/reflections/migrations/0009_validate_interview_turn_user_skip.py`에 `SeparateDatabaseAndState`와 `atomic=False` 요구사항에 맞게 구현한다.
+- [X] T006 `tests/reflections/test_models.py`와 `tests/reflections/test_migrations.py`를 실행하고 `src/manage.py makemigrations --check --dry-run reflections`로 foundational schema 계약과 migration state 일치를 검증한다.
 
 **Checkpoint**: skip/answer 상호 배타성과 Reflection 없는 종료 상태를 코드와 DB가 함께 강제한다.
 
@@ -45,16 +45,16 @@
 
 ### Tests for User Story 1
 
-- [ ] T007 [P] [US1] 기존 Reflection이면 provider 미호출, provider 실패 시 원본 답변 보존, `ReflectionDraftConflict` 시 owner Reflection으로 수렴, 성공 시 단일 Reflection 반환을 검증하는 실패 테스트를 `tests/reflections/test_drafts.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
-- [ ] T008 [P] [US1] 인증/소유권/CSRF, stale 상태 409, provider 실패 503와 재시도 UI, normal/HTMX 성공 redirect, `hx-indicator`·`hx-disabled-elt`·`hx-sync` 및 status/alert 계약, 최소 결과 화면의 body/edit/complete 비노출을 검증하는 실패 테스트를 `tests/reflections/test_views.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
+- [X] T007 [P] [US1] 기존 Reflection이면 provider 미호출, provider 실패 시 원본 답변 보존, `ReflectionDraftConflict` 시 owner Reflection으로 수렴, 성공 시 단일 Reflection 반환을 검증하는 실패 테스트를 `tests/reflections/test_drafts.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
+- [X] T008 [P] [US1] 인증/소유권/CSRF, stale 상태 409, provider 실패 503와 재시도 UI, normal/HTMX 성공 redirect, `hx-indicator`·`hx-disabled-elt`·`hx-sync` 및 status/alert 계약, 최소 결과 화면의 body/edit/complete 비노출을 검증하는 실패 테스트를 `tests/reflections/test_views.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] owner Reflection 사전 조회, transaction 밖 provider 호출, `save_reflection_draft` 저장, 충돌 후 owner-scoped 재조회로 성공 수렴하는 generate-or-get orchestration을 `src/reflections/drafts.py`에 구현한다.
-- [ ] T010 [US1] `POST /reflections/interviews/{id}/reflection/generate/`와 `GET /reflections/{reflection_id}/`의 auth/CSRF/owner/state/error/redirect 계약을 `src/reflections/views.py`와 `src/reflections/urls.py`에 구현한다.
-- [ ] T011 [US1] 생성 trigger와 loading/disabled/`hx-sync="this:drop"`, 안전한 오류와 Retry, book과 생성 완료 사실만 표시하는 최소 결과 화면을 `src/templates/reflections/interview_reflection_ready.html`, `src/templates/reflections/_interview_reflection_ready.html`, `src/templates/reflections/_reflection_generation_error.html`, `src/templates/reflections/reflection_draft_ready.html`에 구현한다.
-- [ ] T012 [US1] 생성 중/실패/재시도/최소 결과 상태의 focus-visible, disabled, status/alert 표현과 대표 Desktop·Mobile breakpoint에서 생성 행동과 상태 영역을 유지하는 반응형 규칙을 `src/static/css/app.css`에 추가한다.
-- [ ] T013 [US1] `tests/reflections/test_drafts.py`와 `tests/reflections/test_views.py`의 US1 테스트를 실행해 독립 테스트 기준과 Reflection 단일성 계약을 검증한다.
+- [X] T009 [US1] owner Reflection 사전 조회, transaction 밖 provider 호출, `save_reflection_draft` 저장, 충돌 후 owner-scoped 재조회로 성공 수렴하는 generate-or-get orchestration을 `src/reflections/drafts.py`에 구현한다.
+- [X] T010 [US1] `POST /reflections/interviews/{id}/reflection/generate/`와 `GET /reflections/{reflection_id}/`의 auth/CSRF/owner/state/error/redirect 계약을 `src/reflections/views.py`와 `src/reflections/urls.py`에 구현한다.
+- [X] T011 [US1] 생성 trigger와 loading/disabled/`hx-sync="this:drop"`, 안전한 오류와 Retry, book과 생성 완료 사실만 표시하는 최소 결과 화면을 `src/templates/reflections/interview_reflection_ready.html`, `src/templates/reflections/_interview_reflection_ready.html`, `src/templates/reflections/_reflection_generation_error.html`, `src/templates/reflections/reflection_draft_ready.html`에 구현한다.
+- [X] T012 [US1] 생성 중/실패/재시도/최소 결과 상태의 focus-visible, disabled, status/alert 표현과 대표 Desktop·Mobile breakpoint에서 생성 행동과 상태 영역을 유지하는 반응형 규칙을 `src/static/css/app.css`에 추가한다.
+- [X] T013 [US1] `tests/reflections/test_drafts.py`와 `tests/reflections/test_views.py`의 US1 테스트를 실행해 독립 테스트 기준과 Reflection 단일성 계약을 검증한다.
 
 **Checkpoint**: User Story 1만 배포해도 준비된 Interview에서 안전하게 Reflection 초안을 생성하고 최소 결과 화면에 도달할 수 있다.
 
@@ -68,19 +68,19 @@
 
 ### Tests for User Story 2
 
-- [ ] T014 [P] [US2] `NextQuestionContext`가 explicit skip을 low-information answer 및 `next_question_skipped_at`과 구분하고 `answer=None`, `user_skipped=True`, 누적 `skipped_questions`, 변경 없는 coverage를 provider payload에 전달하는 실패 테스트를 `tests/integrations/llm/test_structured_providers.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
-- [ ] T015 [P] [US2] skip 선저장, provider 실패 후 resume, 반복 요청 멱등성, resolved budget, coverage 불변, answer/skip 경합, 답변 0개 종료를 검증하는 실패 테스트를 `tests/reflections/test_services.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
-- [ ] T016 [P] [US2] skip endpoint의 인증/소유권/CSRF, stale 상태 409, provider 실패 503 recovery fragment, 즉시 Loading/disabled 상태, HTMX focus/retarget 복구, Reflection 없는 종료 화면을 검증하는 실패 테스트를 `tests/reflections/test_views.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
+- [X] T014 [P] [US2] `NextQuestionContext`가 explicit skip을 low-information answer 및 `next_question_skipped_at`과 구분하고 `answer=None`, `user_skipped=True`, 누적 `skipped_questions`, 변경 없는 coverage를 provider payload에 전달하는 실패 테스트를 `tests/integrations/llm/test_structured_providers.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
+- [X] T015 [P] [US2] skip 선저장, provider 실패 후 resume, 반복 요청 멱등성, resolved budget, coverage 불변, answer/skip 경합, 답변 0개 종료를 검증하는 실패 테스트를 `tests/reflections/test_services.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
+- [X] T016 [P] [US2] skip endpoint의 인증/소유권/CSRF, stale 상태 409, provider 실패 503 recovery fragment, 즉시 Loading/disabled 상태, HTMX focus/retarget 복구, Reflection 없는 종료 화면을 검증하는 실패 테스트를 `tests/reflections/test_views.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
 
 ### Implementation for User Story 2
 
-- [ ] T017 [US2] optional answer, `user_skipped`, `skipped_questions`, skip 시 `meaning=None`/`low_information=False` 계약을 `src/integrations/llm/contracts.py`, `src/integrations/llm/interview.py`, `src/integrations/llm/fake.py`에 구현한다.
-- [ ] T018 [US2] `question_count`, `answered_count`, `user_skipped_count`, `resolved_count` budget와 skip용 terminal decision을 `src/reflections/services.py`에 구현한다.
-- [ ] T019 [US2] 짧은 transaction의 skip 선저장, transaction 밖 다음 질문 생성, 재검증 후 insert, 실패 후 resume, answer/skip 상호 배타 수렴을 `src/reflections/services.py`에 구현한다.
-- [ ] T020 [US2] 답변이 하나 이상이면 `REFLECTION_READY`, 답변이 0개면 `ENDED_NO_REFLECTION`로 끝나는 목적지 매핑과 기존 answer 경로의 skip 충돌 처리를 `src/reflections/services.py`에 구현한다.
-- [ ] T021 [US2] `POST /reflections/interviews/{id}/turns/{sequence}/skip/`의 owner/state/idempotency/error/HTMX 계약과 no-reflection destination을 `src/reflections/views.py`와 `src/reflections/urls.py`에 구현한다.
-- [ ] T022 [US2] 질문별 건너뛰기 control, provider 실패 후 동일 turn 재개 fragment, Reflection 없는 종료 안내를 `src/templates/reflections/interview_detail.html`, `src/templates/reflections/_interview_question.html`, `src/templates/reflections/_interview_skip_error.html`, `src/templates/reflections/interview_ended_no_reflection.html`에 구현한다.
-- [ ] T023 [US2] skip/answer control과 오류/종료 상태의 keyboard focus, disabled, status/alert 스타일 및 대표 Desktop·Mobile breakpoint에서 Skip/Retry 행동을 유지하는 반응형 규칙을 `src/static/css/app.css`에 추가하고, HTML·CSS 계약을 포함한 `tests/integrations/llm/test_structured_providers.py`, `tests/reflections/test_services.py`, `tests/reflections/test_views.py`의 US2 테스트를 실행한다.
+- [X] T017 [US2] optional answer, `user_skipped`, `skipped_questions`, skip 시 `meaning=None`/`low_information=False` 계약을 `src/integrations/llm/contracts.py`, `src/integrations/llm/interview.py`, `src/integrations/llm/fake.py`에 구현한다.
+- [X] T018 [US2] `question_count`, `answered_count`, `user_skipped_count`, `resolved_count` budget와 skip용 terminal decision을 `src/reflections/services.py`에 구현한다.
+- [X] T019 [US2] 짧은 transaction의 skip 선저장, transaction 밖 다음 질문 생성, 재검증 후 insert, 실패 후 resume, answer/skip 상호 배타 수렴을 `src/reflections/services.py`에 구현한다.
+- [X] T020 [US2] 답변이 하나 이상이면 `REFLECTION_READY`, 답변이 0개면 `ENDED_NO_REFLECTION`로 끝나는 목적지 매핑과 기존 answer 경로의 skip 충돌 처리를 `src/reflections/services.py`에 구현한다.
+- [X] T021 [US2] `POST /reflections/interviews/{id}/turns/{sequence}/skip/`의 owner/state/idempotency/error/HTMX 계약과 no-reflection destination을 `src/reflections/views.py`와 `src/reflections/urls.py`에 구현한다.
+- [X] T022 [US2] 질문별 건너뛰기 control, provider 실패 후 동일 turn 재개 fragment, Reflection 없는 종료 안내를 `src/templates/reflections/interview_detail.html`, `src/templates/reflections/_interview_question.html`, `src/templates/reflections/_interview_skip_error.html`, `src/templates/reflections/interview_ended_no_reflection.html`에 구현한다.
+- [X] T023 [US2] skip/answer control과 오류/종료 상태의 keyboard focus, disabled, status/alert 스타일 및 대표 Desktop·Mobile breakpoint에서 Skip/Retry 행동을 유지하는 반응형 규칙을 `src/static/css/app.css`에 추가하고, HTML·CSS 계약을 포함한 `tests/integrations/llm/test_structured_providers.py`, `tests/reflections/test_services.py`, `tests/reflections/test_views.py`의 US2 테스트를 실행한다.
 
 **Checkpoint**: User Story 2는 User Story 1의 UI에 의존하지 않고 진행 중 Interview fixture로 독립 검증할 수 있으며, 모든 질문을 skip한 경우 Reflection을 만들지 않는다.
 
@@ -94,13 +94,13 @@
 
 ### Tests for User Story 3
 
-- [ ] T024 [P] [US3] READY/READY_LIMITED 화면에 내부 enum, RAG, Knowledge readiness가 노출되지 않고 제한 상태가 친화적인 비오류 문구로 표시되는 실패 테스트를 `tests/reflections/test_views.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
-- [ ] T025 [P] [US3] READY_LIMITED와 skip 누적 context에서도 unsupported book fact가 질문에 포함되지 않고 memory/feeling 중심 질문으로 fallback하는 회귀 테스트를 `tests/integrations/llm/test_reflection.py`에 추가한다.
+- [X] T024 [P] [US3] READY/READY_LIMITED 화면에 내부 enum, RAG, Knowledge readiness가 노출되지 않고 제한 상태가 친화적인 비오류 문구로 표시되는 실패 테스트를 `tests/reflections/test_views.py`에 추가하고 예상한 이유로 실패하는지 확인한다.
+- [X] T025 [P] [US3] READY_LIMITED와 skip 누적 context에서도 unsupported book fact가 질문에 포함되지 않고 memory/feeling 중심 질문으로 fallback하는 회귀 테스트를 `tests/integrations/llm/test_reflection.py`에 추가한다.
 
 ### Implementation for User Story 3
 
-- [ ] T026 [US3] READY/READY_LIMITED의 내부 상태 표현을 사용자 친화적 시작/진행 안내로 교체하고 제한 상태를 오류처럼 표시하지 않도록 `src/templates/reflections/interview_start.html`과 `src/templates/reflections/interview_detail.html`을 수정한다.
-- [ ] T027 [US3] `tests/reflections/test_views.py`와 `tests/integrations/llm/test_reflection.py`의 US3 테스트를 실행해 copy 격리와 unsupported fact 방지 계약을 검증한다.
+- [X] T026 [US3] READY/READY_LIMITED의 내부 상태 표현을 사용자 친화적 시작/진행 안내로 교체하고 제한 상태를 오류처럼 표시하지 않도록 `src/templates/reflections/interview_start.html`과 `src/templates/reflections/interview_detail.html`을 수정한다.
+- [X] T027 [US3] `tests/reflections/test_views.py`와 `tests/integrations/llm/test_reflection.py`의 US3 테스트를 실행해 copy 격리와 unsupported fact 방지 계약을 검증한다.
 
 **Checkpoint**: 세 사용자 스토리가 각각의 독립 테스트 기준을 충족한다.
 
@@ -110,12 +110,12 @@
 
 **Purpose**: 전체 계약 정합성, 문서 동기화, migration SQL, 접근성, 표준 품질 게이트를 마무리한다.
 
-- [ ] T028 `src/manage.py sqlmigrate reflections 0008` 및 `0009` 결과에서 nullable add, `NOT VALID`, 별도 `VALIDATE CONSTRAINT`, lock timeout을 검토하고 실제 명령과 확인 결과를 `specs/016-interview-reflection-transition/quickstart.md`에 기록한다.
-- [ ] T029 [P] auth/owner/CSRF, invalid state, repeated request, answer/skip 경합, provider failure/retry, all-skip 종료를 묶은 cross-story 회귀 테스트를 `tests/reflections/test_views.py`, `tests/reflections/test_services.py`, `tests/reflections/test_drafts.py`에서 보강한다.
-- [ ] T030 기능 범위와 Day 12 비목표, 사용자 흐름, 신규 endpoint/status를 `README.md`, `docs/AfterMuse_MVP_Implementation_Plan_v5.md`, `CHANGELOG.md`에 현재 프로젝트 문서 관례대로 동기화한다.
-- [ ] T031 `tests/reflections/`와 `tests/integrations/llm/`의 관련 테스트 전체 및 `src/manage.py makemigrations --check --dry-run reflections`를 실행하고 결과를 `specs/016-interview-reflection-transition/quickstart.md`에 기록한다.
-- [ ] T032 owner leakage, 중복 Reflection, 내부 상태 노출, unsafe migration, 모든 skip 뒤 Reflection 생성 가능성이 남지 않았는지 `specs/016-interview-reflection-transition/spec.md`, `plan.md`, `contracts/interview-reflection-transition.md`와 구현 diff를 대조해 독립 검토하고 결과를 `specs/016-interview-reflection-transition/quickstart.md`에 기록한다.
-- [ ] T033 `uv run python scripts/verify.py`를 실행하고 최종 성공 결과 또는 기존/환경 실패의 구분과 잔여 위험을 `specs/016-interview-reflection-transition/quickstart.md`에 기록한다.
+- [X] T028 `src/manage.py sqlmigrate reflections 0008` 및 `0009` 결과에서 nullable add, `NOT VALID`, 별도 `VALIDATE CONSTRAINT`, lock timeout을 검토하고 실제 명령과 확인 결과를 `specs/016-interview-reflection-transition/quickstart.md`에 기록한다.
+- [X] T029 [P] auth/owner/CSRF, invalid state, repeated request, answer/skip 경합, provider failure/retry, all-skip 종료를 묶은 cross-story 회귀 테스트를 `tests/reflections/test_views.py`, `tests/reflections/test_services.py`, `tests/reflections/test_drafts.py`에서 보강한다.
+- [X] T030 기능 범위와 Day 12 비목표, 사용자 흐름, 신규 endpoint/status를 `README.md`, `docs/AfterMuse_MVP_Implementation_Plan_v5.md`, `CHANGELOG.md`에 현재 프로젝트 문서 관례대로 동기화한다.
+- [X] T031 `tests/reflections/`와 `tests/integrations/llm/`의 관련 테스트 전체 및 `src/manage.py makemigrations --check --dry-run reflections`를 실행하고 결과를 `specs/016-interview-reflection-transition/quickstart.md`에 기록한다.
+- [X] T032 owner leakage, 중복 Reflection, 내부 상태 노출, unsafe migration, 모든 skip 뒤 Reflection 생성 가능성이 남지 않았는지 `specs/016-interview-reflection-transition/spec.md`, `plan.md`, `contracts/interview-reflection-transition.md`와 구현 diff를 대조해 독립 검토하고 결과를 `specs/016-interview-reflection-transition/quickstart.md`에 기록한다.
+- [X] T033 `uv run python scripts/verify.py`를 실행하고 최종 성공 결과 또는 기존/환경 실패의 구분과 잔여 위험을 `specs/016-interview-reflection-transition/quickstart.md`에 기록한다.
 
 ---
 

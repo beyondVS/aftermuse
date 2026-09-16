@@ -91,6 +91,14 @@ class ReflectionDraftResult:
         return self.canonical_markdown
 
 
+@dataclass(frozen=True, slots=True)
+class ReflectionGenerationResult:
+    """생성 또는 조회된 영속 Reflection 초안과 신규 생성 여부다."""
+
+    reflection: Reflection
+    created: bool
+
+
 # ---------------------------------------------------------------------------
 # 검증 상수 및 정규식
 # ---------------------------------------------------------------------------
@@ -779,6 +787,46 @@ def save_reflection_draft(
             raise ReflectionPersistenceError(
                 "Failed to persist reflection draft"
             ) from exc
+
+
+def generate_or_get_reflection_draft(
+    *,
+    user: Any,
+    interview: Interview,
+    provider: ReflectionProvider | None = None,
+) -> ReflectionGenerationResult:
+    """기존 owner Reflection이 있으면 즉시 반환하고,
+    없으면 생성 후 저장하여 단일 Reflection으로 수렴한다."""
+    existing = Reflection.objects.filter(
+        interview_id=interview.pk,
+        interview__reading__user=user,
+    ).first()
+    if existing is not None:
+        return ReflectionGenerationResult(reflection=existing, created=False)
+
+    # 비영속 초안 생성 (트랜잭션 밖에서 Provider 호출)
+    draft_result = generate_reflection_draft(
+        user=user,
+        interview=interview,
+        provider=provider,
+    )
+
+    try:
+        saved_reflection = save_reflection_draft(
+            user=user,
+            interview=interview,
+            result=draft_result,
+        )
+        return ReflectionGenerationResult(reflection=saved_reflection, created=True)
+    except ReflectionDraftConflict:
+        # 동시 생성 경합 시 owner scope로 재조회하여 성공 수렴
+        rechecked = Reflection.objects.filter(
+            interview_id=interview.pk,
+            interview__reading__user=user,
+        ).first()
+        if rechecked is not None:
+            return ReflectionGenerationResult(reflection=rechecked, created=False)
+        raise
 
 
 def save_reflection_revision(

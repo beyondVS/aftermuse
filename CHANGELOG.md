@@ -22,6 +22,11 @@
 
 ### Added
 
+- Day 11 질문 건너뛰기(Skip) 모델 제약, `InterviewTurn.user_skipped_at`, `ENDED_NO_REFLECTION` 상태 및 2단계 무중단 PostgreSQL 마이그레이션 (`0008_turn_skip_and_ended_no_reflection.py`, `0009_validate_turn_skip_constraints.py`) 구현 (IMP-096)
+- Day 11 `skip_interview_turn` 2단계 원자성 트랜잭션, Budget `user_skipped_count` 계산, `ENDED_NO_REFLECTION` 종결 및 `POST /reflections/interviews/{id}/turns/{seq}/skip/` endpoint 구현 (IMP-096)
+- Day 11 `generate_or_get_reflection_draft` 멱등성 보장 오케스트레이션, `POST /reflections/interviews/{id}/reflection/generate/`, HTMX Loading/Error/Retry UI, 최소 임시 결과 화면 (`GET /reflections/{reflection_id}/`) 구현 (IMP-092)
+- Day 11 Interview 시작/상세 화면에서 `READY`, `READY_LIMITED`, `준비 수준`, `RAG` 등 내부 용어 제거 및 친화적 비오류 안내 적용, 미확인 책 사실 전제 방지 (IMP-095)
+
 - Day 10 Reflection 기본 모델과 `OneToOneField(Interview)`, DB CHECK 제약 조건, additive migration(2초 lock_timeout) 및 최초 초안 불변·수정본 분리 보존 Service 구현 (IMP-090)
 - Day 10 확정 답변 기반 비영속 Reflection 초안 생성 계약(`generate_reflection_draft`), exact substring 인용 및 2자 이상 단어 토큰 접지 검증, 결정론적 canonical Markdown 렌더러 (IMP-091)
 - StructuredInterviewProvider의 네 번째 capability인 `generate_reflection`, OpenAI(`reflection_draft`, `store=False`), Gemini(`AFC disable`, `attempts=1`), Ollama(`stream=False`, `format: schema`) transport 어댑터 및 Reflection 전용 오류 격리 매핑 (IMP-091)

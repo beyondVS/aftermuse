@@ -101,11 +101,13 @@ class NextQuestionContext:
     question_context: InterviewQuestionContext
     previous_turns: tuple[PreviousTurn, ...]
     question: str
-    answer: str
+    answer: str | None
     meaning: str | None
     low_information: bool
     coverage: tuple[CurrentCoverageItem, ...]
     budget_mode: str = "NORMAL"
+    user_skipped: bool = False
+    skipped_questions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

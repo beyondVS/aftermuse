@@ -65,6 +65,7 @@ class Interview(models.Model):
         IN_PROGRESS = "IN_PROGRESS", "진행 중"
         REFLECTION_READY = "REFLECTION_READY", "Reflection 준비 완료"
         COMPLETED = "COMPLETED", "완료"
+        ENDED_NO_REFLECTION = "ENDED_NO_REFLECTION", "답변 부족 종결"
 
     reading = models.OneToOneField("readings.Reading", on_delete=models.CASCADE)
     book = models.ForeignKey("books.Book", on_delete=models.PROTECT)
@@ -89,7 +90,12 @@ class Interview(models.Model):
             ),
             models.CheckConstraint(
                 condition=Q(
-                    status__in=("IN_PROGRESS", "REFLECTION_READY", "COMPLETED")
+                    status__in=(
+                        "IN_PROGRESS",
+                        "REFLECTION_READY",
+                        "COMPLETED",
+                        "ENDED_NO_REFLECTION",
+                    )
                 ),
                 name="reflections_interview_status_valid",
             ),
@@ -137,6 +143,7 @@ class InterviewTurn(models.Model):
     sequence = models.PositiveIntegerField()
     question = models.CharField(max_length=2000)
     answer = models.TextField(null=True, blank=True)  # noqa: DJ001
+    user_skipped_at = models.DateTimeField(null=True, blank=True)
     next_question_skipped_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -151,6 +158,10 @@ class InterviewTurn(models.Model):
             models.CheckConstraint(
                 condition=Q(question__regex=r"\S"),
                 name="reflections_turn_question_not_blank",
+            ),
+            models.CheckConstraint(
+                condition=Q(answer__isnull=True) | Q(user_skipped_at__isnull=True),
+                name="reflections_turn_result_mutually_exclusive",
             ),
             models.UniqueConstraint(
                 fields=("interview", "sequence"),
@@ -168,10 +179,14 @@ class InterviewTurn(models.Model):
         super().clean_fields(exclude=exclude)
 
     def clean(self) -> None:
-        """질문과 최초 확정 답변의 애플리케이션 계약을 검증한다."""
+        """질문과 최초 확정 답변 및 건너뛰기의 애플리케이션 계약을 검증한다."""
         super().clean()
         if not isinstance(self.question, str) or not self.question:
             raise ValidationError({"question": "질문은 공백만으로 구성할 수 없습니다."})
+        if self.answer is not None and self.user_skipped_at is not None:
+            raise ValidationError(
+                {"answer": "답변과 건너뛰기를 동시에 설정할 수 없습니다."}
+            )
         if self.answer is not None:
             if (
                 not isinstance(self.answer, str)
@@ -184,9 +199,28 @@ class InterviewTurn(models.Model):
                 {"next_question_skipped_at": "확정된 답변이 필요합니다."}
             )
         if self.pk is not None:
-            original_answer = type(self).objects.only("answer").get(pk=self.pk).answer
-            if original_answer is not None and self.answer != original_answer:
-                raise ValidationError({"answer": "확정된 답변은 변경할 수 없습니다."})
+            self._validate_persisted_turn_immutability()
+
+    def _validate_persisted_turn_immutability(self) -> None:
+        """이미 저장된 Turn의 확정 답변 및 건너뛰기 불변성을 검증한다."""
+        original = type(self).objects.only("answer", "user_skipped_at").get(pk=self.pk)
+        if original.answer is not None and self.answer != original.answer:
+            raise ValidationError({"answer": "확정된 답변은 변경할 수 없습니다."})
+        if original.answer is not None and self.user_skipped_at is not None:
+            raise ValidationError(
+                {"user_skipped_at": "확정된 답변이 있는 질문은 건너뛸 수 없습니다."}
+            )
+        if (
+            original.user_skipped_at is not None
+            and self.user_skipped_at != original.user_skipped_at
+        ):
+            raise ValidationError(
+                {"user_skipped_at": "건너뛴 시각은 변경할 수 없습니다."}
+            )
+        if original.user_skipped_at is not None and self.answer is not None:
+            raise ValidationError(
+                {"answer": "이미 건너뛴 질문에는 답변을 작성할 수 없습니다."}
+            )
 
 
 class InterviewProgressDecision(models.Model):

@@ -19,6 +19,7 @@ from reflections.drafts import (
     ReflectionPolicyError,
     ReflectionValidationError,
     build_validated_draft_result,
+    generate_or_get_reflection_draft,
     generate_reflection_draft,
     get_reflection_draft,
     save_reflection_draft,
@@ -755,5 +756,115 @@ def test_save_reflection_revision_revalidates_under_lock_on_concurrent_change(
     reflection.refresh_from_db()
     assert reflection.revised_markdown == original_revised
 
-    reflection.refresh_from_db()
-    assert reflection.revised_markdown == original_revised
+
+def test_generate_or_get_reflection_draft_reuses_existing_without_provider(
+    reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    """기존 Reflection이 이미 존재하면 provider 호출 없이 기존 Reflection을
+    created=False로 반환한다."""
+    existing = save_reflection_draft(
+        user=reflection_user,
+        interview=ready_interview,
+        result=prepared_draft_result,
+    )
+
+    class FailingProvider:
+        def generate_reflection(self, context):
+            raise AssertionError("Provider should not be called when reflection exists")
+
+    res = generate_or_get_reflection_draft(
+        user=reflection_user,
+        interview=ready_interview,
+        provider=FailingProvider(),
+    )
+    assert res.reflection.pk == existing.pk
+    assert res.created is False
+    assert Reflection.objects.filter(interview=ready_interview).count() == 1
+
+
+def test_generate_or_get_reflection_draft_preserves_answers_on_provider_failure(
+    reflection_user, ready_interview, clean_confirmed_turns
+) -> None:
+    """Provider 호출 실패 시에도 확정된 답변과 Interview 상태가 온전히
+    보존되고 Reflection은 생성되지 않는다."""
+    turns_before = [
+        (t.sequence, t.question, t.answer) for t in ready_interview.turns.all()
+    ]
+    status_before = ready_interview.status
+
+    class UnavailableProvider:
+        def generate_reflection(self, context):
+            raise ReflectionGenerationUnavailable("Provider temporarily down")
+
+    with pytest.raises(ReflectionGenerationUnavailable):
+        generate_or_get_reflection_draft(
+            user=reflection_user,
+            interview=ready_interview,
+            provider=UnavailableProvider(),
+        )
+
+    ready_interview.refresh_from_db()
+    assert ready_interview.status == status_before
+    turns_after = [
+        (t.sequence, t.question, t.answer) for t in ready_interview.turns.all()
+    ]
+    assert turns_after == turns_before
+    assert Reflection.objects.filter(interview=ready_interview).count() == 0
+
+
+def test_generate_or_get_reflection_draft_converges_on_conflict(
+    reflection_user, ready_interview, clean_confirmed_turns, monkeypatch
+) -> None:
+    """저장 시 ReflectionDraftConflict가 발생해도 owner-scoped 기존 Reflection으로
+    수렴한다."""
+    res_initial = generate_or_get_reflection_draft(
+        user=reflection_user,
+        interview=ready_interview,
+        provider=FakeReflectionProvider(),
+    )
+    existing = res_initial.reflection
+
+    original_filter = Reflection.objects.filter
+    call_count = 0
+
+    def mock_filter(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return original_filter(*args, **kwargs).none()
+        return original_filter(*args, **kwargs)
+
+    monkeypatch.setattr(Reflection.objects, "filter", mock_filter)
+
+    res = generate_or_get_reflection_draft(
+        user=reflection_user,
+        interview=ready_interview,
+        provider=FakeReflectionProvider(),
+    )
+    assert res.reflection.pk == existing.pk
+    assert res.created is False
+    assert Reflection.objects.filter(interview=ready_interview).count() == 1
+
+
+def test_generate_or_get_reflection_draft_creates_single_reflection_on_success(
+    reflection_user, ready_interview, clean_confirmed_turns
+) -> None:
+    """최초 생성 시 Reflection 1개가 생성되고 created=True를 반환하며,
+    재호출 시 동일 인스턴스로 수렴한다."""
+    res1 = generate_or_get_reflection_draft(
+        user=reflection_user,
+        interview=ready_interview,
+        provider=FakeReflectionProvider(),
+    )
+    assert res1.created is True
+    assert res1.reflection.pk is not None
+    assert Reflection.objects.filter(interview=ready_interview).count() == 1
+
+    res2 = generate_or_get_reflection_draft(
+        user=reflection_user,
+        interview=ready_interview,
+        provider=FakeReflectionProvider(),
+    )
+    assert res2.created is False
+    assert res2.reflection.pk == res1.reflection.pk
+    assert Reflection.objects.filter(interview=ready_interview).count() == 1

@@ -554,3 +554,57 @@ def test_reflection_task_rejects_extra_root_keys_before_application(provider_typ
     with pytest.raises(ReflectionGenerationRejected) as exc:
         provider.generate_reflection(context)
     assert exc.value.reason_code == "invalid_wire_root_keys"
+
+
+def test_next_question_context_explicit_skip_distinguished_from_low_info():
+    """NextQuestionContext가 explicit skip을 low-information과 구분하여
+    answer=None, user_skipped=True, 누적 skipped_questions를 전달한다."""
+    question_context = InterviewQuestionContext(
+        "책",
+        "저자",
+        "출판사",
+        "COMPLETED",
+        date(2026, 9, 12),
+        "READY_LIMITED",
+        (),
+        QuestionPolicy.MEMORY_CENTERED,
+    )
+    initial_coverage = tuple(
+        CurrentCoverageItem(axis, "UNCOVERED")
+        for axis in ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT")
+    )
+    context = NextQuestionContext(
+        question_context=question_context,
+        previous_turns=(),
+        question="답하기 어려운 질문?",
+        answer=None,
+        meaning=None,
+        low_information=False,
+        coverage=initial_coverage,
+        budget_mode="NORMAL",
+        user_skipped=True,
+        skipped_questions=("이전 질문 1", "답하기 어려운 질문?"),
+    )
+    output = json.dumps(
+        {
+            "kind": "question",
+            "question": "기억에 남는 다른 장면이 있나요?",
+            "focus_axis": "MEMORY",
+            "grounding_quote": None,
+            "skip_reason": None,
+        },
+        ensure_ascii=False,
+    )
+    client = GeminiClient(output)
+    provider = GeminiInterviewProvider(
+        api_key="explicit-key", model="exact-model", timeout=4, client=client
+    )
+    result = provider.generate_next_question(context)
+    assert result.question == "기억에 남는 다른 장면이 있나요?"
+    contents = client.calls[0]["contents"]
+    payload = json.loads(contents) if isinstance(contents, str) else contents
+    assert payload.get("user_skipped") is True
+    assert payload.get("answer") is None
+    assert payload.get("skipped_questions") == ["이전 질문 1", "답하기 어려운 질문?"]
+    assert payload.get("low_information") is False
+    assert all(c["status"] == "UNCOVERED" for c in payload.get("coverage", []))

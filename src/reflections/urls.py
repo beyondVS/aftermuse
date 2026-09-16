@@ -36,6 +36,11 @@ urlpatterns = [
         name="turn_answer",
     ),
     path(
+        "interviews/<int:interview_id>/turns/<int:sequence>/skip/",
+        views.turn_skip,
+        name="turn_skip",
+    ),
+    path(
         "interviews/<int:interview_id>/turns/<int:sequence>/next/",
         views.next_turn,
         name="next_turn",
@@ -44,5 +49,15 @@ urlpatterns = [
         "interviews/<int:interview_id>/turns/<int:sequence>/decision/",
         views.interview_decision,
         name="interview_decision",
+    ),
+    path(
+        "interviews/<int:interview_id>/reflection/generate/",
+        views.reflection_generate,
+        name="reflection_generate",
+    ),
+    path(
+        "<int:reflection_id>/",
+        views.reflection_detail,
+        name="reflection_detail",
     ),
 ]

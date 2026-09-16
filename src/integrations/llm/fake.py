@@ -94,7 +94,7 @@ class FakeNextQuestionProvider:
         gaps = tuple(item for item in context.coverage if item.status != "COVERED")
         if context.budget_mode == "CAP_EXTENSION":
             uncovered = tuple(item for item in gaps if item.status == "UNCOVERED")
-            if not uncovered or context.low_information:
+            if not uncovered or context.low_information or context.user_skipped:
                 return ProposedNextQuestion(
                     "skip",
                     None,
@@ -103,7 +103,7 @@ class FakeNextQuestionProvider:
                     "아직 다루지 않은 방향을 질문할 만한 구체적 답변 근거가 없습니다.",
                 )
             gaps = uncovered
-        if not gaps and context.low_information:
+        if not gaps and (context.low_information or context.user_skipped):
             return ProposedNextQuestion(
                 "skip",
                 None,
@@ -115,7 +115,7 @@ class FakeNextQuestionProvider:
             gaps = context.coverage
         gap = (
             gaps[(len(context.previous_turns) + 1) % len(gaps)]
-            if context.low_information
+            if (context.low_information or context.user_skipped)
             else gaps[0]
         )
         prompts = {
@@ -124,11 +124,11 @@ class FakeNextQuestionProvider:
             "CONNECTION": "그 생각이 자신의 경험과 닿는 지점이 있나요?",
             "AFTERTHOUGHT": "책을 덮은 뒤에도 남아 있는 생각은 무엇인가요?",
         }
-        if context.low_information:
+        if context.low_information or context.user_skipped:
             return ProposedNextQuestion(
                 "question", prompts[gap.axis], gap.axis, None, None
             )
-        quote = context.answer.strip()[:24]
+        quote = context.answer.strip()[:24] if context.answer else ""
         excerpt = re.sub(r"[.!?。！？\n]", " ", quote).strip()
         question = (
             f"‘{excerpt}’라고 하셨는데, 그 생각이 더 남은 이유는 무엇인가요?"
