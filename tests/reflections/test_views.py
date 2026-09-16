@@ -1815,3 +1815,93 @@ def test_turn_skip_htmx_all_skip_returns_fragment_without_full_page(
     assert "<!DOCTYPE html>" not in content
     assert "<html" not in content
     assert "독서노트를 생성하지 않고 인터뷰를 종료했습니다" in content
+
+
+def test_turn_skip_repeated_post_on_ended_no_reflection_converges_idempotently(
+    client, reading
+) -> None:
+    """이미 ENDED_NO_REFLECTION 상태인 인터뷰의 마지막 건너뛴 turn에 대한 반복 POST는
+    409 오류 없이 200 fragment(HTMX) 또는 redirect(일반)로 멱등 수렴한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.ENDED_NO_REFLECTION,
+    )
+    for seq in range(1, 8):
+        InterviewTurn.objects.create(
+            interview=interview,
+            sequence=seq,
+            question=f"질문 {seq}",
+            user_skipped_at=timezone.now(),
+        )
+    last_turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=8,
+        question="질문 8",
+        user_skipped_at=timezone.now(),
+    )
+    client.force_login(reading.user)
+    skip_url = reverse("reflections:turn_skip", args=[interview.pk, last_turn.sequence])
+
+    # HTMX 요청: 409가 아니라 200과 함께 종료 안내 fragment 반환
+    res_htmx = client.post(skip_url, HTTP_HX_REQUEST="true")
+    assert res_htmx.status_code == 200
+    content = res_htmx.content.decode()
+    assert 'id="interview-turn-region"' in content
+    assert "독서노트를 생성하지 않고 인터뷰를 종료했습니다" in content
+
+    # 일반 POST 요청: 409가 아니라 302 redirect
+    res_normal = client.post(skip_url)
+    assert res_normal.status_code == 302
+    assert res_normal.url == reverse(
+        "reflections:interview_detail", args=[interview.pk]
+    )
+
+
+def test_turn_skip_repeated_post_on_reflection_ready_converges_idempotently(
+    client, reading
+) -> None:
+    """이미 REFLECTION_READY 상태인 인터뷰의 마지막 건너뛴 turn에 대한 반복 POST는
+    409 오류 없이 200 fragment(HTMX) 또는 redirect(일반)로 멱등 수렴한다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="질문 1",
+        answer="답변 완료",
+    )
+    for seq in range(2, 8):
+        InterviewTurn.objects.create(
+            interview=interview,
+            sequence=seq,
+            question=f"질문 {seq}",
+            user_skipped_at=timezone.now(),
+        )
+    last_turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=8,
+        question="질문 8",
+        user_skipped_at=timezone.now(),
+    )
+    client.force_login(reading.user)
+    skip_url = reverse("reflections:turn_skip", args=[interview.pk, last_turn.sequence])
+
+    # HTMX 요청: 409가 아니라 200과 함께 reflection_ready fragment 반환
+    res_htmx = client.post(skip_url, HTTP_HX_REQUEST="true")
+    assert res_htmx.status_code == 200
+    content = res_htmx.content.decode()
+    assert 'id="interview-turn-region"' in content
+    assert "독서노트를 준비할 수 있어요" in content
+
+    # 일반 POST 요청: 409가 아니라 302 redirect
+    res_normal = client.post(skip_url)
+    assert res_normal.status_code == 302
+    assert res_normal.url == reverse(
+        "reflections:interview_detail", args=[interview.pk]
+    )

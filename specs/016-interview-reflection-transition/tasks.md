@@ -215,3 +215,8 @@ Task T025: "unsupported book fact 방지 테스트 — tests/integrations/llm/te
 - UI 검증은 명시적 요청이 없는 한 browser 자동화를 필수 게이트로 삼지 않고 Django test client와 HTML/accessibility assertion을 사용한다.
 - Reflection 본문 표시, 편집, 완료 처리, Home/목록 노출은 Day 12 범위이므로 구현하지 않는다.
 - 실제 commit은 별도 사용자 요청이 있을 때만 수행한다.
+
+## Phase 7: Convergence
+
+- [X] T034 이미 Skip된 마지막 Turn의 반복 요청이 `ENDED_NO_REFLECTION` 또는 `REFLECTION_READY` terminal 상태에서도 policy conflict가 아니라 현재 목적지로 멱등 수렴하도록 `src/reflections/services.py`의 상태 검증 순서를 수정하고 `tests/reflections/test_services.py`와 `tests/reflections/test_views.py`에 service/HTTP 재요청 회귀 테스트를 추가한다. per FR-012, US2/AC5 (contradicts)
+- [X] T035 별도 DB connection에서 동일 Turn의 answer 제출과 Skip을 동시에 실행해 정확히 하나의 최종 결과만 확정되고 `answer`와 `user_skipped_at`이 공존하지 않으며 질문 수와 상태 전이가 중복되지 않음을 `tests/reflections/test_services.py`에서 검증하고 필요한 경우 `src/reflections/services.py`의 잠금·재검증 경로를 보완한다. per FR-012, answer/Skip 경합 예외 상황, Constitution V (partial)

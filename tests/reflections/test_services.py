@@ -2118,3 +2118,197 @@ def test_skip_interview_turn_all_skips_reach_ended_no_reflection(completed_readi
 
     interview.refresh_from_db()
     assert interview.status == Interview.Status.ENDED_NO_REFLECTION
+
+
+@pytest.mark.django_db
+def test_skip_interview_turn_idempotent_on_ended_no_reflection_last_turn(
+    completed_reading,
+):
+    """이미 ENDED_NO_REFLECTION 상태로 종결된 마지막 turn에 대한 반복 skip 호출은
+    409 오류 없이 ENDED_NO_REFLECTION 목적지로 멱등 수렴한다."""
+    from reflections.services import skip_interview_turn
+
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+
+    for seq in range(1, 8):
+        skip_interview_turn(
+            user=user,
+            interview=interview,
+            sequence=seq,
+            next_provider=FakeNextQuestionProvider(
+                result=ProposedNextQuestion(
+                    "question", f"{seq + 1}번째 질문?", "MEMORY", None, None
+                )
+            ),
+        )
+
+    res8 = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert res8.destination == InterviewDestination.ENDED_NO_REFLECTION
+
+    # 재요청: 409(InterviewPolicyError)가 아니라
+    # 동일한 ENDED_NO_REFLECTION으로 멱등 수렴해야 함
+    repeated = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert repeated.destination == InterviewDestination.ENDED_NO_REFLECTION
+    assert repeated.next_turn is None
+    assert repeated.skipped_turn.sequence == 8
+
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.ENDED_NO_REFLECTION
+    assert InterviewTurn.objects.filter(interview=interview).count() == 8
+
+
+@pytest.mark.django_db
+def test_skip_interview_turn_idempotent_on_reflection_ready_last_turn(
+    completed_reading,
+):
+    """이미 REFLECTION_READY 상태로 종결된 마지막 turn에 대한 반복 skip 호출은
+    409 오류 없이 REFLECTION_READY 목적지로 멱등 수렴한다."""
+    from reflections.services import skip_interview_turn
+
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    turn1 = ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+
+    # 1번 질문 답변
+    save_first_answer(user=user, interview=interview, answer="첫 번째 질문에 대한 답변")
+
+    # 2번 질문 생성
+    process_next_turn(
+        user=user,
+        interview=interview,
+        turn=turn1,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    )
+
+    # 2~7번 질문 skip
+    for seq in range(2, 8):
+        skip_interview_turn(
+            user=user,
+            interview=interview,
+            sequence=seq,
+            next_provider=FakeNextQuestionProvider(
+                result=ProposedNextQuestion(
+                    "question", f"{seq + 1}번째 질문?", "MEMORY", None, None
+                )
+            ),
+        )
+
+    # 8번째 skip -> 답변이 1개 이상이므로 REFLECTION_READY로 종결
+    res8 = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert res8.destination == InterviewDestination.REFLECTION_READY
+
+    # 재요청: 409가 아니라 동일한 REFLECTION_READY로 멱등 수렴해야 함
+    repeated = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert repeated.destination == InterviewDestination.REFLECTION_READY
+    assert repeated.next_turn is None
+    assert repeated.skipped_turn.sequence == 8
+
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.REFLECTION_READY
+    assert InterviewTurn.objects.filter(interview=interview).count() == 8
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_answer_and_skip_on_same_turn(completed_reading) -> None:
+    """별도 DB connection에서 동일 turn의 answer 제출과 skip이 경합할 때,
+    정확히 하나의 결과만 확정되고 answer와 user_skipped_at이 공존하지 않는다."""
+    from reflections.services import skip_interview_turn
+
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+
+    barrier = Barrier(2)
+
+    def do_answer():
+        close_old_connections()
+        try:
+            barrier.wait()
+            try:
+                save_first_answer(
+                    user=user,
+                    interview=interview,
+                    answer="동시 제출된 답변",
+                )
+                return "answer_success"
+            except InterviewPolicyError, FirstAnswerConflict:
+                return "answer_conflict"
+        finally:
+            close_old_connections()
+
+    def do_skip():
+        close_old_connections()
+        try:
+            barrier.wait()
+            try:
+                skip_interview_turn(
+                    user=user,
+                    interview=interview,
+                    sequence=1,
+                    next_provider=FakeNextQuestionProvider(
+                        result=ProposedNextQuestion(
+                            "question", "다음 질문?", "MEMORY", None, None
+                        )
+                    ),
+                )
+                return "skip_success"
+            except InterviewPolicyError:
+                return "skip_conflict"
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f_ans = executor.submit(do_answer)
+        f_skip = executor.submit(do_skip)
+        ans_res = f_ans.result()
+        skip_res = f_skip.result()
+
+    turn = InterviewTurn.objects.get(interview=interview, sequence=1)
+    # 둘 중 정확히 하나만 성공하고 하나는 conflict 발생
+    if ans_res == "answer_success":
+        assert skip_res == "skip_conflict"
+        assert turn.answer == "동시 제출된 답변"
+        assert turn.user_skipped_at is None
+    else:
+        assert ans_res == "answer_conflict"
+        assert skip_res == "skip_success"
+        assert turn.answer is None
+        assert turn.user_skipped_at is not None
+
+    # answer와 user_skipped_at이 절대 공존하지 않음
+    assert not (turn.answer is not None and turn.user_skipped_at is not None)

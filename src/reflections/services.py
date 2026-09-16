@@ -868,7 +868,8 @@ def skip_interview_turn(  # noqa: C901
         )
         if locked is None:
             raise InterviewPolicyError()
-        _validate_interview_state(locked)
+        if locked.book_id != locked.reading.book_id:
+            raise InterviewPolicyError()
 
         turn = (
             InterviewTurn.objects.select_for_update()
@@ -882,6 +883,8 @@ def skip_interview_turn(  # noqa: C901
 
         # 이미 건너뛴 경우 멱등 처리 또는 재개
         if turn.user_skipped_at is None:
+            if locked.status != Interview.Status.IN_PROGRESS:
+                raise InterviewPolicyError()
             latest = InterviewTurn.objects.filter(interview=locked).last()
             if latest is None or latest.pk != turn.pk or turn.sequence != sequence:
                 raise InterviewPolicyError()
@@ -933,12 +936,22 @@ def skip_interview_turn(  # noqa: C901
             Interview.Status.REFLECTION_READY,
             Interview.Status.ENDED_NO_REFLECTION,
         ):
+            latest = InterviewTurn.objects.filter(interview=locked).last()
+            if latest is None or latest.pk != turn.pk or turn.sequence != sequence:
+                raise InterviewPolicyError()
             return UserSkipResult(
                 interview=locked,
                 skipped_turn=turn,
                 destination=get_interview_destination(locked),
                 next_turn=None,
             )
+
+        if locked.status != Interview.Status.IN_PROGRESS:
+            raise InterviewPolicyError()
+
+        latest = InterviewTurn.objects.filter(interview=locked).last()
+        if latest is None or latest.pk != turn.pk or turn.sequence != sequence:
+            raise InterviewPolicyError()
 
         budget = _validated_budget(locked, turn)
 

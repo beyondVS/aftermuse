@@ -108,9 +108,18 @@ uv run python scripts/verify.py
 - **Django system check**: 정상 통과 (0 errors, 4 RawSQL W045 경고는 DB CHECK 제약 특성으로 유지)
 - **Ruff format check**: 120 files already formatted
 - **Ruff lint**: All checks passed! (0 errors, 0 warnings, McCabe complexity <= 10)
-- **pytest 전체 스위트**: 476 passed, 1 skipped, 7 deselected, 1 warning (46.04s)
+- **pytest 전체 스위트**: 481 passed, 1 skipped, 7 deselected, 1 warning (46.37s)
 
-### 5. 성공 기준 (SC-001 ~ SC-010) 정합성 매핑
+### 5. Convergence (T034, T035) 검증 결과
+
+- **T034 (Terminal 상태 마지막 Turn 반복 Skip 멱등 수렴)**:
+  - `src/reflections/services.py`의 `skip_interview_turn`에서 `_validate_interview_state` 호출 순서를 재구성하여, 이미 건너뛴 마지막 Turn의 재요청이 `ENDED_NO_REFLECTION` 또는 `REFLECTION_READY` terminal 상태에서도 409 Conflict 없이 목적지로 정상 멱등 수렴하도록 수정.
+  - 검증: `test_skip_interview_turn_idempotent_on_ended_no_reflection_last_turn`, `test_skip_interview_turn_idempotent_on_reflection_ready_last_turn` (서비스), `test_turn_skip_repeated_post_on_ended_no_reflection_converges_idempotently`, `test_turn_skip_repeated_post_on_reflection_ready_converges_idempotently` (HTTP/HTMX) 통과.
+- **T035 (Answer/Skip 동시 경합 검증 및 상호 배타 보장)**:
+  - `select_for_update` 및 상호 배타 체크를 통해 별도 DB connection에서 동일 Turn에 answer 제출과 Skip이 동시 발생해도 정확히 하나의 결과만 확정되고 `answer`와 `user_skipped_at`이 절대 공존하지 않음을 확인.
+  - 검증: `test_concurrent_answer_and_skip_on_same_turn` 통과.
+
+### 6. 성공 기준 (SC-001 ~ SC-010) 정합성 매핑
 
 | 성공 기준 | 구현 내용 및 검증 증거 |
 | --- | --- |
@@ -125,7 +134,8 @@ uv run python scripts/verify.py
 | **SC-009 (반응형 및 접근성)** | 시맨틱 버튼, 고정폭 비의존 레이아웃, 스크린리더 aria-label/live 적용 |
 | **SC-010 (Day 12 경계 보호)** | Reflection 본문 표시, 편집 textarea, 완료 처리, Home 링크의 Day 12 범위 침범 0건 |
 
-### 6. 미검증 범위 및 잔여 위험
+### 7. 미검증 범위 및 잔여 위험
 
 - **실제 LLM Live API**: Day 10 opt-in 정책에 따라 과금 방지를 위해 fake Provider로 격리 검증됨. 실제 API 키 설정 시 live smoke 가능.
 - **W045 경고**: RawSQL을 활용한 Django CHECK 제약 조건에 대한 프레임워크 경고로, SQLite/PostgreSQL 환경에서 의도된 동작임.
+
