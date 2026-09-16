@@ -275,8 +275,12 @@ class InterviewProgressDecision(models.Model):
     def clean(self) -> None:
         """대기 질문과 결정 시점의 애플리케이션 불변식을 확인한다."""
         super().clean()
-        if self.turn_id and self.turn.answer is None:
-            raise ValidationError({"turn": "확정된 답변이 필요합니다."})
+        if (
+            self.turn_id
+            and self.turn.answer is None
+            and self.turn.user_skipped_at is None
+        ):
+            raise ValidationError({"turn": "확정된 답변 또는 건너뛰기가 필요합니다."})
         if (
             not isinstance(self.candidate_question, str)
             or not self.candidate_question.strip()

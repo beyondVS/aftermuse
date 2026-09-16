@@ -1905,3 +1905,125 @@ def test_turn_skip_repeated_post_on_reflection_ready_converges_idempotently(
     assert res_normal.url == reverse(
         "reflections:interview_detail", args=[interview.pk]
     )
+
+
+def test_interview_decision_soft_stop_end_htmx_renders_reflection_generate_button(
+    client, reading
+) -> None:
+    """HTMX Soft Stop END 선택 시 fragment에
+    초안 생성 버튼과 올바른 form action이 포함된다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=4,
+        question="기억에 남는 것은 무엇인가요?",
+        answer="장면이 기억에 남습니다.",
+    )
+    InterviewProgressDecision.objects.create(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.SOFT_STOP,
+        candidate_question="보류된 질문은 무엇인가요?",
+    )
+    client.force_login(reading.user)
+    url = reverse("reflections:interview_decision", args=[interview.pk, 4])
+    response = client.post(url, {"decision": "end"}, HTTP_HX_REQUEST="true")
+    assert response.status_code == 200
+    content = response.content.decode()
+    assert 'id="interview-turn-region"' in content
+    assert "독서노트를 준비할 수 있어요" in content
+    assert "독서노트 초안 생성하기" in content
+    expected_generate_url = reverse(
+        "reflections:reflection_generate", args=[interview.pk]
+    )
+    assert f'action="{expected_generate_url}"' in content
+    assert f'hx-post="{expected_generate_url}"' in content
+
+
+def test_interview_detail_renders_soft_stop_on_skipped_turn_with_pending_decision(
+    client, reading
+) -> None:
+    """Skip된 Turn에 pending SOFT_STOP이 있으면
+    Soft Stop 선택 UI가 우선 표시된다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=4,
+        question="건너뛴 질문입니다.",
+        user_skipped_at=timezone.now(),
+    )
+    InterviewProgressDecision.objects.create(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.SOFT_STOP,
+        candidate_question="보류된 후보 질문입니다.",
+    )
+    client.force_login(reading.user)
+    detail = client.get(reverse("reflections:interview_detail", args=[interview.pk]))
+    assert detail.status_code == 200
+    content = detail.content.decode()
+    assert "생각이 충분히 모였어요" in content
+    assert "독서노트 준비하기" in content
+    assert "조금 더 이야기하기" in content
+    assert "질문 건너뛰기 후 다음 단계를 준비하지 못했습니다" not in content
+
+
+def test_interview_detail_renders_cap_extension_on_skipped_turn_with_pending_decision(
+    client, reading
+) -> None:
+    """Skip된 Turn에 pending CAP_EXTENSION이 있으면
+    CAP 선택 UI가 우선 표시된다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=8,
+        question="건너뛴 8번째 질문입니다.",
+        user_skipped_at=timezone.now(),
+    )
+    InterviewProgressDecision.objects.create(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.CAP_EXTENSION,
+        candidate_question="보류된 후보 질문입니다.",
+    )
+    client.force_login(reading.user)
+    detail = client.get(reverse("reflections:interview_detail", args=[interview.pk]))
+    assert detail.status_code == 200
+    content = detail.content.decode()
+    assert "여덟 개의 질문을 마쳤어요" in content
+    assert "독서노트 준비하기" in content
+    assert "최대 두 문항 더 이야기하기" in content
+    assert "질문 건너뛰기 후 다음 단계를 준비하지 못했습니다" not in content
+
+
+def test_interview_detail_renders_retry_ui_on_skipped_turn_without_decision(
+    client, reading
+) -> None:
+    """Skip 저장 후 Provider 실패 상태(재진입)에서는
+    기존 Retry UI가 유지된다."""
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY_LIMITED,
+    )
+    InterviewTurn.objects.create(
+        interview=interview,
+        sequence=2,
+        question="건너뛴 질문입니다.",
+        user_skipped_at=timezone.now(),
+    )
+    client.force_login(reading.user)
+    detail = client.get(reverse("reflections:interview_detail", args=[interview.pk]))
+    assert detail.status_code == 200
+    content = detail.content.decode()
+    assert "질문 건너뛰기 후 다음 단계를 준비하지 못했습니다" in content
+    assert "다음 질문 다시 준비하기" in content

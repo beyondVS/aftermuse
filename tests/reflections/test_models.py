@@ -47,6 +47,23 @@ def test_progress_decision_requires_answer_and_one_choice_per_turn(interview) ->
         pending.full_clean()
 
 
+def test_progress_decision_allows_explicit_user_skipped_turn(interview) -> None:
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="무엇이 남았나요?",
+        user_skipped_at=timezone.now(),
+    )
+    decision = InterviewProgressDecision(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.SOFT_STOP,
+        candidate_question="다음 질문은 무엇인가요?",
+    )
+    decision.full_clean()
+    decision.save()
+    assert decision.pk is not None
+
+
 def test_progress_decision_rejects_unknown_candidate_axis(interview) -> None:
     turn = InterviewTurn.objects.create(
         interview=interview,

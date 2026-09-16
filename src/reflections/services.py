@@ -695,7 +695,8 @@ def decide_interview_progress(  # noqa: C901
                 raise InterviewPolicyError()
             turn = (
                 InterviewTurn.objects.select_for_update()
-                .filter(interview=locked, sequence=sequence, answer__isnull=False)
+                .filter(interview=locked, sequence=sequence)
+                .filter(Q(answer__isnull=False) | Q(user_skipped_at__isnull=False))
                 .first()
             )
             if turn is None:
@@ -885,22 +886,38 @@ def skip_interview_turn(  # noqa: C901
         if turn.user_skipped_at is None:
             if locked.status != Interview.Status.IN_PROGRESS:
                 raise InterviewPolicyError()
-            latest = InterviewTurn.objects.filter(interview=locked).last()
+            latest = (
+                InterviewTurn.objects.filter(interview=locked)
+                .order_by("sequence")
+                .last()
+            )
             if latest is None or latest.pk != turn.pk or turn.sequence != sequence:
                 raise InterviewPolicyError()
             turn.user_skipped_at = timezone.now()
             turn.save(update_fields=("user_skipped_at", "updated_at"))
 
-        # 후속 상태가 이미 존재하는지 확인 (멱등성)
-        existing_next = InterviewTurn.objects.filter(
-            interview=locked, sequence=turn.sequence + 1
-        ).first()
-        if existing_next is not None:
+        # 인터뷰가 이미 종결 상태인 경우 안전하게 수렴
+        if locked.status != Interview.Status.IN_PROGRESS:
+            return UserSkipResult(
+                interview=locked,
+                skipped_turn=turn,
+                destination=get_interview_destination(locked),
+                next_turn=None,
+            )
+
+        latest = (
+            InterviewTurn.objects.filter(interview=locked).order_by("sequence").last()
+        )
+        if latest is None:
+            raise InterviewPolicyError()
+
+        # 이미 후속 Turn으로 진행된 stale Skip replay인 경우 현재 최신 Turn으로 수렴
+        if latest.sequence > turn.sequence:
             return UserSkipResult(
                 interview=locked,
                 skipped_turn=turn,
                 destination=InterviewDestination.INTERVIEW,
-                next_turn=existing_next,
+                next_turn=latest,
             )
 
         existing_decision = InterviewProgressDecision.objects.filter(turn=turn).first()
@@ -923,7 +940,7 @@ def skip_interview_turn(  # noqa: C901
                     interview=locked,
                     skipped_turn=turn,
                     destination=InterviewDestination.INTERVIEW,
-                    next_turn=next_after_decision,
+                    next_turn=next_after_decision or latest,
                 )
             return UserSkipResult(
                 interview=locked,
@@ -932,25 +949,7 @@ def skip_interview_turn(  # noqa: C901
                 next_turn=None,
             )
 
-        if locked.status in (
-            Interview.Status.REFLECTION_READY,
-            Interview.Status.ENDED_NO_REFLECTION,
-        ):
-            latest = InterviewTurn.objects.filter(interview=locked).last()
-            if latest is None or latest.pk != turn.pk or turn.sequence != sequence:
-                raise InterviewPolicyError()
-            return UserSkipResult(
-                interview=locked,
-                skipped_turn=turn,
-                destination=get_interview_destination(locked),
-                next_turn=None,
-            )
-
-        if locked.status != Interview.Status.IN_PROGRESS:
-            raise InterviewPolicyError()
-
-        latest = InterviewTurn.objects.filter(interview=locked).last()
-        if latest is None or latest.pk != turn.pk or turn.sequence != sequence:
+        if latest.pk != turn.pk or turn.sequence != sequence:
             raise InterviewPolicyError()
 
         budget = _validated_budget(locked, turn)
@@ -1239,7 +1238,6 @@ def _validate_skip_proposal(
         or proposal.grounding_quote is not None
         or (
             context.budget_mode != "CAP_EXTENSION"
-            and not context.user_skipped
             and any(item.status != CoverageStatus.COVERED for item in context.coverage)
         )
         or not isinstance(proposal.skip_reason, str)

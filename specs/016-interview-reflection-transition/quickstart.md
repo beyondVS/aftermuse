@@ -108,7 +108,7 @@ uv run python scripts/verify.py
 - **Django system check**: 정상 통과 (0 errors, 4 RawSQL W045 경고는 DB CHECK 제약 특성으로 유지)
 - **Ruff format check**: 120 files already formatted
 - **Ruff lint**: All checks passed! (0 errors, 0 warnings, McCabe complexity <= 10)
-- **pytest 전체 스위트**: 481 passed, 1 skipped, 7 deselected, 1 warning (46.37s)
+- **pytest 전체 스위트**: 491 passed, 1 skipped, 7 deselected, 1 warning (48.09s)
 
 ### 5. Convergence (T034, T035) 검증 결과
 
@@ -119,22 +119,41 @@ uv run python scripts/verify.py
   - `select_for_update` 및 상호 배타 체크를 통해 별도 DB connection에서 동일 Turn에 answer 제출과 Skip이 동시 발생해도 정확히 하나의 결과만 확정되고 `answer`와 `user_skipped_at`이 절대 공존하지 않음을 확인.
   - 검증: `test_concurrent_answer_and_skip_on_same_turn` 통과.
 
-### 6. 성공 기준 (SC-001 ~ SC-010) 정합성 매핑
+### 6. Convergence Correction 3 (T036~T040) 검증 결과
+
+- **T036 (Skip된 Turn의 ProgressDecision 처리 정합성)**:
+  - `InterviewProgressDecision.clean()`: `turn.answer is None and turn.user_skipped_at is None`으로 수정하여 확정 건너뛰기 Turn도 ProgressDecision 대상으로 허용.
+  - `decide_interview_progress()`: Turn 조회 시 `Q(answer__isnull=False) | Q(user_skipped_at__isnull=False)`로 수정하여 Skip Turn의 의사결정 처리 지원.
+  - 검증: `test_progress_decision_allows_explicit_user_skipped_turn` (모델), `test_decide_interview_progress_on_user_skipped_turn_soft_stop_end`, `test_decide_interview_progress_on_user_skipped_turn_soft_stop_continue`, `test_decide_interview_progress_on_user_skipped_turn_cap_extension` (서비스).
+- **T037 (HTMX Soft Stop END 후 Reflection 생성 버튼 누락 보정)**:
+  - `src/reflections/views.py`: `interview_decision`의 HTMX 성공 분기에서 `reflections/_interview_reflection_ready.html` 렌더링 시 `{"interview": interview}` context 전달 누락 보정.
+  - 검증: `test_interview_decision_soft_stop_end_htmx_renders_reflection_generate_button` (뷰).
+- **T038 (Skip + ProgressDecision 재진입 화면 우선순위 보정)**:
+  - `src/templates/reflections/interview_detail.html`: pending `progress_decision`이 존재할 때 Soft Stop/CAP Extension 선택 UI를 최우선 렌더링하고, decision이 없는 skip Provider 실패 상태(재진입)에서는 기존 retry UI 유지.
+  - 검증: `test_interview_detail_renders_soft_stop_on_skipped_turn_with_pending_decision`, `test_interview_detail_renders_cap_extension_on_skipped_turn_with_pending_decision`, `test_interview_detail_renders_retry_ui_on_skipped_turn_without_decision` (뷰).
+- **T039 (stale Skip replay 안전 수렴)**:
+  - `src/reflections/services.py`: 과거 sequence에 대한 stale Skip replay 도착 시 과거 UI로 후퇴하거나 새 Turn을 생성하지 않고 현재 최신 진행 Turn(`latest`) 또는 종결 destination으로 안전하게 수렴하도록 보정.
+  - 검증: `test_stale_skip_replay_converges_to_current_state` (서비스).
+- **T040 (Skip Provider wire schema 및 Application validation 정합화)**:
+  - `src/reflections/services.py`: `_validate_skip_proposal()`에서 `and not context.user_skipped`를 제거하여 NORMAL mode + 미완료 Coverage 시 explicit user skip 후라도 Provider의 `kind=skip` 제안을 애플리케이션 계층에서 엄격하게 거부(`QuestionGenerationRejected`)하도록 동기화.
+  - 검증: `test_skip_provider_validation_rejects_skip_proposal_when_coverage_uncompleted` (서비스).
+
+### 7. 성공 기준 (SC-001 ~ SC-010) 정합성 매핑
 
 | 성공 기준 | 구현 내용 및 검증 증거 |
 | --- | --- |
-| **SC-001 (소유자 격리)** | 모든 엔드포인트와 서비스에서 `reading__user=user` 기반 격리, 비소유자 404 차단 |
-| **SC-002 (단일 Reflection)** | 선조회 및 중복 저장 경합 시 `ReflectionDraftConflict`를 거쳐 기존 Reflection으로 수렴 |
-| **SC-003 (Skip 트랜잭션 및 예산)** | `user_skipped_at` 원자적 1회 기록, coverage 불변, 질문 예산 산정에 skip 포함 |
-| **SC-004 (All-skip 종결)** | 확정 답변 0개 시 `ENDED_NO_REFLECTION`으로 안전 종결, Reflection 생성 시 409 반환 |
-| **SC-005 (안전한 2단계 마이그레이션)** | 0008 (lock_timeout 2s, NOT VALID), 0009 (atomic=False, VALIDATE CONSTRAINT) 완성 |
-| **SC-006 (사용자 친화적 안내)** | `READY`, `READY_LIMITED`, `준비 수준`, `RAG` 노출 0건 및 자연스러운 비오류 안내문 제공 |
-| **SC-007 (장애 시 답변 보존)** | Provider 호출 실패 시 사용자 답변/인터뷰 상태 100% 보존, 503 복구 fragment 제공 |
-| **SC-008 (로딩 및 중복 방지)** | HTMX aria-live, busy 상태 및 폼 disabled, 중복 요청 멱등 수렴 |
-| **SC-009 (반응형 및 접근성)** | 시맨틱 버튼, 고정폭 비의존 레이아웃, 스크린리더 aria-label/live 적용 |
-| **SC-010 (Day 12 경계 보호)** | Reflection 본문 표시, 편집 textarea, 완료 처리, Home 링크의 Day 12 범위 침범 0건 |
+| **SC-001 (생성 진행 및 최소 임시 결과 화면 도달)** | Soft Stop 종료 및 질문 한도 도달 후 Reflection 생성 성공 시 최소 임시 결과 화면(`reflection_draft_ready.html`)으로 자동 도달 검증 (`test_views.py::test_reflection_generate_success_redirects_to_draft_ready`, `test_interview_decision_soft_stop_end_htmx_renders_reflection_generate_button`) |
+| **SC-002 (생성 실패/재시도 시 답변 보존 및 재시도 제공)** | 생성 실패·시간 초과·비정상 응답 시 기존 질문/답변/Coverage 유실 0건, 503 안전 오류와 Retry 폼 제공 검증 (`test_drafts.py`, `test_views.py::test_reflection_generate_provider_failure_returns_503_and_retry`) |
+| **SC-003 (동일 Interview 단일 Reflection 및 덮어쓰기 방지)** | 반복 요청, 동시 생성 경합(`ReflectionDraftConflict`), 유실 후 재요청 시 최종 Reflection 1개 및 기존 초안 보존 검증 (`test_drafts.py`, `test_views.py::test_reflection_generate_conflict_converges_to_existing_draft`) |
+| **SC-004 (질문 Skip 단방향 확정 및 답변/Skip 상호 배타)** | 질문 Skip 시 한 번의 동작으로 후속 상태 전이, 빈 Answer 미생성, `answer`와 `user_skipped_at` 상호 배타 보장 (`test_models.py`, `test_services.py::test_concurrent_answer_and_skip_on_same_turn`, `test_views.py::test_turn_skip_success_advances_to_next_question`) |
+| **SC-005 (Skip/저정보 답변/다음 질문 생략 구분 및 Coverage 불변)** | Skip과 저정보 텍스트 답변(`low_information=False`), 확정 답변 후 생략 구분, Skip으로 Coverage 미증가 확인 (`test_structured_providers.py`, `test_services.py`) |
+| **SC-006 (READY/READY_LIMITED 친화적 안내 및 내부 용어 격리)** | READY 및 READY_LIMITED fixture에서 정상 동작, `READY`, `READY_LIMITED`, `RAG`, `Knowledge readiness` 등 기술 용어 노출 0건 및 친화적 안내문 제공 검증 (`test_views.py::test_interview_start_and_detail_hide_internal_readiness_terms`) |
+| **SC-007 (제한적 도서 정보 시 사실 왜곡 방지 및 기억/감상 중심 질문)** | READY_LIMITED 및 skip 누적 상태에서 미확인 책 사실 전제 0건, 기억·인상 중심 질문 생성 검증 (`test_reflection.py::test_ready_limited_avoids_unsupported_book_facts_in_questions`) |
+| **SC-008 (로딩/Disabled 즉시 표시, 키보드 접근성 및 반응형 유지)** | 생성·Retry·Skip 흐름에서 `aria-live`, `aria-busy`, `disabled`, `hx-sync="this:drop"` 즉시 적용, 시맨틱 버튼 및 Desktop/Mobile 폭 지원 (`test_views.py`, `app.css`) |
+| **SC-009 (소유권 격리, 부적합 상태 거부 및 민감 정보 보호)** | 비소유자 404 차단, terminal/stale 상태 409, 예외 원문/credential 비노출 검증 (`test_views.py::test_views_enforce_owner_boundaries_and_mask_internal_diagnostics`) |
+| **SC-010 (All-skip 시 Reflection 없는 종결 및 안내)** | 모든 질문 Skip 시 `ENDED_NO_REFLECTION`으로 종결, Reflection 0개 생성, 답변 부족 안내 문구 제공 검증 (`test_services.py`, `test_views.py::test_turn_skip_htmx_all_skip_returns_fragment_without_full_page`) |
 
-### 7. 미검증 범위 및 잔여 위험
+### 8. 미검증 범위 및 잔여 위험
 
 - **실제 LLM Live API**: Day 10 opt-in 정책에 따라 과금 방지를 위해 fake Provider로 격리 검증됨. 실제 API 키 설정 시 live smoke 가능.
 - **W045 경고**: RawSQL을 활용한 Django CHECK 제약 조건에 대한 프레임워크 경고로, SQLite/PostgreSQL 환경에서 의도된 동작임.

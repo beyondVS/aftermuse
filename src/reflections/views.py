@@ -498,7 +498,11 @@ def interview_decision(
         )
     if request.headers.get("HX-Request") == "true":
         if result.skipped:
-            return render(request, "reflections/_interview_reflection_ready.html")
+            return render(
+                request,
+                "reflections/_interview_reflection_ready.html",
+                {"interview": interview},
+            )
         return render(
             request,
             "reflections/_interview_question.html",

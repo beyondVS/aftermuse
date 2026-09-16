@@ -220,3 +220,12 @@ Task T025: "unsupported book fact 방지 테스트 — tests/integrations/llm/te
 
 - [X] T034 이미 Skip된 마지막 Turn의 반복 요청이 `ENDED_NO_REFLECTION` 또는 `REFLECTION_READY` terminal 상태에서도 policy conflict가 아니라 현재 목적지로 멱등 수렴하도록 `src/reflections/services.py`의 상태 검증 순서를 수정하고 `tests/reflections/test_services.py`와 `tests/reflections/test_views.py`에 service/HTTP 재요청 회귀 테스트를 추가한다. per FR-012, US2/AC5 (contradicts)
 - [X] T035 별도 DB connection에서 동일 Turn의 answer 제출과 Skip을 동시에 실행해 정확히 하나의 최종 결과만 확정되고 `answer`와 `user_skipped_at`이 공존하지 않으며 질문 수와 상태 전이가 중복되지 않음을 `tests/reflections/test_services.py`에서 검증하고 필요한 경우 `src/reflections/services.py`의 잠금·재검증 경로를 보완한다. per FR-012, answer/Skip 경합 예외 상황, Constitution V (partial)
+
+## Phase 8: Convergence Correction 3
+
+- [X] T036 Skip된 Turn(`user_skipped_at IS NOT NULL`, `answer IS NULL`)에 대한 `InterviewProgressDecision.clean()` 유효성 검증과 `decide_interview_progress()`의 해결된 Turn 조회 필터(`Q(answer__isnull=False) | Q(user_skipped_at__isnull=False)`)를 수정하고, `tests/reflections/test_models.py` 및 `tests/reflections/test_services.py`에 SOFT_STOP과 CAP_EXTENSION의 END/CONTINUE 및 멱등성 회귀 테스트를 추가한다. per FR-012, FR-013, Day 11 Convergence
+- [X] T037 HTMX Soft Stop END 성공 응답에서 `reflections/_interview_reflection_ready.html` fragment에 `interview` context를 명시적으로 전달하여 "독서노트 초안 생성하기" 폼/버튼이 정상 렌더링되도록 `src/reflections/views.py`를 수정하고 `tests/reflections/test_views.py`에 회귀 테스트를 추가한다. per SC-001, Day 11 Convergence
+- [X] T038 `src/templates/reflections/interview_detail.html`의 렌더링 우선순위를 보정하여 Skip된 Turn이라도 pending `progress_decision`이 있으면 선택 UI를 우선 노출하고, Provider 실패 시 기존 retry UI를 유지하도록 수정하며 `tests/reflections/test_views.py`에 상태별 렌더링 회귀 테스트를 추가한다. per FR-018, Day 11 Convergence
+- [X] T039 이미 건너뛴 Turn에 대한 과거 stale Skip replay가 도착했을 때 과거 UI로 후퇴하거나 새 Turn을 생성하지 않고 현재 최신 진행 Turn 또는 종결 상태(`REFLECTION_READY`, `ENDED_NO_REFLECTION`)로 안전하게 수렴하도록 `src/reflections/services.py`의 `skip_interview_turn`을 보정하고 `tests/reflections/test_services.py`에 회귀 테스트를 추가한다. per FR-012, Day 11 Convergence
+- [X] T040 NORMAL mode + 미완료 Coverage 상태에서 Provider wire schema와 Application validation 정책이 일치하도록 `src/reflections/services.py`의 `_validate_skip_proposal()`에서 `and not context.user_skipped`를 제거해 explicit user skip 직후라도 Provider의 `kind=skip` 제안을 엄격하게 거부(`QuestionGenerationRejected`)하도록 정합화하고 단위 테스트를 추가한다. per FR-013, Day 11 Convergence
+
