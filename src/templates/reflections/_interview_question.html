@@ -12,4 +12,12 @@
     <button type="submit">답변 저장하기</button>
     <p class="answer-submitting" aria-live="polite">답변을 저장하고 있어요.</p>
   </form>
+  <div class="skip-turn-container">
+    <form method="post" action="{% url 'reflections:turn_skip' interview.pk turn.sequence %}" class="skip-form" hx-post="{% url 'reflections:turn_skip' interview.pk turn.sequence %}" hx-target="#interview-turn-region" hx-swap="outerHTML" hx-disabled-elt="find button">
+      {% csrf_token %}
+      <p id="skip-help-{{ turn.sequence }}" class="skip-help">답변하기 어렵다면 건너뛸 수 있어요. 답변은 저장되지 않습니다.</p>
+      <button type="submit" class="skip-button" aria-describedby="skip-help-{{ turn.sequence }}">건너뛰기</button>
+      <span class="skip-submitting htmx-indicator" role="status" aria-live="polite">질문을 건너뛰고 있어요...</span>
+    </form>
+  </div>
 </section>

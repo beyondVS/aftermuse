@@ -4,6 +4,7 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import ProtectedError
+from django.utils import timezone
 
 from books.models import Book
 from readings.models import Reading
@@ -44,6 +45,23 @@ def test_progress_decision_requires_answer_and_one_choice_per_turn(interview) ->
     pending.selection = InterviewProgressDecision.Selection.END
     with pytest.raises(ValidationError):
         pending.full_clean()
+
+
+def test_progress_decision_allows_explicit_user_skipped_turn(interview) -> None:
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="무엇이 남았나요?",
+        user_skipped_at=timezone.now(),
+    )
+    decision = InterviewProgressDecision(
+        turn=turn,
+        kind=InterviewProgressDecision.Kind.SOFT_STOP,
+        candidate_question="다음 질문은 무엇인가요?",
+    )
+    decision.full_clean()
+    decision.save()
+    assert decision.pk is not None
 
 
 def test_progress_decision_rejects_unknown_candidate_axis(interview) -> None:
@@ -399,3 +417,70 @@ def test_reflection_initial_fields_are_immutable_but_revision_can_change(
     reflection.draft_sections = [{"title": "새 제목", "paragraphs": []}]
     with pytest.raises(ValidationError):
         reflection.full_clean()
+
+
+def test_interview_status_ended_no_reflection(interview) -> None:
+    interview.status = Interview.Status.ENDED_NO_REFLECTION
+    interview.full_clean()
+    interview.save()
+    assert interview.status == "ENDED_NO_REFLECTION"
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.ENDED_NO_REFLECTION
+
+
+def test_turn_user_skipped_at_and_answer_mutual_exclusivity(interview) -> None:
+    now = timezone.now()
+    # 1. 초기 상태 (답변 대기): answer is None, user_skipped_at is None
+    turn = InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="첫 번째 질문"
+    )
+    assert turn.user_skipped_at is None
+    assert turn.answer is None
+
+    # 2. user_skipped_at 설정: 정상
+    turn.user_skipped_at = now
+    turn.full_clean()
+    turn.save()
+    assert turn.user_skipped_at == now
+
+    # 3. answer와 user_skipped_at 동시 설정: ValidationError
+    turn.answer = "답변 시도"
+    with pytest.raises(ValidationError):
+        turn.full_clean()
+
+
+def test_turn_user_skipped_at_rejects_next_question_skipped_at(interview) -> None:
+    turn = InterviewTurn.objects.create(
+        interview=interview,
+        sequence=1,
+        question="첫 번째 질문",
+        user_skipped_at=timezone.now(),
+    )
+    turn.next_question_skipped_at = timezone.now()
+    with pytest.raises(ValidationError):
+        turn.full_clean()
+
+
+def test_turn_immutability_for_answer_and_user_skipped_at(interview) -> None:
+    now = timezone.now()
+
+    # 1. answer가 확정된 턴은 user_skipped_at 설정 불가
+    answered_turn = InterviewTurn.objects.create(
+        interview=interview, sequence=1, question="질문 1", answer="확정 답변"
+    )
+    answered_turn.user_skipped_at = now
+    with pytest.raises(ValidationError):
+        answered_turn.full_clean()
+
+    # 2. user_skipped_at이 확정된 턴은 answer 설정 불가 및 user_skipped_at 변경 불가
+    skipped_turn = InterviewTurn.objects.create(
+        interview=interview, sequence=2, question="질문 2", user_skipped_at=now
+    )
+    skipped_turn.answer = "뒤늦은 답변"
+    with pytest.raises(ValidationError):
+        skipped_turn.full_clean()
+
+    skipped_turn.answer = None
+    skipped_turn.user_skipped_at = timezone.now() + timezone.timedelta(seconds=10)
+    with pytest.raises(ValidationError):
+        skipped_turn.full_clean()

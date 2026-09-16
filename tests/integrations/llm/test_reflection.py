@@ -398,3 +398,90 @@ def test_revised_markdown_allows_headings_lists_but_rejects_html_links_images() 
     # 지시 패턴 포함 시 거부
     with pytest.raises(ReflectionValidationError):
         validate_revised_markdown("내 생각: 데이터베이스를 갱신하라.")
+
+
+def test_ready_limited_and_skip_rejects_unsupported_facts_and_allows_feeling() -> None:
+    """READY_LIMITED와 skip 누적 context에서 미확인 책 사실 전제를 거부하고
+    감정/기억 중심 질문을 허용한다."""
+    from datetime import date
+
+    from integrations.llm.contracts import (
+        CurrentCoverageItem,
+        InterviewQuestionContext,
+        NextQuestionContext,
+        ProposedNextQuestion,
+        QuestionGenerationRejected,
+        QuestionPolicy,
+    )
+    from integrations.llm.interview import _next_question_instructions
+    from reflections.services import _validate_next_question
+
+    question_context = InterviewQuestionContext(
+        book_title="페스트",
+        authors="알베르 카뮈",
+        publisher="민음사",
+        reading_status="COMPLETED",
+        completed_on=date(2026, 9, 12),
+        knowledge_readiness="READY_LIMITED",
+        knowledge_claims=(),
+        policy=QuestionPolicy.MEMORY_CENTERED,
+    )
+    context = NextQuestionContext(
+        question_context=question_context,
+        previous_turns=(),
+        question="어떤 사건이 기억에 남나요?",
+        answer=None,
+        meaning=None,
+        low_information=False,
+        coverage=tuple(
+            CurrentCoverageItem(axis, "UNCOVERED")
+            for axis in ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT")
+        ),
+        budget_mode="NORMAL",
+        user_skipped=True,
+        skipped_questions=("어떤 사건이 기억에 남나요?",),
+    )
+
+    # 1. Prompt 지시문 검증
+    instructions = _next_question_instructions(context)
+    assert (
+        "책의 사건, 인물, 주장 등 확인되지 않은 사실을 전제하지 마세요." in instructions
+    )
+    assert "사용자가 직전 질문을 건너뛰었습니다(user_skipped=true)." in instructions
+    assert (
+        "아직 충족되지 않은 축에서 부담 없이 답할 수 있는 "
+        "기억이나 인상 중심의 새로운 질문을 제안하세요." in instructions
+    )
+
+    # 2. 확인되지 않은 책 사실 전제 질문 거부
+    proposal_with_unsupported_fact = ProposedNextQuestion(
+        kind="question",
+        question="주인공 리외의 결말에 대해 어떻게 생각하시나요?",
+        focus_axis="MEMORY",
+        grounding_quote=None,
+        skip_reason=None,
+    )
+    with pytest.raises(QuestionGenerationRejected):
+        _validate_next_question(proposal_with_unsupported_fact, context)
+
+    # 3. 미확인 quote를 기반으로 한 grounding 질문 거부
+    proposal_with_unconfirmed_quote = ProposedNextQuestion(
+        kind="question",
+        question="카뮈가 묘사한 페스트의 전개에 대해 어떻게 보셨나요?",
+        focus_axis="MEMORY",
+        grounding_quote="카뮈가 묘사한 페스트의 전개",
+        skip_reason=None,
+    )
+    with pytest.raises(QuestionGenerationRejected):
+        _validate_next_question(proposal_with_unconfirmed_quote, context)
+
+    # 4. 사용자 skip 후 ungrounded 기억/감정 질문 정상 허용
+    valid_feeling_proposal = ProposedNextQuestion(
+        kind="question",
+        question="책을 읽으며 마음속에 떠오른 감정이나 생각은 무엇이었나요?",
+        focus_axis="MEMORY",
+        grounding_quote=None,
+        skip_reason=None,
+    )
+    validated = _validate_next_question(valid_feeling_proposal, context)
+    assert validated == "책을 읽으며 마음속에 떠오른 감정이나 생각은 무엇이었나요?"

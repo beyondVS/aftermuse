@@ -5,6 +5,7 @@ import pytest
 from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from django.db.migrations.executor import MigrationExecutor
+from django.utils import timezone
 
 
 @pytest.mark.django_db(transaction=True)
@@ -406,3 +407,126 @@ def test_reflection_migration_sql_is_additive_and_lock_bounded() -> None:
     assert 'ALTER TABLE "REFLECTIONS_INTERVIEW"' not in sql
     assert 'ALTER TABLE "REFLECTIONS_INTERVIEWTURN"' not in sql
     assert 'ALTER TABLE "REFLECTIONS_INTERVIEWPROGRESSDECISION"' not in sql
+
+
+@pytest.mark.django_db(transaction=True)
+def test_interview_turn_user_skip_migration_round_trip() -> None:
+    connection = transaction.get_connection()
+    previous = [("reflections", "0007_reflection")]
+    target = [("reflections", "0009_validate_interview_turn_user_skip")]
+
+    try:
+        # 1. 0007_reflection 상태에서 기존 데이터 생성
+        MigrationExecutor(connection).migrate(previous)
+        apps = MigrationExecutor(connection).loader.project_state(previous).apps
+        User = apps.get_model("accounts", "User")
+        Book = apps.get_model("books", "Book")
+        Reading = apps.get_model("readings", "Reading")
+        Interview = apps.get_model("reflections", "Interview")
+        InterviewTurn = apps.get_model("reflections", "InterviewTurn")
+
+        user = User.objects.create(username="skip-mig-owner")
+        book = Book.objects.create(isbn13="9780000000201", title="Skip Migration 도서")
+        reading = Reading.objects.create(
+            user=user, book=book, status="completed", completed_on="2026-09-16"
+        )
+        interview = Interview.objects.create(
+            reading=reading,
+            book=book,
+            knowledge_readiness="READY",
+            status="IN_PROGRESS",
+        )
+        turn = InterviewTurn.objects.create(
+            interview=interview,
+            sequence=1,
+            question="기존 질문",
+            answer="기존 확정 답변",
+        )
+
+        # 2. 0008, 0009로 forward 마이그레이션
+        MigrationExecutor(connection).migrate(target)
+        upgraded_apps = MigrationExecutor(connection).loader.project_state(target).apps
+        UpgradedInterview = upgraded_apps.get_model("reflections", "Interview")
+        UpgradedTurn = upgraded_apps.get_model("reflections", "InterviewTurn")
+
+        # 3. 기존 answer 데이터 보존 및 user_skipped_at IS NULL 확인
+        migrated_turn = UpgradedTurn.objects.get(pk=turn.pk)
+        assert migrated_turn.answer == "기존 확정 답변"
+        assert migrated_turn.user_skipped_at is None
+
+        # 4. 신규 status ENDED_NO_REFLECTION 허용 확인
+        upgraded_interview = UpgradedInterview.objects.get(pk=interview.pk)
+        upgraded_interview.status = "ENDED_NO_REFLECTION"
+        upgraded_interview.save()
+        assert (
+            UpgradedInterview.objects.get(pk=interview.pk).status
+            == "ENDED_NO_REFLECTION"
+        )
+
+        # 5. answer와 user_skipped_at 동시 설정 시 DB 제약 위반 확인
+        now = timezone.now()
+        with pytest.raises(IntegrityError), transaction.atomic():
+            UpgradedTurn.objects.create(
+                interview=upgraded_interview,
+                sequence=2,
+                question="상호 배타 테스트",
+                answer="답변 있음",
+                user_skipped_at=now,
+            )
+
+        # 정상적인 skip 생성 확인
+        valid_skip_turn = UpgradedTurn.objects.create(
+            interview=upgraded_interview,
+            sequence=3,
+            question="건너뛴 질문",
+            answer=None,
+            user_skipped_at=now,
+        )
+        assert valid_skip_turn.pk is not None
+
+        # 6. 0007_reflection으로 reverse 마이그레이션
+        # 롤백 전 신규 status와 user_skipped_at을 사용하는 행 정리
+        # (운영 reverse가 아닌 마이그레이션 롤백 테스트 격리)
+        valid_skip_turn.delete()
+        upgraded_interview.status = "IN_PROGRESS"
+        upgraded_interview.save()
+
+        MigrationExecutor(connection).migrate(previous)
+        rolled_back_apps = (
+            MigrationExecutor(connection).loader.project_state(previous).apps
+        )
+        RolledBackTurn = rolled_back_apps.get_model("reflections", "InterviewTurn")
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = 'reflections_interviewturn' "
+                "AND column_name = 'user_skipped_at'"
+            )
+            assert cursor.fetchone() is None
+
+        assert RolledBackTurn.objects.filter(
+            pk=turn.pk, answer="기존 확정 답변"
+        ).exists()
+
+    finally:
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
+
+@pytest.mark.django_db(transaction=True)
+def test_interview_turn_user_skip_sql_is_additive_and_lock_bounded() -> None:
+    output_0008 = StringIO()
+    call_command("sqlmigrate", "reflections", "0008", stdout=output_0008)
+    sql_0008 = output_0008.getvalue().upper()
+    assert "SET LOCAL LOCK_TIMEOUT = '2S'" in sql_0008
+    assert (
+        'ALTER TABLE "REFLECTIONS_INTERVIEWTURN" ADD COLUMN "USER_SKIPPED_AT"'
+        in sql_0008
+    )
+    assert "NOT VALID" in sql_0008
+
+    output_0009 = StringIO()
+    call_command("sqlmigrate", "reflections", "0009", stdout=output_0009)
+    sql_0009 = output_0009.getvalue().upper()
+    assert "VALIDATE CONSTRAINT" in sql_0009

@@ -1,0 +1,29 @@
+<div class="reflection-error-card" role="alert" tabindex="-1" id="reflection-error-alert" data-interview-focus="true">
+  <h2 id="reflection-error-title" class="reflection-error-title">독서노트 초안을 생성하지 못했습니다</h2>
+  <p class="reflection-error-desc">
+    {{ pipeline_error_reason|default:"AI 서비스 응답에 일시적인 문제가 발생했습니다." }}
+  </p>
+  <p class="reflection-error-preservation-notice">
+    작성하신 답변은 안전하게 보존되어 있으니 안심하고 다시 시도해 주세요.
+  </p>
+
+  <form action="{% url 'reflections:reflection_generate' interview.id %}"
+        method="post"
+        hx-post="{% url 'reflections:reflection_generate' interview.id %}"
+        hx-target="#interview-turn-region"
+        hx-swap="outerHTML"
+        hx-indicator="#generation-indicator"
+        hx-disabled-elt="find button"
+        hx-sync="this:drop"
+        class="reflection-retry-form">
+    {% csrf_token %}
+    <button type="submit" class="btn btn-primary btn-retry-reflection">
+      다시 시도하기
+    </button>
+  </form>
+
+  <div id="generation-indicator" class="htmx-indicator generation-loading-status" role="status" aria-live="polite" aria-busy="true">
+    <span class="spinner" aria-hidden="true"></span>
+    <span>독서노트 초안을 다시 생성하고 있어요... 잠시만 기다려 주세요.</span>
+  </div>
+</div>

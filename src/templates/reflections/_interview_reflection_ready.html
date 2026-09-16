@@ -1,4 +1,32 @@
-<section id="interview-turn-region" aria-labelledby="reflection-ready-title">
-  <h2 id="reflection-ready-title">독서노트를 준비할 수 있어요</h2>
-  <p role="status">지금까지의 답변이 안전하게 저장되었습니다.</p>
+<section id="interview-turn-region" class="interview-turn-region" aria-labelledby="reflection-ready-title">
+  {% if reflection_error %}
+    {% include "reflections/_reflection_generation_error.html" %}
+  {% else %}
+    <div class="reflection-ready-card">
+      <h2 id="reflection-ready-title">독서노트를 준비할 수 있어요</h2>
+      <p role="status" class="reflection-ready-desc">지금까지 작성하신 답변이 안전하게 보존되었습니다. 이제 답변을 바탕으로 독서노트 초안을 생성할 수 있습니다.</p>
+
+      {% if interview %}
+      <form action="{% url 'reflections:reflection_generate' interview.id %}"
+            method="post"
+            hx-post="{% url 'reflections:reflection_generate' interview.id %}"
+            hx-target="#interview-turn-region"
+            hx-swap="outerHTML"
+            hx-indicator="#generation-indicator"
+            hx-disabled-elt="find button"
+            hx-sync="this:drop"
+            class="reflection-generate-form">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary btn-generate-reflection">
+          독서노트 초안 생성하기
+        </button>
+      </form>
+      {% endif %}
+
+      <div id="generation-indicator" class="htmx-indicator generation-loading-status" role="status" aria-live="polite" aria-busy="true">
+        <span class="spinner" aria-hidden="true"></span>
+        <span>독서노트 초안을 생성하고 있어요... 잠시만 기다려 주세요.</span>
+      </div>
+    </div>
+  {% endif %}
 </section>

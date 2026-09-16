@@ -11,12 +11,16 @@ from django.utils import timezone
 from books.models import Book
 from integrations.llm.contracts import (
     AnswerAnalysisRejected,
+    CurrentCoverageItem,
     GeneratedQuestion,
+    InterviewQuestionContext,
+    NextQuestionContext,
     ProposedAnswerAnalysis,
     ProposedCoverageChange,
     ProposedNextQuestion,
     QuestionGenerationRejected,
     QuestionGenerationUnavailable,
+    QuestionPolicy,
 )
 from integrations.llm.fake import (
     FakeAnswerAnalysisProvider,
@@ -43,6 +47,7 @@ from reflections.services import (
     InterviewDestination,
     InterviewPolicyError,
     NextTurnPersistenceError,
+    _validate_skip_proposal,
     analyze_interview_answer,
     apply_interview_coverage_patch,
     decide_interview_progress,
@@ -52,6 +57,7 @@ from reflections.services import (
     process_next_turn,
     save_first_answer,
     save_turn_answer,
+    skip_interview_turn,
     start_interview,
 )
 
@@ -1895,3 +1901,796 @@ def test_answer_analysis_coverage_rejection_has_specific_code(
     with pytest.raises(AnswerAnalysisRejected) as caught:
         _validate_answer_analysis(proposal, "기억", {"MEMORY": current})
     assert caught.value.reason_code == expected
+
+
+@pytest.mark.django_db
+def test_skip_interview_turn_preserves_null_answer_and_coverage(
+    completed_reading,
+):
+    """건너뛰기 시 answer=None, coverage 불변, user_skipped_at 설정 및
+    다음 질문이 생성된다."""
+    from reflections.services import UserSkipResult, skip_interview_turn
+
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+    initial_coverage = interview.coverage.copy()
+
+    next_provider = FakeNextQuestionProvider(
+        result=ProposedNextQuestion(
+            "question",
+            "두 번째 질문?",
+            "MEMORY",
+            None,
+            None,
+        )
+    )
+
+    result = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=1,
+        next_provider=next_provider,
+    )
+
+    assert isinstance(result, UserSkipResult)
+    assert result.skipped_turn.sequence == 1
+    assert result.skipped_turn.user_skipped_at is not None
+    assert result.skipped_turn.answer is None
+    assert result.destination == InterviewDestination.INTERVIEW
+    assert result.next_turn is not None
+    assert result.next_turn.sequence == 2
+    assert result.next_turn.question == "두 번째 질문?"
+
+    interview.refresh_from_db()
+    assert interview.coverage == initial_coverage
+    assert interview.status == Interview.Status.IN_PROGRESS
+
+
+@pytest.mark.django_db
+def test_skip_interview_turn_resume_on_provider_failure(completed_reading):
+    """Provider 오류 시에도 skip_turn의 user_skipped_at은 보존되며,
+    재요청 시 안전하게 재개된다."""
+    from reflections.services import skip_interview_turn
+
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    turn1 = ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+
+    class FailingProvider:
+        def generate_next_question(self, context):
+            raise QuestionGenerationUnavailable()
+
+    with pytest.raises(QuestionGenerationUnavailable):
+        skip_interview_turn(
+            user=user,
+            interview=interview,
+            sequence=1,
+            next_provider=FailingProvider(),
+        )
+
+    turn1.refresh_from_db()
+    assert turn1.user_skipped_at is not None
+    assert turn1.answer is None
+
+    working_provider = FakeNextQuestionProvider(
+        result=ProposedNextQuestion(
+            "question",
+            "재개된 두 번째 질문?",
+            "MEMORY",
+            None,
+            None,
+        )
+    )
+    resumed = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=1,
+        next_provider=working_provider,
+    )
+    assert resumed.next_turn is not None
+    assert resumed.next_turn.sequence == 2
+    assert resumed.next_turn.question == "재개된 두 번째 질문?"
+
+
+@pytest.mark.django_db
+def test_skip_interview_turn_idempotency(completed_reading):
+    """이미 건너뛴 동일 turn에 대한 반복 skip 호출은
+    멱등하게 동일 결과를 반환한다."""
+    from reflections.services import skip_interview_turn
+
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+    next_provider = FakeNextQuestionProvider(
+        result=ProposedNextQuestion(
+            "question",
+            "두 번째 질문?",
+            "MEMORY",
+            None,
+            None,
+        )
+    )
+
+    first_res = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=1,
+        next_provider=next_provider,
+    )
+    second_res = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=1,
+        next_provider=next_provider,
+    )
+
+    assert first_res.destination == second_res.destination
+    assert first_res.next_turn.pk == second_res.next_turn.pk
+    assert InterviewTurn.objects.filter(interview=interview).count() == 2
+
+
+@pytest.mark.django_db
+def test_skip_interview_turn_mutual_exclusivity_with_answer(completed_reading):
+    """답변이 있는 turn은 건너뛸 수 없고, 건너뛴 turn에는 답변을 저장할 수 없다."""
+    from reflections.services import skip_interview_turn
+
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    turn1 = ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+
+    # 1. 이미 답변이 있는 경우 건너뛰기 불가
+    save_first_answer(user=user, interview=interview, answer="첫 답변입니다.")
+    with pytest.raises(InterviewPolicyError):
+        skip_interview_turn(
+            user=user,
+            interview=interview,
+            sequence=1,
+            next_provider=FakeNextQuestionProvider(),
+        )
+
+    # 2. 이미 건너뛴 turn에 답변 저장 불가
+    turn1.answer = None
+    turn1.user_skipped_at = timezone.now()
+    turn1.save(update_fields=("answer", "user_skipped_at"))
+
+    with pytest.raises((InterviewPolicyError, FirstAnswerConflict)):
+        save_first_answer(
+            user=user,
+            interview=interview,
+            answer="건너뛴 질문에 뒤늦게 답변",
+        )
+
+
+@pytest.mark.django_db
+def test_skip_interview_turn_all_skips_reach_ended_no_reflection(completed_reading):
+    """모든 질문을 건너뛰어 한도에 도달하면 REFLECTION_READY가 아닌
+    ENDED_NO_REFLECTION으로 종결된다."""
+    from reflections.services import skip_interview_turn
+
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+
+    # 건너뛰기 7번 진행 (1~7 sequence)
+    for seq in range(1, 8):
+        next_provider = FakeNextQuestionProvider(
+            result=ProposedNextQuestion(
+                "question",
+                f"{seq + 1}번째 질문?",
+                "MEMORY",
+                None,
+                None,
+            )
+        )
+        res = skip_interview_turn(
+            user=user,
+            interview=interview,
+            sequence=seq,
+            next_provider=next_provider,
+        )
+        assert res.destination == InterviewDestination.INTERVIEW
+
+    # 8번째 (NORMAL_CAP) 건너뛰기: 답변이 0개이므로
+    # 추가 질문 없이 ENDED_NO_REFLECTION으로 종료
+    res8 = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert res8.destination == InterviewDestination.ENDED_NO_REFLECTION
+    assert res8.next_turn is None
+
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.ENDED_NO_REFLECTION
+
+
+@pytest.mark.django_db
+def test_skip_interview_turn_idempotent_on_ended_no_reflection_last_turn(
+    completed_reading,
+):
+    """이미 ENDED_NO_REFLECTION 상태로 종결된 마지막 turn에 대한 반복 skip 호출은
+    409 오류 없이 ENDED_NO_REFLECTION 목적지로 멱등 수렴한다."""
+    from reflections.services import skip_interview_turn
+
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+
+    for seq in range(1, 8):
+        skip_interview_turn(
+            user=user,
+            interview=interview,
+            sequence=seq,
+            next_provider=FakeNextQuestionProvider(
+                result=ProposedNextQuestion(
+                    "question", f"{seq + 1}번째 질문?", "MEMORY", None, None
+                )
+            ),
+        )
+
+    res8 = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert res8.destination == InterviewDestination.ENDED_NO_REFLECTION
+
+    # 재요청: 409(InterviewPolicyError)가 아니라
+    # 동일한 ENDED_NO_REFLECTION으로 멱등 수렴해야 함
+    repeated = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert repeated.destination == InterviewDestination.ENDED_NO_REFLECTION
+    assert repeated.next_turn is None
+    assert repeated.skipped_turn.sequence == 8
+
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.ENDED_NO_REFLECTION
+    assert InterviewTurn.objects.filter(interview=interview).count() == 8
+
+
+@pytest.mark.django_db
+def test_skip_interview_turn_idempotent_on_reflection_ready_last_turn(
+    completed_reading,
+):
+    """이미 REFLECTION_READY 상태로 종결된 마지막 turn에 대한 반복 skip 호출은
+    409 오류 없이 REFLECTION_READY 목적지로 멱등 수렴한다."""
+    from reflections.services import skip_interview_turn
+
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    turn1 = ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+
+    # 1번 질문 답변
+    save_first_answer(user=user, interview=interview, answer="첫 번째 질문에 대한 답변")
+
+    # 2번 질문 생성
+    process_next_turn(
+        user=user,
+        interview=interview,
+        turn=turn1,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    )
+
+    # 2~7번 질문 skip
+    for seq in range(2, 8):
+        skip_interview_turn(
+            user=user,
+            interview=interview,
+            sequence=seq,
+            next_provider=FakeNextQuestionProvider(
+                result=ProposedNextQuestion(
+                    "question", f"{seq + 1}번째 질문?", "MEMORY", None, None
+                )
+            ),
+        )
+
+    # 8번째 skip -> 답변이 1개 이상이므로 REFLECTION_READY로 종결
+    res8 = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert res8.destination == InterviewDestination.REFLECTION_READY
+
+    # 재요청: 409가 아니라 동일한 REFLECTION_READY로 멱등 수렴해야 함
+    repeated = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert repeated.destination == InterviewDestination.REFLECTION_READY
+    assert repeated.next_turn is None
+    assert repeated.skipped_turn.sequence == 8
+
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.REFLECTION_READY
+    assert InterviewTurn.objects.filter(interview=interview).count() == 8
+
+
+@pytest.mark.django_db(transaction=True)
+def test_concurrent_answer_and_skip_on_same_turn(completed_reading) -> None:
+    """별도 DB connection에서 동일 turn의 answer 제출과 skip이 경합할 때,
+    정확히 하나의 결과만 확정되고 answer와 user_skipped_at이 공존하지 않는다."""
+    from reflections.services import skip_interview_turn
+
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+
+    barrier = Barrier(2)
+
+    def do_answer():
+        close_old_connections()
+        try:
+            barrier.wait()
+            try:
+                save_first_answer(
+                    user=user,
+                    interview=interview,
+                    answer="동시 제출된 답변",
+                )
+                return "answer_success"
+            except InterviewPolicyError, FirstAnswerConflict:
+                return "answer_conflict"
+        finally:
+            close_old_connections()
+
+    def do_skip():
+        close_old_connections()
+        try:
+            barrier.wait()
+            try:
+                skip_interview_turn(
+                    user=user,
+                    interview=interview,
+                    sequence=1,
+                    next_provider=FakeNextQuestionProvider(
+                        result=ProposedNextQuestion(
+                            "question", "다음 질문?", "MEMORY", None, None
+                        )
+                    ),
+                )
+                return "skip_success"
+            except InterviewPolicyError:
+                return "skip_conflict"
+        finally:
+            close_old_connections()
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        f_ans = executor.submit(do_answer)
+        f_skip = executor.submit(do_skip)
+        ans_res = f_ans.result()
+        skip_res = f_skip.result()
+
+    turn = InterviewTurn.objects.get(interview=interview, sequence=1)
+    # 둘 중 정확히 하나만 성공하고 하나는 conflict 발생
+    if ans_res == "answer_success":
+        assert skip_res == "skip_conflict"
+        assert turn.answer == "동시 제출된 답변"
+        assert turn.user_skipped_at is None
+    else:
+        assert ans_res == "answer_conflict"
+        assert skip_res == "skip_success"
+        assert turn.answer is None
+        assert turn.user_skipped_at is not None
+
+    # answer와 user_skipped_at이 절대 공존하지 않음
+    assert not (turn.answer is not None and turn.user_skipped_at is not None)
+
+
+@pytest.mark.django_db
+def test_decide_interview_progress_on_user_skipped_turn_soft_stop_end(
+    completed_reading,
+) -> None:
+    """건너뛴 Turn의 SOFT_STOP decision에서 END 선택 시
+    REFLECTION_READY로 전환된다."""
+    coverage = {
+        "MEMORY": "COVERED",
+        "REACTION": "COVERED",
+        "CONNECTION": "COVERED",
+        "AFTERTHOUGHT": "UNCOVERED",
+    }
+    interview, fourth = _answered_at(completed_reading, 4, coverage)
+    turn5 = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=fourth,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    ).turn
+    assert turn5.sequence == 5
+
+    interview.coverage = dict.fromkeys(interview.coverage, "COVERED")
+    interview.save(update_fields=("coverage", "updated_at"))
+
+    candidate_proposal = ProposedNextQuestion(
+        kind="question",
+        question="‘장면’이라고 하셨는데, 그 생각이 더 남은 이유는 무엇인가요?",
+        focus_axis="MEMORY",
+        grounding_quote="장면",
+        skip_reason=None,
+    )
+    skip_interview_turn(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=5,
+        next_provider=FakeNextQuestionProvider(result=candidate_proposal),
+    )
+    choice = InterviewProgressDecision.objects.get(turn=turn5)
+    assert choice.kind == InterviewProgressDecision.Kind.SOFT_STOP
+
+    ended = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=5,
+        decision="end",
+    )
+    assert ended.skipped
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.REFLECTION_READY
+
+    repeated = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=5,
+        decision="end",
+    )
+    assert repeated.skipped
+    assert repeated.turn.pk == ended.turn.pk
+
+
+@pytest.mark.django_db
+def test_decide_interview_progress_on_user_skipped_turn_soft_stop_continue(
+    completed_reading,
+) -> None:
+    """건너뛴 Turn의 SOFT_STOP decision에서 CONTINUE 선택 시
+    다음 Turn이 1개 생성된다."""
+    coverage = {
+        "MEMORY": "COVERED",
+        "REACTION": "COVERED",
+        "CONNECTION": "COVERED",
+        "AFTERTHOUGHT": "UNCOVERED",
+    }
+    interview, fourth = _answered_at(completed_reading, 4, coverage)
+    turn5 = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=fourth,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    ).turn
+    assert turn5.sequence == 5
+
+    interview.coverage = dict.fromkeys(interview.coverage, "COVERED")
+    interview.save(update_fields=("coverage", "updated_at"))
+
+    candidate_proposal = ProposedNextQuestion(
+        kind="question",
+        question="‘장면’이라고 하셨는데, 그 생각이 더 남은 이유는 무엇인가요?",
+        focus_axis="MEMORY",
+        grounding_quote="장면",
+        skip_reason=None,
+    )
+    skip_interview_turn(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=5,
+        next_provider=FakeNextQuestionProvider(result=candidate_proposal),
+    )
+    choice = InterviewProgressDecision.objects.get(turn=turn5)
+
+    continued = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=5,
+        decision="continue",
+    )
+    assert not continued.skipped
+    assert continued.turn.sequence == 6
+    assert continued.turn.question == choice.candidate_question
+    assert InterviewTurn.objects.filter(interview=interview).count() == 6
+
+    repeated = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=5,
+        decision="continue",
+    )
+    assert repeated.turn.pk == continued.turn.pk
+    assert InterviewTurn.objects.filter(interview=interview).count() == 6
+
+
+@pytest.mark.django_db
+def test_decide_interview_progress_on_user_skipped_turn_cap_extension(
+    completed_reading,
+) -> None:
+    """건너뛴 Turn의 CAP_EXTENSION decision에서
+    CONTINUE 및 반복 호출이 정상 동작한다."""
+    coverage = dict.fromkeys(
+        ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "PARTIAL"
+    )
+    coverage["AFTERTHOUGHT"] = "UNCOVERED"
+    interview, seventh = _answered_at(completed_reading, 7, coverage)
+    turn8 = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=seventh,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    ).turn
+    candidate_proposal = ProposedNextQuestion(
+        kind="question",
+        question="‘장면’과 관련해 책을 덮은 뒤에도 남아 있는 생각은 무엇인가요?",
+        focus_axis="AFTERTHOUGHT",
+        grounding_quote="장면",
+        skip_reason=None,
+    )
+    skip_interview_turn(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(result=candidate_proposal),
+    )
+    choice = InterviewProgressDecision.objects.get(turn=turn8)
+    assert choice.kind == InterviewProgressDecision.Kind.CAP_EXTENSION
+
+    ninth = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        decision="continue",
+    )
+    assert not ninth.skipped
+    assert ninth.turn.sequence == 9
+    assert ninth.turn.question == choice.candidate_question
+    assert InterviewTurn.objects.filter(interview=interview).count() == 9
+
+    repeated = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        decision="continue",
+    )
+    assert repeated.turn.pk == ninth.turn.pk
+
+
+@pytest.mark.django_db
+def test_decide_interview_progress_on_user_skipped_turn_cap_extension_end(
+    completed_reading,
+) -> None:
+    """건너뛴 Turn의 CAP_EXTENSION decision에서 END 선택 시
+    새 Turn 생성 없이 REFLECTION_READY로 안전하게 전이한다."""
+    coverage = dict.fromkeys(
+        ("MEMORY", "REACTION", "CONNECTION", "AFTERTHOUGHT"), "PARTIAL"
+    )
+    coverage["AFTERTHOUGHT"] = "UNCOVERED"
+    interview, seventh = _answered_at(completed_reading, 7, coverage)
+    turn8 = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=seventh,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    ).turn
+    candidate_proposal = ProposedNextQuestion(
+        kind="question",
+        question="‘장면’과 관련해 책을 덮은 뒤에도 남아 있는 생각은 무엇인가요?",
+        focus_axis="AFTERTHOUGHT",
+        grounding_quote="장면",
+        skip_reason=None,
+    )
+    skip_interview_turn(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(result=candidate_proposal),
+    )
+    choice = InterviewProgressDecision.objects.get(turn=turn8)
+    assert choice.kind == InterviewProgressDecision.Kind.CAP_EXTENSION
+    turns_before = InterviewTurn.objects.filter(interview=interview).count()
+
+    ended = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        decision="end",
+    )
+    assert ended.skipped
+    assert ended.turn.pk == turn8.pk
+    interview.refresh_from_db()
+    turn8.refresh_from_db()
+    assert interview.status == Interview.Status.REFLECTION_READY
+    assert InterviewTurn.objects.filter(interview=interview).count() == turns_before
+    assert turn8.user_skipped_at is not None
+    assert turn8.answer is None
+
+    repeated = decide_interview_progress(
+        user=completed_reading.user,
+        interview=interview,
+        sequence=8,
+        decision="end",
+    )
+    assert repeated.skipped
+    assert repeated.turn.pk == turn8.pk
+    assert InterviewTurn.objects.filter(interview=interview).count() == turns_before
+
+
+@pytest.mark.django_db
+def test_stale_skip_replay_converges_to_current_state(
+    completed_reading,
+) -> None:
+    """오래된 seq1 skip replay 도착 시 과거로 후퇴하지 않고
+    현재 최신 상태로 수렴한다."""
+    user = completed_reading.user
+    interview = start_interview(user=user, reading=completed_reading).interview
+    ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+
+    res1 = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=1,
+        next_provider=FakeNextQuestionProvider(
+            result=ProposedNextQuestion(
+                "question", "2번째 질문입니다?", "MEMORY", None, None
+            )
+        ),
+    )
+    assert res1.next_turn.sequence == 2
+
+    turn2 = res1.next_turn
+    turn2.answer = "2번째 질문에 대한 성실한 답변입니다."
+    turn2.save(update_fields=("answer", "updated_at"))
+    turn3 = process_next_turn(
+        user=user,
+        interview=interview,
+        turn=turn2,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    ).turn
+    assert turn3.sequence == 3
+    assert InterviewTurn.objects.filter(interview=interview).count() == 3
+
+    stale_res = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=1,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert stale_res.destination == InterviewDestination.INTERVIEW
+    assert stale_res.next_turn.sequence == 3
+    assert stale_res.next_turn.pk == turn3.pk
+    assert InterviewTurn.objects.filter(interview=interview).count() == 3
+
+    interview.status = Interview.Status.REFLECTION_READY
+    interview.save(update_fields=("status", "updated_at"))
+
+    stale_after_terminal = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=1,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert stale_after_terminal.destination == InterviewDestination.REFLECTION_READY
+    assert stale_after_terminal.next_turn is None
+
+
+def test_skip_provider_validation_rejects_skip_proposal_when_coverage_uncompleted() -> (
+    None
+):
+    """NORMAL mode에서 Coverage 미완료 시
+    user_skipped=True여도 skip proposal을 거부한다."""
+    question_context = InterviewQuestionContext(
+        book_title="테스트 도서",
+        authors="저자",
+        publisher="출판사",
+        reading_status="COMPLETED",
+        completed_on=date.today(),
+        knowledge_readiness="READY",
+        knowledge_claims=(),
+        policy=QuestionPolicy.MEMORY_CENTERED,
+    )
+    uncompleted_coverage = (
+        CurrentCoverageItem("MEMORY", CoverageStatus.COVERED),
+        CurrentCoverageItem("REACTION", CoverageStatus.UNCOVERED),
+        CurrentCoverageItem("CONNECTION", CoverageStatus.UNCOVERED),
+        CurrentCoverageItem("AFTERTHOUGHT", CoverageStatus.UNCOVERED),
+    )
+    context = NextQuestionContext(
+        question_context=question_context,
+        previous_turns=(),
+        question="직전 질문 내용",
+        answer=None,
+        meaning=None,
+        low_information=False,
+        coverage=uncompleted_coverage,
+        budget_mode="NORMAL",
+        user_skipped=True,
+    )
+    skip_proposal = ProposedNextQuestion(
+        kind="skip",
+        question=None,
+        focus_axis=None,
+        grounding_quote=None,
+        skip_reason="사용자가 충분히 답변하지 못해 생략합니다.",
+    )
+
+    with pytest.raises(QuestionGenerationRejected):
+        _validate_skip_proposal(skip_proposal, context)
+
+    cap_context = NextQuestionContext(
+        question_context=question_context,
+        previous_turns=(),
+        question="직전 질문 내용",
+        answer=None,
+        meaning=None,
+        low_information=False,
+        coverage=uncompleted_coverage,
+        budget_mode="CAP_EXTENSION",
+        user_skipped=True,
+    )
+    _validate_skip_proposal(skip_proposal, cap_context)
+
+    completed_coverage = (
+        CurrentCoverageItem("MEMORY", CoverageStatus.COVERED),
+        CurrentCoverageItem("REACTION", CoverageStatus.COVERED),
+        CurrentCoverageItem("CONNECTION", CoverageStatus.COVERED),
+        CurrentCoverageItem("AFTERTHOUGHT", CoverageStatus.COVERED),
+    )
+    all_covered_context = NextQuestionContext(
+        question_context=question_context,
+        previous_turns=(),
+        question="직전 질문 내용",
+        answer=None,
+        meaning=None,
+        low_information=False,
+        coverage=completed_coverage,
+        budget_mode="NORMAL",
+        user_skipped=True,
+    )
+    _validate_skip_proposal(skip_proposal, all_covered_context)

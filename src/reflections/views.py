@@ -3,16 +3,23 @@ import traceback
 
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError
-from django.http import HttpRequest, HttpResponse
+from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET, require_POST
 
 from integrations.llm.contracts import AnswerAnalysisError, QuestionGenerationError
 from integrations.llm.factory import get_question_provider
 from knowledge.services import get_book_knowledge_readiness
 from readings.models import Reading
+from reflections.drafts import generate_or_get_reflection_draft
 from reflections.forms import FirstAnswerForm
-from reflections.models import Interview, InterviewProgressDecision, InterviewTurn
+from reflections.models import (
+    Interview,
+    InterviewProgressDecision,
+    InterviewTurn,
+    Reflection,
+)
 from reflections.services import (
     AnswerAnalysisPolicyError,
     FirstAnswerConflict,
@@ -27,6 +34,7 @@ from reflections.services import (
     process_next_turn,
     save_first_answer,
     save_turn_answer,
+    skip_interview_turn,
     start_interview,
 )
 
@@ -276,6 +284,94 @@ def _answer_for_sequence(
 
 @require_POST
 @login_required
+def turn_skip(request: HttpRequest, interview_id: int, sequence: int) -> HttpResponse:
+    """현재 Turn을 건너뛰고 다음 질문 또는 종료 상태로 전이한다."""
+    interview = get_object_or_404(
+        Interview.objects.select_related("reading", "book"),
+        pk=interview_id,
+        reading__user=request.user,
+    )
+    turn = get_object_or_404(interview.turns, sequence=sequence)
+
+    if set(request.POST) - {"csrfmiddlewaretoken"}:
+        return _policy_conflict_response(request)
+
+    try:
+        result = skip_interview_turn(
+            user=request.user,
+            interview=interview,
+            sequence=sequence,
+        )
+    except InterviewPolicyError:
+        return _policy_conflict_response(request)
+    except (
+        QuestionGenerationError,
+        NextTurnPersistenceError,
+        NextTurnStaleError,
+    ) as error:
+        _log_pipeline_failure("skip", interview.pk, sequence, error)
+        template = (
+            "reflections/_interview_skip_error.html"
+            if request.headers.get("HX-Request") == "true"
+            else "reflections/interview_detail.html"
+        )
+        return _interview_turn_response(
+            request,
+            template,
+            {
+                "interview": interview,
+                "turn": turn,
+                "previous_turns": _get_previous_turns(interview, turn),
+                "skip_error": True,
+                **_pipeline_failure_details(error),
+            },
+            status=503,
+            focus_error=True,
+        )
+
+    if request.headers.get("HX-Request") == "true":
+        interview.refresh_from_db()
+        if result.destination == InterviewDestination.ENDED_NO_REFLECTION:
+            return render(
+                request,
+                "reflections/_interview_ended_no_reflection.html",
+                {"interview": interview},
+            )
+        if result.destination == InterviewDestination.REFLECTION_READY:
+            return render(
+                request,
+                "reflections/_interview_reflection_ready.html",
+                {"interview": interview},
+            )
+        current = result.next_turn or interview.turns.order_by("-sequence").first()
+        choice = InterviewProgressDecision.objects.filter(
+            turn=result.skipped_turn, selection__isnull=True
+        ).first()
+        if choice is not None:
+            return render(
+                request,
+                (
+                    "reflections/_interview_soft_stop.html"
+                    if choice.kind == InterviewProgressDecision.Kind.SOFT_STOP
+                    else "reflections/_interview_cap_extension.html"
+                ),
+                {"turn": result.skipped_turn},
+            )
+        return render(
+            request,
+            "reflections/_interview_question.html",
+            {
+                "interview": interview,
+                "turn": current,
+                "answer_form": FirstAnswerForm(),
+            },
+        )
+
+    return redirect("reflections:interview_detail", interview_id=interview.pk)
+
+
+@require_POST
+@login_required
 def next_turn(request: HttpRequest, interview_id: int, sequence: int) -> HttpResponse:
     """확정 답변의 후속 단계를 처리하고 현재 상태를 반환한다."""
     interview = get_object_or_404(
@@ -317,7 +413,11 @@ def next_turn(request: HttpRequest, interview_id: int, sequence: int) -> HttpRes
         interview.refresh_from_db()
         current = interview.turns.order_by("-sequence").first()
         if interview.status == Interview.Status.REFLECTION_READY:
-            return render(request, "reflections/_interview_reflection_ready.html")
+            return render(
+                request,
+                "reflections/_interview_reflection_ready.html",
+                {"interview": interview},
+            )
         choice = InterviewProgressDecision.objects.filter(
             turn=current, selection__isnull=True
         ).first()
@@ -398,7 +498,11 @@ def interview_decision(
         )
     if request.headers.get("HX-Request") == "true":
         if result.skipped:
-            return render(request, "reflections/_interview_reflection_ready.html")
+            return render(
+                request,
+                "reflections/_interview_reflection_ready.html",
+                {"interview": interview},
+            )
         return render(
             request,
             "reflections/_interview_question.html",
@@ -448,7 +552,16 @@ def _destination_response(
         if detail:
             turn = interview.turns.order_by("-sequence").first()
             if turn is not None and turn.next_question_skipped_at is not None:
-                return render(request, "reflections/interview_reflection_ready.html")
+                existing_ref = Reflection.objects.filter(interview=interview).first()
+                if existing_ref is not None:
+                    return redirect(
+                        "reflections:reflection_detail", reflection_id=existing_ref.pk
+                    )
+                return render(
+                    request,
+                    "reflections/interview_reflection_ready.html",
+                    {"interview": interview},
+                )
             choice = (
                 InterviewProgressDecision.objects.filter(
                     turn=turn, selection__isnull=True
@@ -469,7 +582,22 @@ def _destination_response(
             )
         return redirect("reflections:interview_detail", interview_id=interview.pk)
     if destination is InterviewDestination.REFLECTION_READY:
-        return render(request, "reflections/interview_reflection_ready.html")
+        existing_ref = Reflection.objects.filter(interview=interview).first()
+        if existing_ref is not None:
+            return redirect(
+                "reflections:reflection_detail", reflection_id=existing_ref.pk
+            )
+        return render(
+            request,
+            "reflections/interview_reflection_ready.html",
+            {"interview": interview},
+        )
+    if destination is InterviewDestination.ENDED_NO_REFLECTION:
+        return render(
+            request,
+            "reflections/interview_ended_no_reflection.html",
+            {"interview": interview},
+        )
     label = "완료된 Reflection 단계"
     return render(
         request, "reflections/interview_unavailable.html", {"label": label}, status=409
@@ -589,3 +717,84 @@ def _interview_turn_response(
         if focus_error:
             response.headers["HX-Trigger-After-Settle"] = "interviewTurnSettled"
     return response
+
+
+@login_required
+@require_POST
+def reflection_generate(request: HttpRequest, interview_id: int) -> HttpResponse:
+    interview = (
+        Interview.objects.filter(pk=interview_id, reading__user=request.user)
+        .select_related("reading__book")
+        .first()
+    )
+    if interview is None:
+        raise Http404("Interview not found or access denied")
+
+    if set(request.POST) - {"csrfmiddlewaretoken"}:
+        return _policy_conflict_response(request)
+
+    if interview.status != Interview.Status.REFLECTION_READY:
+        return _policy_conflict_response(request)
+
+    is_htmx = request.headers.get("HX-Request") == "true"
+
+    try:
+        result = generate_or_get_reflection_draft(
+            user=request.user,
+            interview=interview,
+        )
+        target_url = reverse(
+            "reflections:reflection_detail", args=[result.reflection.pk]
+        )
+        if is_htmx:
+            response = HttpResponse(status=200)
+            response.headers["HX-Redirect"] = target_url
+            return response
+        return redirect(target_url)
+    except Exception as error:
+        _log_pipeline_failure("reflection_generate", interview.pk, 0, error)
+        context = {
+            "interview": interview,
+            "reflection_error": True,
+            **_pipeline_failure_details(error),
+        }
+        if is_htmx:
+            response = render(
+                request,
+                "reflections/_reflection_generation_error.html",
+                context,
+                status=503,
+            )
+            response.headers["HX-Retarget"] = "#interview-turn-region"
+            response.headers["HX-Reswap"] = "outerHTML"
+            response.headers["HX-Trigger-After-Settle"] = "reflectionErrorSettled"
+            return response
+        return render(
+            request,
+            "reflections/interview_reflection_ready.html",
+            context,
+            status=503,
+        )
+
+
+@login_required
+@require_GET
+def reflection_detail(request: HttpRequest, reflection_id: int) -> HttpResponse:
+    reflection = (
+        Reflection.objects.filter(
+            pk=reflection_id, interview__reading__user=request.user
+        )
+        .select_related("interview__reading__book")
+        .first()
+    )
+    if reflection is None:
+        raise Http404("Reflection not found or access denied")
+
+    return render(
+        request,
+        "reflections/reflection_draft_ready.html",
+        {
+            "reflection": reflection,
+            "book": reflection.interview.reading.book,
+        },
+    )

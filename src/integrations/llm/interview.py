@@ -110,8 +110,16 @@ def _next_question_instructions(context: NextQuestionContext) -> str:
         and any(item.status != "COVERED" for item in context.coverage)
         else ""
     )
+    skip_instruction = (
+        "사용자가 직전 질문을 건너뛰었습니다(user_skipped=true). "
+        "이를 답변으로 해석하지 말고, 건너뛴 질문을 다시 묻거나 압박하지 마세요. "
+        "아직 충족되지 않은 축에서 부담 없이 답할 수 있는 "
+        "기억이나 인상 중심의 새로운 질문을 제안하세요. "
+        if context.user_skipped
+        else ""
+    )
     return (
-        f"{required_question}"
+        f"{required_question}{skip_instruction}"
         "사용자 답변과 현재 Coverage에 맞는 한국어 열린 질문 하나를 만드세요. "
         "이미 충분한 축을 반복하지 마세요. "
         "low_information이면 같은 주제를 압박하지 마세요. "
@@ -120,7 +128,8 @@ def _next_question_instructions(context: NextQuestionContext) -> str:
         "질문 문구에 grounding_quote 전체를 그대로 포함하는 것이 가장 안전합니다. "
         "전체 인용 대신 핵심 단어를 사용한다면 인용을 공백으로 나눈 단어 중 "
         "3글자 이상인 단어 하나를 조사·어미까지 변경하지 않고 그대로 포함하세요. "
-        "low_information에서 미충족 축으로 전환할 때만 인용을 생략할 수 있습니다. "
+        "low_information 또는 사용자 건너뛰기(user_skipped)에서 "
+        "미충족 축으로 전환할 때만 인용을 생략할 수 있습니다. "
         "질문일 때 skip_reason은 null입니다. "
         "일반 모드에서는 네 축이 모두 COVERED이고 답변·이전 Turn에 구체적으로 "
         "더 탐색할 근거가 없을 때에만 skip을 제안하세요. "
@@ -151,6 +160,8 @@ def _next_question_payload(context: NextQuestionContext) -> dict[str, object]:
             {"axis": item.axis, "status": item.status} for item in context.coverage
         ],
         "budget_mode": context.budget_mode,
+        "user_skipped": context.user_skipped,
+        "skipped_questions": list(context.skipped_questions),
     }
 
 
