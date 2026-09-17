@@ -22,6 +22,12 @@
 
 ### Added
 
+- Day 12 Reflection 결과 화면(`GET /reflections/{id}/`), 안전한 Markdown 렌더링(HTML·자바스크립트 URL 무력화, 에세이 구조 보존), 상태 배지(`작성 중`/`완료`) 및 메타데이터 표시 (IMP-093)
+- Day 12 Reflection DRAFT 수정 화면(`GET/POST /reflections/{id}/edit/`), Form 유효성 검증(1~20,000자), PRG 패턴 및 `save_reflection_revision()` 서비스 (IMP-094)
+- Day 12 Reflection/Interview 원자적 완료 확인 화면(`GET /reflections/{id}/complete/`) 및 전이 처리, `Reflection.Status.COMPLETED` 모델 상태 및 무중단 마이그레이션 (`0010_reflection_completed_status.py`), 완료 후 불변성 보장 (IMP-094)
+- Day 12 Home 화면에 사용자의 마지막 활동(`updated_at DESC, id DESC`) 기준 `최근 독서노트` 재진입 카드 추가 및 고정 1건 단일 쿼리(`select_related`, N+1 방지) 연동 (IMP-094, IMP-097)
+- Day 12 소설 1권(`1984` READY), 비문학 1권(`Thinking, Fast and Slow` READY), 문학 1권(`The Left Hand of Darkness` READY_LIMITED) 3권 대표 도서 멱등 준비 서비스 및 `prepare_validation_books` 비운영 management command (IMP-100, IMP-098)
+
 - Day 11 질문 건너뛰기(Skip) 모델 제약, `InterviewTurn.user_skipped_at`, `ENDED_NO_REFLECTION` 상태 및 2단계 무중단 PostgreSQL 마이그레이션 (`0008_turn_skip_and_ended_no_reflection.py`, `0009_validate_turn_skip_constraints.py`) 구현 (IMP-096)
 - Day 11 `skip_interview_turn` 2단계 원자성 트랜잭션, Budget `user_skipped_count` 계산, `ENDED_NO_REFLECTION` 종결 및 `POST /reflections/interviews/{id}/turns/{seq}/skip/` endpoint 구현 (IMP-096)
 - Day 11 `generate_or_get_reflection_draft` 멱등성 보장 오케스트레이션, `POST /reflections/interviews/{id}/reflection/generate/`, HTMX Loading/Error/Retry UI, 최소 임시 결과 화면 (`GET /reflections/{reflection_id}/`) 구현 (IMP-092)

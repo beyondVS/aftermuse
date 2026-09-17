@@ -435,39 +435,42 @@ Interview 도중 질문을 건너뛸 수 있는 액션을 추가하고, 내부 �
     - 적은 답변과 Skip 조합에서도 Core Loop가 불필요한 503 없이 동작한다.
     - 기존 소유권, sequence, answer 보존, 멱등성, 동시성 계약을 깨뜨리지 않는다.
 
-### Day 12 — Reflection 결과/수정과 Home 재진입 및 검증 준비
+### Day 12 — Reflection 결과/수정·완료와 Home 재진입 및 검증 준비
 
-AI 결과물이 아닌 독서 에세이 형태의 Reflection 결과 화면과 직접 수정 UX를 구현하고, Home '최근 독서노트' 재진입을 완성하며, 2주 E2E 검증용 책 세트(Seed 및 READY_LIMITED)를 준비한다.
+AI 결과물이 아닌 독서 에세이 형태의 Reflection 결과 화면과 직접 수정·완료 UX를 구현하고, Home '최근 독서노트' 재진입을 완성하며, 2주 E2E 검증용 책 세트(Seed 및 READY_LIMITED)를 준비한다.
 
-- [ ] **IMP-093 — Reflection 결과 화면 구현**
+- [x] **IMP-093 — Reflection 결과 화면 구현**
   - **선행 작업:** IMP-090, IMP-092
   - AI 생성 결과 화면보다는 사용자의 독서 기록처럼 보이는 에세이 결과 화면을 구현한다.
   - **UX 기준:**
     - 책 제목, 저자, 작성일, Reflection 본문을 명확하게 구분한다.
     - 긴 Reflection을 몰입해서 읽기 편한 타이포그래피와 레이아웃을 적용한다.
-    - 결과 화면에서 `[수정]` 및 `[Home으로]` 명확한 이동 진입점을 제공한다.
+    - 결과 화면에서 `[수정]`, `[완료]`, `[Home으로]` 명확한 이동 진입점을 제공한다.
   - **완료 조건:**
     - 긴 글을 읽기 편하고 책 제목/저자/작성일/본문이 명확히 구분되어 표시된다.
     - AI 도구 결과물보다 사용자의 독서 기록 에세이로 자연스럽게 느껴진다.
-    - `[수정]` 및 `[Home으로]` 진입점이 정상 동작한다.
+    - `[수정]`, `[완료]`, `[Home으로]` 진입점이 정상 동작한다.
 
-- [ ] **IMP-094 — Reflection 수정 구현 및 Home 재진입 연계**
+- [x] **IMP-094 — Reflection 수정·완료 및 Home 재진입 연계**
   - **선행 작업:** IMP-085, IMP-093
-  - 사용자가 생성된 Reflection을 직접 수정하고 보완할 수 있는 흐름을 구현하고, Reflection 생성/저장 후 Home에서 다시 접근할 수 있는 최소 재진입 경로를 완성한다.
-  - **편집 및 이동 흐름:** `Reflection 수정 → 저장 → 저장 완료 피드백 (인라인/토스트) → 결과 화면`
-  - **Home 연계 (최소 재진입 경로 완성):**
-    - Reflection이 생성/저장된 이후에는 IMP-085에서 구축한 Core Home에 '최근 독서노트' 섹션을 활성화하고 `[독서노트 보기]` 버튼을 제공하여 해당 Reflection 결과 화면으로 다시 접근할 수 있게 한다.
-    - 다수의 Reflection 아카이브나 서재 필터링 등 전체 Library 기능은 Full MVP(IMP-122)로 분리하고, 여기서는 방금 또는 최근 완성된 Reflection으로의 최소 재진입만 연결한다.
+  - 사용자가 생성된 Reflection을 직접 수정하고 완료할 수 있는 흐름을 구현하고, Home에서 다시 접근할 수 있는 최소 재진입 경로를 완성한다.
+  - **핵심 정책:**
+    - DRAFT Reflection을 사용자가 직접 수정할 수 있다.
+    - 최초 AI 초안(`draft_markdown`)은 보존하고, 사용자 수정본은 `revised_markdown`에 저장한다.
+    - 수정 저장(DRAFT 유지)과 최종 완료(확정)는 별도 행동이다.
+    - 완료 시 Reflection과 Interview를 하나의 짧은 트랜잭션 안에서 일관되게 COMPLETED로 전환한다.
+    - 완료된 Reflection은 읽기 전용이다.
+    - Home에서 가장 최근 DRAFT(`작성 중`) 또는 COMPLETED(`완료`) Reflection 하나로 재진입할 수 있다.
   - **완료 조건:**
-    - 수정한 내용이 DB에 안전하게 저장된다.
-    - 저장 완료 즉시 사용자 피드백이 제공되고 결과 화면으로 복귀한다.
-    - Reflection 저장 후 Home의 '최근 독서노트'에서 실제 저장된 Reflection을 다시 열 수 있고 수정된 내용이 유지된다.
-    - IMP-085에서 만든 Core Home 구조를 확장하되, 기존 Reading / Interview 기본 동작을 깨뜨리지 않는다.
+    - 수정한 내용이 `revised_markdown`에 안전하게 저장되고 즉시 결과 화면에 반영된다.
+    - 완료 확인을 통해 Reflection과 Interview가 원자적으로 COMPLETED 상태로 전환된다.
+    - 완료된 Reflection은 수정이 차단되고 읽기 전용 상태가 유지된다.
+    - Home의 '최근 독서노트'에서 최근 초안 또는 완료본으로 재진입할 수 있으며 기존 Reading/Interview 동작을 깨뜨리지 않는다.
 
-- [ ] **IMP-100 — 2주 검증용 책 세트 구성**
-  - **선행 작업:** IMP-041, IMP-094
-  - Seed Knowledge가 있는 책과 READY_LIMITED 책을 포함한 최소 검증 세트를 준비한다.
-  - **완료 조건:** 최소 3권 이상으로 테스트할 수 있다.
+- [x] **IMP-100 — 2주 검증용 책 세트 구성**
+  - **선행 작업:** IMP-041
+  - Seed Knowledge가 있는 책(소설 1권, 비문학 1권)과 READY_LIMITED 책(1권)을 포함한 최소 3권의 검증 세트를 명시적이고 멱등하게 준비한다.
+  - **완료 조건:** 최소 3권의 대표 세트가 중복 없이 준비되어 Day 13 Core Loop 검증에 활용될 수 있다.
 
 ### Day 13 — 전체 Core Loop E2E 검증 및 핵심 품질 1차 조정
 
@@ -753,12 +756,14 @@ Claim, Source, Evidence, Candidate 구조로 다중 지식 모델을 확장하�
 
 ### Day 25 — Reflection 완료 / Credit 소비
 
-Reflection의 최종 완료 상태 전이(DRAFT → FINALIZING → COMPLETED)와 commit boundary를 구현하고, 완료 시점에 일치하여 Credit을 소비(CONSUMED) 처리하는 원자적 트랜잭션을 연결한다.
+Full MVP 요구사항에 맞춰 Reflection 완료 연계 기능을 확장하고, 완료 시점에 일치하여 Credit을 소비(CONSUMED) 처리하는 트랜잭션을 연결한다.
 
-- [ ] **IMP-170 — Reflection 완료 상태와 Commit Boundary 구현**
+- [ ] **IMP-170 — Full MVP Reflection 완료 Commit Boundary 확장**
   - **선행 작업:** IMP-094
-  - DRAFT → FINALIZING → COMPLETED 흐름을 구현한다.
-  - **완료 조건:** 완료 시점에만 파생 데이터가 반영된다.
+  - Core MVP의 `DRAFT → COMPLETED` 완료 흐름을 기반으로 한다.
+  - Full MVP에서 Credit, Evaluation, Reader Insight 등 실제 추가되는 완료 연계 기능의 일관성 요구에 맞추어 completion 처리 범위를 확장한다.
+  - `FINALIZING` 같은 중간 상태나 별도 후처리 구조는 실제 비동기/다단계 완료 처리가 필요해질 때 도입한다.
+  - **완료 조건:** 확장된 완료 경계 및 연계 파생 데이터의 일관성이 보장된다.
 
 - [ ] **IMP-132 — Reflection 완료 시 Credit 소비 적용**
   - **선행 작업:** IMP-131, IMP-170

@@ -1,14 +1,14 @@
-# AfterMuse Planning Latest v2026-09-16
+# AfterMuse Planning Latest v2026-09-18
 
 최신 기준 파일 묶음입니다.
 
-## 최근 구현 확인 — 2026-09-16
+## 최근 구현 확인 — 2026-09-18
 
-- Day 10 Reflection 저장·조회·수정본 분리와 답변 기반 비영속 생성 Service를 구현했습니다. 생성 준비 상태는 `REFLECTION_READY`이며 초안 생성만으로 최종 완료하지 않습니다.
-- fake·OpenAI·Gemini·Ollama의 구조화 계약을 외부 transport 격리 검사로 확인했습니다. 실제 Reflection 연결·의미 품질 인수는 미실행이며 선택형 검증으로 분리합니다.
-- Convergence T031–T033에서 추가 wire root key 거부, 오류 원문 비노출, 잠금 후 소유자·관계·상태·snapshot 재검증을 완료했습니다. 재수렴 점검의 관련 테스트는 100 passed이며 신규 작업은 없습니다.
-- 구현 완료 시 표준 verify는 444 passed, 1 skipped, 7 deselected 및 Django check·Ruff format/lint 통과로 기록했습니다. 상세 근거는 [Day 10 검증 기록](../specs/015-reflection-draft-generation/quickstart.md)을 참조합니다.
-- 이전 Interview Gemini live smoke는 first·analysis·next, 저정보 답변, HTTP·테스트 DB 저장/재요청을 확인했습니다. 이 결과를 Reflection 실제 품질 검증으로 간주하지 않습니다. Ollama GPU runner 오류의 후속 대응은 보류 상태입니다.
+- Day 11 질문 건너뛰기(Skip), 친화적 안내, Reflection 생성 Transition(IMP-092, IMP-095, IMP-096)을 구현 완료했습니다.
+- Day 12 Reflection 에세이 결과 화면(`GET /reflections/{id}/`), 안전한 Markdown 렌더링, DRAFT 수정 화면(`GET/POST /reflections/{id}/edit/`), Form 유효성 검증, Reflection/Interview 원자적 완료 처리(`POST /reflections/{id}/complete/`) 및 `Reflection.Status.COMPLETED` 무중단 마이그레이션(`0010`)을 구현했습니다. (IMP-093, IMP-094)
+- Home 화면에서 사용자의 가장 최근 활동(`updated_at DESC, id DESC`) 기준 `최근 독서노트` 재진입 카드와 고정 query count(N+1 방지)를 연동했습니다. (IMP-094, IMP-097)
+- Day 13 검증용 3권 대표 도서(소설 1권 READY, 비문학 1권 READY, 문학 1권 READY_LIMITED)를 멱등하고 원자적으로 준비하는 서비스와 `prepare_validation_books` 비운영 management command를 구현했습니다. (IMP-100, IMP-098)
+- 표준 전체 품질 게이트(`scripts/verify.py`)는 Django check OK, Ruff format OK, Ruff lint OK, pytest 538 passed(0 failures)로 통과했습니다. 상세 근거는 [Day 12 검증 기록](../specs/017-reflection-result-edit-home/quickstart.md)을 참조합니다.
 - 설정·실행·오류 진단은 [README](../README.md), 기능별 완료 상태와 다음 범위는 [구현 계획](AfterMuse_MVP_Implementation_Plan_v5.md)을 참조합니다.
 
 ## 문서 우선순위
@@ -30,4 +30,4 @@
 - Day 09의 최소 Home Navigation Hub와 Interview 재진입(IMP-085~IMP-086)이 구현되었습니다. 실제 사용자 기록의 상태별 카드와 영역별 빈 상태, 기존 Interview의 현재 단계 및 이전 확정 질문·답변 표시를 검증했습니다.
 - Day는 엄격한 마감일이 아니라 매일 무엇을 구현할지 보기 쉽게 하는 작업 묶음입니다.
 
-- Day 10 Reflection 기반(IMP-090·091)과 Convergence 검증을 완료했습니다. Day 11 생성 Transition과 Day 12 결과·수정 화면은 미구현이며 실제 Provider 품질 인수는 별도입니다.
+- Day 10 Reflection 기반(IMP-090·091) 및 Day 11 생성 Transition(IMP-092·095·096), Day 12 Reflection 결과·수정·완료와 Home 재진입(IMP-093·094) 및 검증용 도서 준비(IMP-100)를 완료했습니다. 다음 범위는 Day 13 전체 Core Loop E2E 검증 및 핵심 품질 1차 조정(IMP-101~IMP-104)입니다.

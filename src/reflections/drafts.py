@@ -6,7 +6,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+import markdown
 from django.db import DatabaseError, IntegrityError, transaction
+from django.utils import timezone
+from django.utils.safestring import SafeString, mark_safe
 
 from integrations.llm.contracts import (
     ReflectionGenerationContext,
@@ -267,7 +270,7 @@ def validate_paragraph_text(text: Any) -> str:
 
 
 def validate_revised_markdown(markdown: str | None) -> str | None:
-    """사용자 수정본 Markdown의 길이, 비공백 및 금지 형식을 검증한다."""
+    """사용자 수정본 Markdown의 길이와 비공백 및 유효한 타입을 검증한다."""
     if markdown is None:
         return None
     if not isinstance(markdown, str) or isinstance(markdown, bool):
@@ -286,9 +289,6 @@ def validate_revised_markdown(markdown: str | None) -> str | None:
             f"{_MAX_REVISED_MARKDOWN_LENGTH} characters",
             reason_code="revised_markdown_too_long",
         )
-    check_no_links_or_images(markdown)
-    check_no_raw_html(markdown)
-    check_prohibited_instruction_patterns(markdown)
     return markdown
 
 
@@ -854,4 +854,93 @@ def save_reflection_revision(
         except DatabaseError as exc:
             raise ReflectionPersistenceError(
                 "Failed to persist reflection revision"
+            ) from exc
+
+
+def get_current_markdown(reflection: Reflection) -> str:
+    """revised_markdown이 있으면 이를, 없으면 draft_markdown을 반환한다."""
+    return (
+        reflection.revised_markdown
+        if reflection.revised_markdown is not None
+        else reflection.draft_markdown
+    )
+
+
+def render_markdown_safely(markdown_text: str) -> SafeString:
+    """사용자 입력 raw HTML을 무력화한 후 기본 Markdown 시맨틱 구조로 변환한다."""
+    # 1. HTML 태그 실행 방지: 모든 '<'를 '&lt;'로 치환하여 브라우저의 raw HTML 실행 차단
+    sanitized = markdown_text.replace("<", "&lt;")
+
+    # 2. javascript: / vbscript: / data: URI 스킴 무력화
+    sanitized = re.sub(
+        r"\]\(\s*(javascript|vbscript|data):",
+        r"](unsafe:\1:",
+        sanitized,
+        flags=re.IGNORECASE,
+    )
+
+    # 3. Python-Markdown 변환
+    html_output = markdown.markdown(
+        sanitized,
+        extensions=["extra", "sane_lists"],
+    )
+    return mark_safe(html_output)
+
+
+def complete_reflection(*, user: Any, reflection: Reflection) -> Reflection:
+    """단일 트랜잭션에서 Reflection과 Interview를 원자적으로 COMPLETED로 전환한다."""
+    scoped_reflection = (
+        Reflection.objects.filter(pk=reflection.pk, interview__reading__user=user)
+        .select_related("interview")
+        .first()
+    )
+    if scoped_reflection is None:
+        raise ReflectionPolicyError(
+            "Reflection does not exist or does not belong to the user",
+            reason_code="reflection_not_found_or_forbidden",
+        )
+
+    # 이미 완료된 경우 멱등하게 반환 (completed_at 불변 보존)
+    if scoped_reflection.status == Reflection.Status.COMPLETED:
+        return scoped_reflection
+
+    with transaction.atomic():
+        locked_ref = (
+            Reflection.objects.select_for_update()
+            .filter(pk=scoped_reflection.pk, interview__reading__user=user)
+            .select_related("interview")
+            .first()
+        )
+        if locked_ref is None:
+            raise ReflectionPolicyError(
+                "Reflection does not exist or does not belong to the user",
+                reason_code="reflection_not_found_or_forbidden",
+            )
+        if locked_ref.status == Reflection.Status.COMPLETED:
+            return locked_ref
+
+        locked_interview = (
+            Interview.objects.select_for_update()
+            .filter(pk=locked_ref.interview_id)
+            .first()
+        )
+        if locked_interview is None:
+            raise ReflectionPolicyError(
+                "Interview does not exist",
+                reason_code="interview_not_found",
+            )
+
+        now = timezone.now()
+        locked_ref.status = Reflection.Status.COMPLETED
+        locked_ref.completed_at = now
+
+        locked_interview.status = Interview.Status.COMPLETED
+
+        try:
+            locked_ref.save(update_fields=["status", "completed_at", "updated_at"])
+            locked_interview.save(update_fields=["status", "updated_at"])
+            return locked_ref
+        except DatabaseError as exc:
+            raise ReflectionPersistenceError(
+                "Failed to complete reflection and interview"
             ) from exc

@@ -1,7 +1,10 @@
+import json
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
+from typing import Any
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -10,6 +13,13 @@ from books.models import Book
 from knowledge.models import BookKnowledge, KnowledgeKind
 
 ISBN13_PATTERN = re.compile(r"[0-9]{13}\Z")
+
+VALIDATION_BOOKS_PATH = (
+    Path(__file__).resolve().parent / "seed_data" / "validation_books.json"
+)
+BOOK_KNOWLEDGE_SEED_PATH = (
+    Path(__file__).resolve().parent / "seed_data" / "book_knowledge.json"
+)
 
 
 class BookKnowledgeReadiness(StrEnum):
@@ -33,6 +43,16 @@ class BookKnowledgeSeedResult:
 
     created: int
     reused: int
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationBooksPreparationResult:
+    """검증 도서 세트 준비 결과 (생성/재사용 Book 수 및 Claim 수)."""
+
+    books_created: int
+    books_reused: int
+    claims_created: int
+    claims_reused: int
 
 
 def create_book_knowledge(
@@ -156,3 +176,188 @@ def _normalize_seed_entries(
             )
         )
     return normalized_entries
+
+
+def _validate_single_validation_descriptor(idx: int, desc: Any) -> None:
+    if not isinstance(desc, dict):
+        raise ValidationError(f"{idx}번 descriptor 형식이 올바르지 않습니다.")
+    isbn13 = desc.get("isbn13")
+    if not isinstance(isbn13, str) or not ISBN13_PATTERN.fullmatch(isbn13):
+        raise ValidationError(
+            f"{idx}번 descriptor의 ISBN13이 올바르지 않습니다: {isbn13}"
+        )
+    title = desc.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise ValidationError(f"{idx}번 descriptor의 title이 올바르지 않습니다.")
+    authors = desc.get("authors")
+    if not isinstance(authors, str) or not authors.strip():
+        raise ValidationError(f"{idx}번 descriptor의 authors가 올바르지 않습니다.")
+    genre = desc.get("genre")
+    if genre not in ("fiction", "nonfiction"):
+        raise ValidationError(
+            f"{idx}번 descriptor의 genre가 올바르지 않습니다: {genre}"
+        )
+    readiness = desc.get("expected_readiness")
+    if readiness not in ("READY", "READY_LIMITED"):
+        raise ValidationError(
+            f"{idx}번 descriptor의 expected_readiness가 올바르지 않습니다: {readiness}"
+        )
+
+
+def _load_and_validate_validation_descriptors(path: Path) -> list[dict[str, Any]]:
+    try:
+        with open(path, encoding="utf-8") as f:
+            descriptors = json.load(f)
+    except (OSError, json.JSONDecodeError) as err:
+        raise ValidationError(
+            f"검증 도서 descriptor JSON을 읽을 수 없습니다: {err}"
+        ) from err
+
+    if not isinstance(descriptors, list) or len(descriptors) != 3:
+        raise ValidationError("검증 도서 descriptor는 정확히 3개의 항목이어야 합니다.")
+
+    for idx, desc in enumerate(descriptors):
+        _validate_single_validation_descriptor(idx, desc)
+
+    isbns = [desc["isbn13"] for desc in descriptors]
+    if len(set(isbns)) != 3:
+        raise ValidationError("검증 도서 descriptor의 ISBN13은 서로 달라야 합니다.")
+
+    ready_fiction = sum(
+        1
+        for d in descriptors
+        if d.get("expected_readiness") == "READY" and d.get("genre") == "fiction"
+    )
+    ready_nonfiction = sum(
+        1
+        for d in descriptors
+        if d.get("expected_readiness") == "READY" and d.get("genre") == "nonfiction"
+    )
+    ready_limited_fiction = sum(
+        1
+        for d in descriptors
+        if d.get("expected_readiness") == "READY_LIMITED"
+        and d.get("genre") == "fiction"
+    )
+
+    if ready_fiction != 1 or ready_nonfiction != 1 or ready_limited_fiction != 1:
+        raise ValidationError(
+            "검증 도서 세트는 정확히 READY 소설 1권, READY 비문학 1권, "
+            "READY_LIMITED 소설 1권이어야 합니다."
+        )
+
+    return descriptors
+
+
+def _validate_seed_claims_for_validation_books(
+    descriptors: list[dict[str, Any]],
+    seed_claims: Any,
+) -> list[tuple[str, str, str]]:
+    """검증 도서 세트용 승인 Seed Claim 목록을 DB 쓰기 전에 검증한다."""
+    normalized_entries = _normalize_seed_entries(seed_claims)
+    if len(normalized_entries) != 8:
+        raise ValidationError(
+            f"승인 Seed Claim은 정확히 8개여야 합니다 "
+            f"(현재 {len(normalized_entries)}개)."
+        )
+
+    ready_isbns = {
+        desc["isbn13"]
+        for desc in descriptors
+        if desc.get("expected_readiness") == BookKnowledgeReadiness.READY.value
+    }
+    claim_isbns = {entry[0] for entry in normalized_entries}
+
+    unknown_isbns = claim_isbns - ready_isbns
+    if unknown_isbns:
+        formatted = sorted(unknown_isbns)
+        raise ValidationError(
+            f"승인 Seed Claim에 READY 도서가 아닌 ISBN이 포함되어 있습니다: {formatted}"
+        )
+
+    missing_isbns = ready_isbns - claim_isbns
+    if missing_isbns:
+        formatted = sorted(missing_isbns)
+        raise ValidationError(
+            f"승인 Seed Claim에 일부 READY 도서의 Claim이 누락되었습니다: {formatted}"
+        )
+
+    return normalized_entries
+
+
+def prepare_validation_books(
+    descriptor_path: Path | None = None,
+    seed_path: Path | None = None,
+) -> ValidationBooksPreparationResult:
+    """검증 도서 3권과 승인 Claim을 원자적으로 준비한다."""
+    desc_file = descriptor_path or VALIDATION_BOOKS_PATH
+    claims_file = seed_path or BOOK_KNOWLEDGE_SEED_PATH
+
+    descriptors = _load_and_validate_validation_descriptors(desc_file)
+
+    try:
+        with open(claims_file, encoding="utf-8") as f:
+            raw_seed_claims = json.load(f)
+    except (OSError, json.JSONDecodeError) as err:
+        raise ValidationError(
+            f"승인 Seed Claim JSON을 읽을 수 없습니다: {err}"
+        ) from err
+
+    normalized_claims = _validate_seed_claims_for_validation_books(
+        descriptors, raw_seed_claims
+    )
+
+    books_created = 0
+    books_reused = 0
+    claims_created = 0
+    claims_reused = 0
+
+    with transaction.atomic():
+        # 1. LIMITED 대상 도서에 기존 Claim이 있는지 검사 (있으면 rollback 및 거부)
+        for desc in descriptors:
+            if desc["expected_readiness"] == BookKnowledgeReadiness.READY_LIMITED.value:
+                existing_book = Book.objects.filter(isbn13=desc["isbn13"]).first()
+                if (
+                    existing_book is not None
+                    and BookKnowledge.objects.filter(book=existing_book).exists()
+                ):
+                    raise ValidationError(
+                        f"READY_LIMITED 대상 도서({existing_book.title})에 "
+                        "이미 Knowledge Claim이 존재합니다."
+                    )
+
+        # 2. 3권 Book get_or_create (기존 서지정보 보존)
+        books_map: dict[str, Book] = {}
+        for desc in descriptors:
+            book, created = Book.objects.get_or_create(
+                isbn13=desc["isbn13"],
+                defaults={
+                    "title": desc["title"],
+                    "authors": desc["authors"],
+                },
+            )
+            books_map[desc["isbn13"]] = book
+            if created:
+                books_created += 1
+            else:
+                books_reused += 1
+
+        # 3. READY 대상 도서에 승인 Claim 적용
+        for isbn13, kind, content in normalized_claims:
+            book = books_map[isbn13]
+            claim_res = create_book_knowledge(
+                book=book,
+                kind=kind,
+                content=content,
+            )
+            if claim_res.created:
+                claims_created += 1
+            else:
+                claims_reused += 1
+
+    return ValidationBooksPreparationResult(
+        books_created=books_created,
+        books_reused=books_reused,
+        claims_created=claims_created,
+        claims_reused=claims_reused,
+    )

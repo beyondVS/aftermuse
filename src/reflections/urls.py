@@ -60,4 +60,14 @@ urlpatterns = [
         views.reflection_detail,
         name="reflection_detail",
     ),
+    path(
+        "<int:reflection_id>/edit/",
+        views.reflection_edit,
+        name="reflection_edit",
+    ),
+    path(
+        "<int:reflection_id>/complete/",
+        views.reflection_complete_confirm,
+        name="reflection_complete_confirm",
+    ),
 ]

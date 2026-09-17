@@ -329,7 +329,9 @@ def test_reflection_draft_sections_json_array_shape(interview) -> None:
         ).full_clean()
 
 
-def test_reflection_draft_only_and_completed_at_none(interview) -> None:
+def test_reflection_status_and_completed_at_invariants(interview) -> None:
+    from django.utils import timezone
+
     valid_sections = [
         {
             "title": "제목",
@@ -339,24 +341,65 @@ def test_reflection_draft_only_and_completed_at_none(interview) -> None:
         }
     ]
 
-    # status != DRAFT 거부
+    now = timezone.now()
+
+    # 1. Reflection.Status.COMPLETED 존재 확인
+    assert Reflection.Status.COMPLETED == "COMPLETED"
+
+    # 2. DRAFT + completed_at=None 정상
+    ref_draft = Reflection(
+        interview=interview,
+        draft_markdown="초안 본문입니다.",
+        draft_sections=valid_sections,
+        status=Reflection.Status.DRAFT,
+        completed_at=None,
+    )
+    ref_draft.full_clean()
+
+    # 3. DRAFT + completed_at 설정 시 ValidationError 및 IntegrityError
+    ref_draft_invalid = Reflection(
+        interview=interview,
+        draft_markdown="초안 본문입니다.",
+        draft_sections=valid_sections,
+        status=Reflection.Status.DRAFT,
+        completed_at=now,
+    )
+    with pytest.raises(ValidationError):
+        ref_draft_invalid.full_clean()
+    with pytest.raises(IntegrityError), transaction.atomic():
+        super(Reflection, ref_draft_invalid).save()
+
+    # 4. COMPLETED + completed_at 설정 정상
+    ref_completed = Reflection(
+        interview=interview,
+        draft_markdown="초안 본문입니다.",
+        draft_sections=valid_sections,
+        status=Reflection.Status.COMPLETED,
+        completed_at=now,
+    )
+    ref_completed.full_clean()
+
+    # 5. COMPLETED + completed_at=None 시 ValidationError 및 IntegrityError
+    ref_completed_invalid = Reflection(
+        interview=interview,
+        draft_markdown="초안 본문입니다.",
+        draft_sections=valid_sections,
+        status=Reflection.Status.COMPLETED,
+        completed_at=None,
+    )
+    with pytest.raises(ValidationError):
+        ref_completed_invalid.full_clean()
+    with pytest.raises(IntegrityError), transaction.atomic():
+        super(Reflection, ref_completed_invalid).save()
+
+    # 6. 허용되지 않은 status 거부
     with pytest.raises(ValidationError):
         Reflection(
             interview=interview,
             draft_markdown="초안 본문입니다.",
             draft_sections=valid_sections,
-            status="COMPLETED",
-        ).full_clean()
-
-    # completed_at != None 거부
-    from django.utils import timezone
-
-    with pytest.raises(ValidationError):
-        Reflection(
-            interview=interview,
-            draft_markdown="초안 본문입니다.",
-            draft_sections=valid_sections,
-            completed_at=timezone.now(),
+            status="INVALID",
+            completed_at=None,
         ).full_clean()
 
 

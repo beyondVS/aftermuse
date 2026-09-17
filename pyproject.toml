@@ -9,6 +9,7 @@ dependencies = [
     "django-environ~=0.14.0",
     "google-genai~=2.23.0",
     "httpx~=0.28.1",
+    "Markdown~=3.10.3",
     "openai~=3.10.0",
     "psycopg[binary]~=3.3.4",
 ]

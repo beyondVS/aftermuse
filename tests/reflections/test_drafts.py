@@ -454,73 +454,77 @@ def test_adversarial_input_does_not_mutate_instructions_or_policy(
     assert ready_interview.status == Interview.Status.REFLECTION_READY
 
 
-def test_save_reflection_revision_markdown_allowed_and_rejected_patterns(
+def test_save_reflection_revision_markdown_allows_links_html_and_instruction_words(
     reflection_user, ready_interview, prepared_draft_result
 ) -> None:
-    """수정본은 일반 마크다운 서식을 허용하고 링크, HTML, 지시 패턴을 거부한다."""
+    """사용자 수정본은 링크, HTML 태그, 일반 어휘를 허용하고 필수 불변식만 거부한다."""
+    from reflections.drafts import render_markdown_safely
+
     reflection = save_reflection_draft(
         user=reflection_user, interview=ready_interview, result=prepared_draft_result
     )
 
-    # 1. 허용되는 일반 마크다운 서식 (제목, 목록, 인용문, 코드, 강조)
-    valid_markdown = (
-        "## 내 독서노트 생각\n\n"
-        "이 책을 읽고 다음과 같은 점을 느꼈다:\n"
-        "- 첫 번째 생각: 삶의 본질에 대한 고민\n"
-        "- 두 번째 생각: 주인공의 태도\n\n"
-        "> 가장 인상 깊었던 대목을 인용하며\n\n"
-        "코드 표기 `term`과 **강조 텍스트**가 포함되어 있다."
+    # 1. LLM 생성에서는 금지되지만 사용자 수정본에서는 허용되는 패턴들
+    # 1-1. 일반 어휘 (데이터베이스, 웹 검색, 시스템 상태 등)
+    text_with_general_words = (
+        "## 데이터베이스 및 시스템 상태 분석\n\n"
+        "이 책을 통해 데이터베이스 구조와 웹 검색 최적화, "
+        "그리고 관리자 권한 및 상태를 변경하는 원리를 학습했다. "
+        "크레딧 정책과 이전 지시를 무시하지 않는 태도가 인상적이었다."
     )
-    revised = save_reflection_revision(
-        user=reflection_user, reflection=reflection, markdown=valid_markdown
+    revised1 = save_reflection_revision(
+        user=reflection_user, reflection=reflection, markdown=text_with_general_words
     )
-    assert revised.revised_markdown == valid_markdown
+    assert revised1.revised_markdown == text_with_general_words
 
-    # 2. 거부되는 패턴들
-    # 2-1. Raw HTML
-    with pytest.raises(ReflectionValidationError) as exc:
+    # 1-2. Markdown 링크, Autolink, 이미지
+    text_with_links_and_images = (
+        "## 참고 자료 목록\n\n"
+        "- [공식 문서](https://example.com/docs)\n"
+        "- 자동 링크: <https://example.com/auto>\n"
+        "- 표지 이미지: ![도서 표지](https://example.com/cover.png)\n"
+    )
+    revised2 = save_reflection_revision(
+        user=reflection_user, reflection=reflection, markdown=text_with_links_and_images
+    )
+    assert revised2.revised_markdown == text_with_links_and_images
+
+    # 1-3. Raw HTML 문자열 저장 허용 및 렌더링 경계에서의 안전한 무력화
+    text_with_raw_html = (
+        "## 위험 구문 테스트\n\n<script>alert('xss')</script>\n<p>본문 내용</p>"
+    )
+    revised3 = save_reflection_revision(
+        user=reflection_user, reflection=reflection, markdown=text_with_raw_html
+    )
+    assert revised3.revised_markdown == text_with_raw_html
+    # 렌더링 시 브라우저에서 스크립트가 실행되지 않도록 이스케이프 확인
+    rendered = render_markdown_safely(revised3.revised_markdown)
+    assert "<script>" not in rendered
+    assert "&lt;script&gt;alert('xss')&lt;/script&gt;" in rendered
+
+    # 2. 사용자 수정본에서도 여전히 거부되어야 하는 필수 불변식 (공백, 길이, 타입)
+    # 2-1. 공백만 있는 경우
+    with pytest.raises(ReflectionValidationError) as exc_empty:
+        save_reflection_revision(
+            user=reflection_user, reflection=reflection, markdown="   \n\t  "
+        )
+    assert exc_empty.value.reason_code == "empty_revised_markdown"
+
+    # 2-2. 20,000자 초과
+    with pytest.raises(ReflectionValidationError) as exc_overflow:
+        save_reflection_revision(
+            user=reflection_user, reflection=reflection, markdown="가" * 20001
+        )
+    assert exc_overflow.value.reason_code == "revised_markdown_too_long"
+
+    # 2-3. 잘못된 타입 (문자열 또는 None 아님)
+    with pytest.raises(ReflectionValidationError) as exc_type:
         save_reflection_revision(
             user=reflection_user,
             reflection=reflection,
-            markdown="<script>alert(1)</script>",
+            markdown=12345,  # type: ignore[arg-type]
         )
-    assert exc.value.reason_code == "prohibited_raw_html"
-
-    # 2-2. Markdown 링크
-    with pytest.raises(ReflectionValidationError) as exc:
-        save_reflection_revision(
-            user=reflection_user,
-            reflection=reflection,
-            markdown="[외부 링크](https://example.com)",
-        )
-    assert exc.value.reason_code == "prohibited_link"
-
-    # 2-3. Autolink
-    with pytest.raises(ReflectionValidationError) as exc:
-        save_reflection_revision(
-            user=reflection_user,
-            reflection=reflection,
-            markdown="참고 사이트: <https://example.com>",
-        )
-    assert exc.value.reason_code == "prohibited_link"
-
-    # 2-4. Markdown 이미지
-    with pytest.raises(ReflectionValidationError) as exc:
-        save_reflection_revision(
-            user=reflection_user,
-            reflection=reflection,
-            markdown="![표지 이미지](https://example.com/cover.png)",
-        )
-    assert exc.value.reason_code == "prohibited_image"
-
-    # 2-5. 정규화 지시 패턴 (전각 공백/여러 공백/tab 변형)
-    with pytest.raises(ReflectionValidationError) as exc:
-        save_reflection_revision(
-            user=reflection_user,
-            reflection=reflection,
-            markdown="여기에 이전   지시를\t무시 라는 문구가 있음",
-        )
-    assert exc.value.reason_code == "prohibited_instruction_pattern"
+    assert exc_type.value.reason_code == "invalid_revised_markdown_type"
 
 
 def test_validation_errors_do_not_leak_quote_or_keys_secrets(
@@ -868,3 +872,139 @@ def test_generate_or_get_reflection_draft_creates_single_reflection_on_success(
     assert res2.created is False
     assert res2.reflection.pk == res1.reflection.pk
     assert Reflection.objects.filter(interview=ready_interview).count() == 1
+
+
+def test_render_markdown_safely_preserves_structure_and_neutralizes_raw_html() -> None:
+    from reflections.drafts import render_markdown_safely
+
+    md_input = (
+        "# 큰 제목\n\n"
+        "## 중간 제목\n\n"
+        "이것은 **굵은 글씨**와 *기울임*이 포함된 문단입니다.\n\n"
+        "> 이것은 인용문입니다.\n\n"
+        "- 첫 번째 항목\n"
+        "- 두 번째 항목\n\n"
+        "<script>alert('xss')</script>\n"
+        '<img src="x" onerror="alert(1)">\n'
+        '<iframe src="https://evil.com"></iframe>\n'
+    )
+    rendered = render_markdown_safely(md_input)
+
+    # 1. Markdown 구조 보존 확인
+    assert "<h1>큰 제목</h1>" in rendered
+    assert "<h2>중간 제목</h2>" in rendered
+    assert "<strong>굵은 글씨</strong>" in rendered
+    assert "<em>기울임</em>" in rendered
+    assert "<blockquote>" in rendered
+    assert "<ul>" in rendered
+    assert "<li>첫 번째 항목</li>" in rendered
+    assert "<li>두 번째 항목</li>" in rendered
+
+    # 2. 사용자 작성 raw HTML 비실행 보안 불변식 확인
+    assert "<script>" not in rendered
+    assert "&lt;script&gt;" in rendered
+    assert "<img" not in rendered
+    assert "&lt;img" in rendered
+    assert "<iframe" not in rendered
+    assert "&lt;iframe" in rendered
+
+
+def test_get_current_markdown_prefers_revised_markdown(
+    reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    from reflections.drafts import get_current_markdown
+
+    reflection = Reflection.objects.create(
+        interview=ready_interview,
+        draft_markdown="최초 AI 초안 본문입니다.",
+        draft_sections=list(prepared_draft_result.sections),
+        revised_markdown=None,
+        status=Reflection.Status.DRAFT,
+    )
+
+    # revised_markdown이 없을 때는 draft_markdown 반환
+    assert get_current_markdown(reflection) == "최초 AI 초안 본문입니다."
+    assert reflection.current_markdown == "최초 AI 초안 본문입니다."
+
+    # revised_markdown이 있을 때는 revised_markdown 반환
+    reflection.revised_markdown = "사용자 직접 수정 본문입니다."
+    assert get_current_markdown(reflection) == "사용자 직접 수정 본문입니다."
+    assert reflection.current_markdown == "사용자 직접 수정 본문입니다."
+
+
+def test_complete_reflection_atomically_transitions_reflection_and_interview(
+    reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    from reflections.drafts import complete_reflection
+
+    reflection = Reflection.objects.create(
+        interview=ready_interview,
+        draft_markdown="최초 AI 초안 본문입니다.",
+        draft_sections=list(prepared_draft_result.sections),
+        status=Reflection.Status.DRAFT,
+    )
+    assert ready_interview.status == Interview.Status.REFLECTION_READY
+
+    completed_ref = complete_reflection(user=reflection_user, reflection=reflection)
+
+    assert completed_ref.status == Reflection.Status.COMPLETED
+    assert completed_ref.completed_at is not None
+
+    ready_interview.refresh_from_db()
+    assert ready_interview.status == Interview.Status.COMPLETED
+
+
+def test_complete_reflection_is_idempotent(
+    reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    from reflections.drafts import complete_reflection
+
+    reflection = Reflection.objects.create(
+        interview=ready_interview,
+        draft_markdown="최초 AI 초안 본문입니다.",
+        draft_sections=list(prepared_draft_result.sections),
+        status=Reflection.Status.DRAFT,
+    )
+    first_res = complete_reflection(user=reflection_user, reflection=reflection)
+    first_completed_at = first_res.completed_at
+
+    # 중복 호출 시 동일 결과 수렴 및 completed_at 불변
+    second_res = complete_reflection(user=reflection_user, reflection=reflection)
+    assert second_res.status == Reflection.Status.COMPLETED
+    assert second_res.completed_at == first_completed_at
+
+
+def test_complete_reflection_enforces_owner_scope(
+    other_reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    from reflections.drafts import complete_reflection
+
+    reflection = Reflection.objects.create(
+        interview=ready_interview,
+        draft_markdown="초안 본문입니다.",
+        draft_sections=list(prepared_draft_result.sections),
+        status=Reflection.Status.DRAFT,
+    )
+    with pytest.raises(ReflectionPolicyError):
+        complete_reflection(user=other_reflection_user, reflection=reflection)
+
+
+def test_save_reflection_revision_rejects_completed_reflection(
+    reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    from reflections.drafts import complete_reflection
+
+    reflection = Reflection.objects.create(
+        interview=ready_interview,
+        draft_markdown="초안 본문입니다.",
+        draft_sections=list(prepared_draft_result.sections),
+        status=Reflection.Status.DRAFT,
+    )
+    complete_reflection(user=reflection_user, reflection=reflection)
+
+    with pytest.raises(ReflectionPolicyError):
+        save_reflection_revision(
+            user=reflection_user,
+            reflection=reflection,
+            markdown="완료 후 수정 시도",
+        )
