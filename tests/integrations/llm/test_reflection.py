@@ -389,9 +389,9 @@ def test_revised_markdown_allows_links_images_html_and_general_words() -> None:
     assert validate_revised_markdown(word_md) == word_md
 
 
-def test_ready_limited_and_skip_rejects_unsupported_facts_and_allows_feeling() -> None:
-    """READY_LIMITED와 skip 누적 context에서 미확인 책 사실 전제를 거부하고
-    감정/기억 중심 질문을 허용한다."""
+def test_ready_limited_allows_open_recall_and_rejects_unconfirmed_grounding() -> None:
+    """READY_LIMITED 프롬프트 정책을 확인하고 열린 회상 질문을 허용하며
+    미확인 grounding quote를 거부한다."""
     from datetime import date
 
     from integrations.llm.contracts import (
