@@ -9,7 +9,17 @@
 
 ### Fixed
 
+- 후속 질문의 단순 어휘 n-gram 겹침 검사(`_question_uses_grounding`)를 제거하여 자연스러운 조사·어미 변화 및 의역 질문을 허용하고, 답변 원문 exact substring 불변식(`quote in source`) 보장
+- Interview 및 Reflection 파이프라인의 문자열 금지 패턴 블랙리스트(`_QUESTION_PROHIBITED_PATTERNS`, `_ANALYSIS_PROHIBITED_PATTERNS`, `check_prohibited_instruction_patterns`)를 제거하여 정상 기술 어휘('데이터베이스', '웹 검색' 등)가 포함된 질문·분석·초안 생성이 기계적으로 거부되던 문제를 해결하고 사용자 입력의 데이터 격리 원칙 확립
+- READY_LIMITED 상태에서 '인물', '사건', '결말' 등의 일반 어휘 포함 시 거부하던 기계적 큐 검증(`_BOOK_FACT_CUES`)을 제거하고, 확인되지 않은 사실을 전제하지 않는 열린 회상 프롬프트 정책 유지
+- 오래된 테스트 이름을 현재 동작 계약에 맞게 정리하고, Mechanical Proxy 완화에 대한 고유 가치 핵심 회귀 테스트 4종(`tests/reflections/test_mechanical_proxy_relaxation.py`)으로 테스트 중복 축소
 - Reflection wire 최상위 추가 키 거부, 검증 오류의 인용·외부값 비노출 및 저장 잠금 후 현재 소유자·관계·상태·답변 snapshot 재검증
+
+### Removed
+
+- Day 11 Reflection 생성 임시 화면 템플릿(`src/templates/reflections/reflection_draft_ready.html`) 및 `src/static/css/app.css`의 관련 미사용 CSS 규칙(`.reflection-draft-ready-page`, `.draft-ready-note`, `.draft-ready-card`, `.draft-ready-desc`) 제거
+
+### Changed
 
 - Interview 503 화면에 안전한 실패 사유와 오류 코드·질문 번호를 표시하고 답변 분석 Coverage 검증 위반을 조건별 로그 코드로 구별
 - Gemini가 저정보 답변의 미완료 Coverage에서 질문 생략을 제안해 503이 발생하던 경로를 요청별 schema·prompt 제약으로 차단하고, 불필요한 AFC를 비활성화하며 실제 HTTP·저정보 live 검증을 추가
