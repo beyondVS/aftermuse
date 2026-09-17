@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 import pytest
 from django.core.exceptions import ValidationError
 from django.core.management import CommandError, call_command
@@ -167,3 +170,133 @@ def test_prepare_validation_books_management_command(capsys) -> None:
     )
     assert Book.objects.count() == 3
     assert BookKnowledge.objects.count() == 8
+
+
+@pytest.mark.django_db
+def test_prepare_validation_books_fails_on_duplicate_isbn_in_descriptor(
+    tmp_path: Path,
+) -> None:
+    """검증 도서 descriptor에 중복 ISBN13이 있으면 DB 쓰기 전에 실패하고
+
+    부분 변경이 남지 않는다.
+    """
+    dup_descriptors = [
+        {
+            "isbn13": "9780452284234",
+            "title": "1984 Fiction",
+            "authors": "George Orwell",
+            "genre": "fiction",
+            "expected_readiness": "READY",
+        },
+        {
+            "isbn13": "9780452284234",  # 중복 ISBN
+            "title": "1984 Nonfiction",
+            "authors": "George Orwell",
+            "genre": "nonfiction",
+            "expected_readiness": "READY",
+        },
+        {
+            "isbn13": "9780143111597",
+            "title": "The Left Hand of Darkness",
+            "authors": "Ursula K. Le Guin",
+            "genre": "fiction",
+            "expected_readiness": "READY_LIMITED",
+        },
+    ]
+    desc_file = tmp_path / "dup_validation_books.json"
+    desc_file.write_text(json.dumps(dup_descriptors), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="ISBN13은 서로 달라야 합니다"):
+        prepare_validation_books(descriptor_path=desc_file)
+
+    assert Book.objects.count() == 0
+    assert BookKnowledge.objects.count() == 0
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("claim_count", "match_text"),
+    [
+        (7, "정확히 8개"),
+        (9, "정확히 8개"),
+    ],
+)
+def test_prepare_validation_books_fails_on_missing_or_extra_claims(
+    tmp_path: Path, claim_count: int, match_text: str
+) -> None:
+    """승인 Seed Claim 수가 8개가 아니면(누락/추가) DB 쓰기 전에 실패하고
+
+    부분 변경이 남지 않는다.
+    """
+    base_claims = [
+        {
+            "book_isbn13": "9780452284234",
+            "kind": "theme",
+            "content": f"테마 클레임 {i}",
+        }
+        for i in range(claim_count)
+    ]
+    for i in range(claim_count // 2):
+        base_claims[i]["book_isbn13"] = "9780374275631"
+
+    claims_file = tmp_path / f"claims_{claim_count}.json"
+    claims_file.write_text(json.dumps(base_claims), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match=match_text):
+        prepare_validation_books(seed_path=claims_file)
+
+    assert Book.objects.count() == 0
+    assert BookKnowledge.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_prepare_validation_books_fails_on_invalid_claim_target(
+    tmp_path: Path,
+) -> None:
+    """승인 Seed Claim에 무관한 도서의 Claim이 포함되면 DB 쓰기 전에 실패한다."""
+    invalid_claims = [
+        {"book_isbn13": "9780452284234", "kind": "theme", "content": "1984 클레임 1"},
+        {"book_isbn13": "9780452284234", "kind": "theme", "content": "1984 클레임 2"},
+        {"book_isbn13": "9780452284234", "kind": "theme", "content": "1984 클레임 3"},
+        {"book_isbn13": "9780452284234", "kind": "theme", "content": "1984 클레임 4"},
+        {"book_isbn13": "9780374275631", "kind": "concept", "content": "생각 클레임 1"},
+        {"book_isbn13": "9780374275631", "kind": "concept", "content": "생각 클레임 2"},
+        {"book_isbn13": "9780374275631", "kind": "concept", "content": "생각 클레임 3"},
+        # 잘못된 대상: READY_LIMITED 도서(9780143111597)에 Claim 지정
+        {
+            "book_isbn13": "9780143111597",
+            "kind": "event",
+            "content": "어둠의 왼손 클레임",
+        },
+    ]
+    claims_file = tmp_path / "invalid_target_claims.json"
+    claims_file.write_text(json.dumps(invalid_claims), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="READY 도서가 아닌 ISBN"):
+        prepare_validation_books(seed_path=claims_file)
+
+    assert Book.objects.count() == 0
+    assert BookKnowledge.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_prepare_validation_books_fails_when_ready_book_has_no_claims(
+    tmp_path: Path,
+) -> None:
+    """총 8개 Claim이라도 특정 READY 도서에 매핑된 Claim이 누락되면 실패한다."""
+    unmapped_claims = [
+        {
+            "book_isbn13": "9780452284234",
+            "kind": "theme",
+            "content": f"1984 독점 클레임 {i}",
+        }
+        for i in range(8)
+    ]
+    claims_file = tmp_path / "unmapped_claims.json"
+    claims_file.write_text(json.dumps(unmapped_claims), encoding="utf-8")
+
+    with pytest.raises(ValidationError, match="READY 도서의 Claim이 누락"):
+        prepare_validation_books(seed_path=claims_file)
+
+    assert Book.objects.count() == 0
+    assert BookKnowledge.objects.count() == 0

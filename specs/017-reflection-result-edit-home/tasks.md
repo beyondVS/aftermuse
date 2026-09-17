@@ -214,3 +214,9 @@ Task: "T024 [P] [US4] 3권 descriptor 및 준비 커맨드 테스트" (tests/kno
 - `[Story]` 태그는 추적성을 위해 작업이 속한 사용자 스토리(`[US1]`~`[US4]`)를 명시한다.
 - 완료본의 재수정 또는 DRAFT 복귀, 전체 Library, 공유, Credit, Reader Insight 등은 이번 범위에 포함하지 않는다.
 - 각 체크박스는 코드 작성과 검증이 가능한 하나의 구체적 결과를 나타낸다.
+
+---
+
+## Phase 8: Convergence
+
+- [X] T033 검증 도서 descriptor의 ISBN13이 서로 달라 실제 Book이 정확히 3권 생성되는지와 READY 두 권에 기존 승인 Seed Claim 총 8개가 기대 ISBN별로 모두 매핑되는지를 DB 쓰기 전에 검증하고, 중복 ISBN·누락/추가/잘못된 대상 Claim 입력에서 전체 실행이 실패하며 부분 변경이 남지 않는 회귀 테스트를 추가한다 per FR-020, FR-021, SC-009, `contracts/validation-book-set.md` (partial): `src/knowledge/services.py`, `tests/knowledge/test_validation_books.py`

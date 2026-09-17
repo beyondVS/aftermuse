@@ -219,6 +219,10 @@ def _load_and_validate_validation_descriptors(path: Path) -> list[dict[str, Any]
     for idx, desc in enumerate(descriptors):
         _validate_single_validation_descriptor(idx, desc)
 
+    isbns = [desc["isbn13"] for desc in descriptors]
+    if len(set(isbns)) != 3:
+        raise ValidationError("검증 도서 descriptor의 ISBN13은 서로 달라야 합니다.")
+
     ready_fiction = sum(
         1
         for d in descriptors
@@ -245,6 +249,42 @@ def _load_and_validate_validation_descriptors(path: Path) -> list[dict[str, Any]
     return descriptors
 
 
+def _validate_seed_claims_for_validation_books(
+    descriptors: list[dict[str, Any]],
+    seed_claims: Any,
+) -> list[tuple[str, str, str]]:
+    """검증 도서 세트용 승인 Seed Claim 목록을 DB 쓰기 전에 검증한다."""
+    normalized_entries = _normalize_seed_entries(seed_claims)
+    if len(normalized_entries) != 8:
+        raise ValidationError(
+            f"승인 Seed Claim은 정확히 8개여야 합니다 "
+            f"(현재 {len(normalized_entries)}개)."
+        )
+
+    ready_isbns = {
+        desc["isbn13"]
+        for desc in descriptors
+        if desc.get("expected_readiness") == BookKnowledgeReadiness.READY.value
+    }
+    claim_isbns = {entry[0] for entry in normalized_entries}
+
+    unknown_isbns = claim_isbns - ready_isbns
+    if unknown_isbns:
+        formatted = sorted(unknown_isbns)
+        raise ValidationError(
+            f"승인 Seed Claim에 READY 도서가 아닌 ISBN이 포함되어 있습니다: {formatted}"
+        )
+
+    missing_isbns = ready_isbns - claim_isbns
+    if missing_isbns:
+        formatted = sorted(missing_isbns)
+        raise ValidationError(
+            f"승인 Seed Claim에 일부 READY 도서의 Claim이 누락되었습니다: {formatted}"
+        )
+
+    return normalized_entries
+
+
 def prepare_validation_books(
     descriptor_path: Path | None = None,
     seed_path: Path | None = None,
@@ -257,11 +297,15 @@ def prepare_validation_books(
 
     try:
         with open(claims_file, encoding="utf-8") as f:
-            seed_claims = json.load(f)
+            raw_seed_claims = json.load(f)
     except (OSError, json.JSONDecodeError) as err:
         raise ValidationError(
             f"승인 Seed Claim JSON을 읽을 수 없습니다: {err}"
         ) from err
+
+    normalized_claims = _validate_seed_claims_for_validation_books(
+        descriptors, raw_seed_claims
+    )
 
     books_created = 0
     books_reused = 0
@@ -299,24 +343,17 @@ def prepare_validation_books(
                 books_reused += 1
 
         # 3. READY 대상 도서에 승인 Claim 적용
-        ready_isbns = {
-            desc["isbn13"]
-            for desc in descriptors
-            if desc["expected_readiness"] == BookKnowledgeReadiness.READY.value
-        }
-        for claim_entry in seed_claims:
-            isbn13 = claim_entry.get("book_isbn13")
-            if isbn13 in ready_isbns:
-                book = books_map[isbn13]
-                claim_res = create_book_knowledge(
-                    book=book,
-                    kind=claim_entry["kind"],
-                    content=claim_entry["content"],
-                )
-                if claim_res.created:
-                    claims_created += 1
-                else:
-                    claims_reused += 1
+        for isbn13, kind, content in normalized_claims:
+            book = books_map[isbn13]
+            claim_res = create_book_knowledge(
+                book=book,
+                kind=kind,
+                content=content,
+            )
+            if claim_res.created:
+                claims_created += 1
+            else:
+                claims_reused += 1
 
     return ValidationBooksPreparationResult(
         books_created=books_created,
