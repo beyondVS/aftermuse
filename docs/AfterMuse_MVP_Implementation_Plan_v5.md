@@ -418,6 +418,23 @@ Interview 도중 질문을 건너뛸 수 있는 액션을 추가하고, 내부 �
     - Skip 후 다음 질문 생성 또는 Interview 종료 판단이 정상 진행된다.
   - **검증 (2026-09-16):** `InterviewTurn.user_skipped_at` nullable 컬럼 및 answer 배타 CHECK 제약(`0008`, `0009` migration), `skip_interview_turn` 2단계 원자성(선저장 + 외부호출 + 확정), budget 반영, all-skip 시 `ENDED_NO_REFLECTION` 종결 및 Reflection 생성 차단(409), `POST /turns/{seq}/skip/` endpoint, 질문별 건너뛰기 폼 및 HTMX fragment, 반응형/접근성 CSS를 모델/서비스/뷰/마이그레이션 테스트로 검증했다.
 
+- [x] **IMP-097 — Interview / Reflection LLM Validation Hardening**
+  - **선행 작업:** IMP-091, IMP-092, IMP-096
+  - 실제 Interview 테스트에서 발견된 ReflectionValidationError blocker를 해결하고, 과도한 Soft Validation을 완화하여 정상적인 사용자 입력과 자연스러운 LLM 출력을 시스템 장애로 취급하지 않도록 안정화한다.
+  - **수정 취지 및 범위:**
+    - 실제 Interview 테스트에서 발견된 `ReflectionValidationError@check_grounding_connection:301` blocker 수정.
+    - Reflection lexical grounding 과잉 검증(`check_grounding_connection`) 제거 및 정상적인 의역/요약 허용.
+    - paragraph별 evidence 필수 제약 완화 (evidence는 optional이며, 존재하는 경우 exact substring 검증 유지).
+    - 자연스러운 Interview 질문(공감 문장, 마침표 포함 복문)을 막는 punctuation validator 완화.
+    - recoverable LLM output validation 실패의 사용자 복구 정책 및 메시지 분류 개선.
+    - 1~3개 답변 + Skip / 짧은 답변 시나리오 회귀 검증.
+  - **완료 조건:**
+    - 정상적인 의역 때문에 Reflection 생성이 거부되지 않는다.
+    - 존재하는 evidence quote는 실제 사용자 answer에 근거한다 (exact substring 불변식 유지).
+    - 자연스러운 복문 질문(공감 문장 + 질문)이 허용된다.
+    - 적은 답변과 Skip 조합에서도 Core Loop가 불필요한 503 없이 동작한다.
+    - 기존 소유권, sequence, answer 보존, 멱등성, 동시성 계약을 깨뜨리지 않는다.
+
 ### Day 12 — Reflection 결과/수정과 Home 재진입 및 검증 준비
 
 AI 결과물이 아닌 독서 에세이 형태의 Reflection 결과 화면과 직접 수정 UX를 구현하고, Home '최근 독서노트' 재진입을 완성하며, 2주 E2E 검증용 책 세트(Seed 및 READY_LIMITED)를 준비한다.

@@ -230,8 +230,8 @@ def test_validation_rejects_quote_copied_from_question_instead_of_answer() -> No
     assert exc.value.reason_code == "quote_not_in_answer"
 
 
-def test_validation_lexical_token_connection_and_short_answer_fallback() -> None:
-    """2자 이상 토큰 어휘 연결 및 1자 답변의 quote 전체 포함 fallback을 검증한다."""
+def test_validation_allows_natural_paraphrase_and_optional_evidence() -> None:
+    """lexical token 일치 없이도 의역을 허용하고, evidence 빈 배열을 허용한다."""
     turns = [
         ReflectionSourceTurn(sequence=1, question="추천하나요?", answer="네"),
         ReflectionSourceTurn(
@@ -239,60 +239,64 @@ def test_validation_lexical_token_connection_and_short_answer_fallback() -> None
         ),
     ]
 
-    # 1자 답변 '네'가 문단에 포함되면 성공
-    valid_short = [
+    # 1. 자연스러운 의역 (문단 본문에 quote 어휘가 없어도 substring이면 허용)
+    paraphrased_sections = [
         {
-            "title": "추천",
+            "title": "추천과 이유",
             "paragraphs": [
                 {
-                    "text": "추천 여부에 대해서는 네라고 생각한다.",
+                    "text": "전반적으로 동의하며 주변에 권하고 싶다는 인상을 받았다.",
                     "evidence": [{"sequence": 1, "quote": "네"}],
-                }
+                },
+                {
+                    "text": "삶의 지혜와 깊은 깨달음을 주는 문장들이 큰 울림을 주었다.",
+                    "evidence": [
+                        {"sequence": 2, "quote": "좋은 통찰이 가득한 책이었습니다."}
+                    ],
+                },
             ],
         }
     ]
     res = build_validated_draft_result(
-        interview_id=1, turns=turns, raw_sections=valid_short
+        interview_id=1, turns=turns, raw_sections=paraphrased_sections
     )
-    assert "네라고 생각한다" in res.canonical_markdown
+    assert len(res.sections) == 1
+    assert len(res.sections[0]["paragraphs"]) == 2
 
-    # 1자 답변 '네'가 문단에 전혀 포함되지 않으면 거부
-    invalid_short = [
+    # 2. evidence가 빈 배열인 문단 허용 (서론/종합/결론 등 인용이 불필요한 문단)
+    empty_evidence_sections = [
+        {
+            "title": "종합 감상",
+            "paragraphs": [
+                {
+                    "text": "이 책은 결국 선택의 무게에 대해 다시 생각하게 했다.",
+                    "evidence": [],
+                }
+            ],
+        }
+    ]
+    res_empty = build_validated_draft_result(
+        interview_id=1, turns=turns, raw_sections=empty_evidence_sections
+    )
+    assert len(res_empty.sections[0]["paragraphs"][0]["evidence"]) == 0
+
+    # 3. 반면 실제 answer에 없는 허위 quote는 여전히 엄격히 거부 (Hard Validation 유지)
+    invalid_quote_sections = [
         {
             "title": "추천",
             "paragraphs": [
                 {
-                    "text": "동의하며 추천하고 싶다.",
-                    "evidence": [{"sequence": 1, "quote": "네"}],
+                    "text": "전혀 추천하지 않는다고 생각한다.",
+                    "evidence": [{"sequence": 1, "quote": "아니요 전혀요"}],
                 }
             ],
         }
     ]
     with pytest.raises(ReflectionValidationError) as exc:
         build_validated_draft_result(
-            interview_id=1, turns=turns, raw_sections=invalid_short
+            interview_id=1, turns=turns, raw_sections=invalid_quote_sections
         )
-    assert exc.value.reason_code == "short_quote_not_preserved"
-
-    # 2자 이상 토큰이 문단에 전혀 없으면 거부
-    invalid_token = [
-        {
-            "title": "이유",
-            "paragraphs": [
-                {
-                    "text": "전혀 엉뚱한 이야기만 서술하고 있다.",
-                    "evidence": [
-                        {"sequence": 2, "quote": "좋은 통찰이 가득한 책이었습니다."}
-                    ],
-                }
-            ],
-        }
-    ]
-    with pytest.raises(ReflectionValidationError) as exc:
-        build_validated_draft_result(
-            interview_id=1, turns=turns, raw_sections=invalid_token
-        )
-    assert exc.value.reason_code == "missing_grounding_token"
+    assert exc.value.reason_code == "quote_not_in_answer"
 
 
 def test_prohibited_formats_in_generated_content() -> None:
