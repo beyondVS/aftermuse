@@ -1839,8 +1839,7 @@ button:active,
    ========================================================================== */
 
 .reflection-ready-card,
-.reflection-error-card,
-.draft-ready-card {
+.reflection-error-card {
   padding: 1.75rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--border-default);
@@ -1851,8 +1850,7 @@ button:active,
   gap: 1rem;
 }
 
-.reflection-ready-desc,
-.draft-ready-desc {
+.reflection-ready-desc {
   font-size: 1rem;
   line-height: 1.6;
   color: var(--color-ink-secondary);
@@ -1925,23 +1923,9 @@ button:active,
   display: flex;
 }
 
-.reflection-draft-ready-page {
-  max-width: var(--container-max);
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.draft-ready-note {
-  font-size: 0.9rem;
-  color: var(--color-ink-muted);
-}
-
 @media (max-width: 36rem) {
   .reflection-ready-card,
-  .reflection-error-card,
-  .draft-ready-card {
+  .reflection-error-card {
     padding: 1.15rem;
   }
 

@@ -33,23 +33,6 @@ from reflections.models import (
 )
 
 _READING_UNIQUE_CONSTRAINT = "reflections_interview_reading_id_key"
-_QUESTION_PROHIBITED_PATTERNS = (
-    "관리자 권한",
-    "시스템 상태",
-    "상태를 변경",
-    "크레딧",
-    "웹 검색",
-    "데이터베이스",
-    "이전 지시를 무시",
-)
-_BOOK_FACT_CUES = ("주인공", "등장인물", "결말", "범인", "사건", "작가의 주장")
-_ANALYSIS_PROHIBITED_PATTERNS = (
-    "이전 지시를 무시",
-    "시스템 프롬프트",
-    "관리자 권한",
-    "API 키를 공개",
-    "비밀값을 출력",
-)
 _ANSWER_MEANING_MAX_LENGTH = 1000
 _ANSWER_EVIDENCE_MAX_LENGTH = 500
 
@@ -410,7 +393,6 @@ def _validate_first_question(question: object) -> str:
         or len(normalized) > 300
         or "\n" in normalized
         or not normalized.endswith(("?", "？"))
-        or any(pattern in normalized for pattern in _QUESTION_PROHIBITED_PATTERNS)
     ):
         raise QuestionGenerationRejected()
     return normalized
@@ -1178,14 +1160,11 @@ def _validate_next_question(
     except (TypeError, ValueError) as error:
         raise QuestionGenerationRejected() from error
     question = _validate_first_question(proposal.question)
-    if context.question_context.knowledge_readiness == "READY_LIMITED":
-        _validate_ready_limited_grounding(question, context)
     if proposal.grounding_quote is not None:
         if (
             not isinstance(proposal.grounding_quote, str)
             or not 1 <= len(proposal.grounding_quote.strip()) <= 500
             or not _is_confirmed_grounding(proposal.grounding_quote.strip(), context)
-            or not _question_uses_grounding(question, proposal.grounding_quote.strip())
         ):
             raise QuestionGenerationRejected()
     elif (not context.low_information and not context.user_skipped) or next(
@@ -1193,18 +1172,6 @@ def _validate_next_question(
     ) == CoverageStatus.COVERED:
         raise QuestionGenerationRejected()
     return question
-
-
-def _validate_ready_limited_grounding(
-    question: str, context: NextQuestionContext
-) -> None:
-    """READY_LIMITED에서 확인되지 않은 책 사실 전제를 차단한다."""
-    answers = [item.answer for item in context.previous_turns if item.answer]
-    if context.answer:
-        answers.append(context.answer)
-    confirmed = " ".join(answers)
-    if any(cue in question and cue not in confirmed for cue in _BOOK_FACT_CUES):
-        raise QuestionGenerationRejected()
 
 
 def _is_confirmed_grounding(quote: str, context: NextQuestionContext) -> bool:
@@ -1215,15 +1182,6 @@ def _is_confirmed_grounding(quote: str, context: NextQuestionContext) -> bool:
     if context.question_context.knowledge_readiness == "READY":
         sources.extend(context.question_context.knowledge_claims)
     return any(quote in source for source in sources)
-
-
-def _question_uses_grounding(question: str, quote: str) -> bool:
-    """제안 근거와 질문 문구의 기계적으로 확인 가능한 연결을 요구한다."""
-    normalized = " ".join(quote.split())
-    if normalized in question:
-        return True
-    significant = [word for word in normalized.split() if len(word) >= 3]
-    return any(word in question for word in significant)
 
 
 def _validate_skip_proposal(
@@ -1240,9 +1198,6 @@ def _validate_skip_proposal(
         )
         or not isinstance(proposal.skip_reason, str)
         or not 10 <= len(proposal.skip_reason.strip()) <= 500
-        or any(
-            pattern in proposal.skip_reason for pattern in _QUESTION_PROHIBITED_PATTERNS
-        )
     ):
         raise QuestionGenerationRejected()
 
@@ -1342,15 +1297,11 @@ def _validate_analysis_coverage_transition(axis, status, current_status, validat
 
 
 def _validate_analysis_text(value: object, *, maximum: int) -> str:
-    """분석 문자열의 길이와 권한 변경 지시를 안전 경계에서 검사한다."""
+    """분석 문자열의 길이와 비공백 조건을 검사한다."""
     if not isinstance(value, str):
         raise AnswerAnalysisRejected()
     normalized = value.strip()
-    if (
-        not normalized
-        or len(normalized) > maximum
-        or any(pattern in normalized for pattern in _ANALYSIS_PROHIBITED_PATTERNS)
-    ):
+    if not normalized or len(normalized) > maximum:
         raise AnswerAnalysisRejected()
     return normalized
 

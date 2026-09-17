@@ -1,7 +1,6 @@
 """Reflection 초안의 유효성 검증, canonical Markdown 조립 및 Service 경계다."""
 
 import re
-import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -121,16 +120,6 @@ _MAX_DRAFT_MARKDOWN_LENGTH = 22000
 _MIN_DRAFT_MARKDOWN_LENGTH = 1
 _MAX_REVISED_MARKDOWN_LENGTH = 20000
 
-_QUESTION_PROHIBITED_PATTERNS = (
-    "관리자 권한",
-    "시스템 상태",
-    "상태를 변경",
-    "크레딧",
-    "웹 검색",
-    "데이터베이스",
-    "이전 지시를 무시",
-)
-
 # HTML 태그, 주석, doctype 감지 (단순 수식 <, >는 제외)
 _HTML_DOCTYPE_RE = re.compile(r"<!doctype\b[^>]*>", re.IGNORECASE)
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
@@ -148,24 +137,6 @@ _BARE_URL_RE = re.compile(r"\b(?:https?://|www\.)\S+", re.IGNORECASE)
 # Markdown 구문 감지 (title 및 paragraph text 제한용)
 _FENCED_CODE_RE = re.compile(r"^(?:`{3,}|~{3,})", re.MULTILINE)
 _HEADING_PREFIX_RE = re.compile(r"^#{1,6}\s+", re.MULTILINE)
-
-
-def _normalize_for_instruction_check(text: str) -> str:
-    """NFKC, 소문자화 및 연속 공백을 단일 공백으로 치환한다."""
-    normalized = unicodedata.normalize("NFKC", text).casefold()
-    return re.sub(r"\s+", " ", normalized).strip()
-
-
-def check_prohibited_instruction_patterns(text: str) -> None:
-    """_QUESTION_PROHIBITED_PATTERNS가 포함되어 있으면 검증 오류를 발생시킨다."""
-    normalized_text = _normalize_for_instruction_check(text)
-    for pattern in _QUESTION_PROHIBITED_PATTERNS:
-        normalized_pattern = _normalize_for_instruction_check(pattern)
-        if normalized_pattern in normalized_text:
-            raise ReflectionValidationError(
-                f"Prohibited instruction pattern detected: {pattern}",
-                reason_code="prohibited_instruction_pattern",
-            )
 
 
 def check_no_raw_html(text: str) -> None:
@@ -233,7 +204,6 @@ def validate_section_title(title: Any) -> str:
         )
     check_no_links_or_images(title)
     check_no_raw_html(title)
-    check_prohibited_instruction_patterns(title)
     return title
 
 
@@ -265,7 +235,6 @@ def validate_paragraph_text(text: Any) -> str:
         )
     check_no_links_or_images(text)
     check_no_raw_html(text)
-    check_prohibited_instruction_patterns(text)
     return text
 
 

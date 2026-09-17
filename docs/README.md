@@ -8,7 +8,8 @@
 - Day 12 Reflection 에세이 결과 화면(`GET /reflections/{id}/`), 안전한 Markdown 렌더링, DRAFT 수정 화면(`GET/POST /reflections/{id}/edit/`), Form 유효성 검증, Reflection/Interview 원자적 완료 처리(`POST /reflections/{id}/complete/`) 및 `Reflection.Status.COMPLETED` 무중단 마이그레이션(`0010`)을 구현했습니다. (IMP-093, IMP-094)
 - Home 화면에서 사용자의 가장 최근 활동(`updated_at DESC, id DESC`) 기준 `최근 독서노트` 재진입 카드와 고정 query count(N+1 방지)를 연동했습니다. (IMP-094, IMP-097)
 - Day 13 검증용 3권 대표 도서(소설 1권 READY, 비문학 1권 READY, 문학 1권 READY_LIMITED)를 멱등하고 원자적으로 준비하는 서비스와 `prepare_validation_books` 비운영 management command를 구현했습니다. (IMP-100, IMP-098)
-- 표준 전체 품질 게이트(`scripts/verify.py`)는 Django check OK, Ruff format OK, Ruff lint OK, pytest 538 passed(0 failures)로 통과했습니다. 상세 근거는 [Day 12 검증 기록](../specs/017-reflection-result-edit-home/quickstart.md)을 참조합니다.
+- Day 10~12 인터뷰 및 Reflection 파이프라인의 과도한 기계적 프록시(Mechanical Proxy) 완화 안정화를 완료했습니다. 후속 질문의 단순 어휘 겹침 검사 제거(의역 및 조사·어미 변화 허용, quote exact substring 불변식 유지), 단순 문자열 blacklist 제거(데이터 격리 원칙), READY_LIMITED 열린 회상 허용(`_BOOK_FACT_CUES` 제거) 및 미사용 고아 템플릿(`reflection_draft_ready.html`)과 관련 dead CSS를 정리했습니다.
+- 표준 전체 품질 게이트(`scripts/verify.py`)는 Django check OK, Ruff format OK, Ruff lint OK, pytest 548 passed, 1 skipped, 7 deselected(0 failures)로 통과했습니다. 상세 근거는 [Day 12 검증 기록](../specs/017-reflection-result-edit-home/quickstart.md)을 참조합니다.
 - 설정·실행·오류 진단은 [README](../README.md), 기능별 완료 상태와 다음 범위는 [구현 계획](AfterMuse_MVP_Implementation_Plan_v5.md)을 참조합니다.
 
 ## 문서 우선순위

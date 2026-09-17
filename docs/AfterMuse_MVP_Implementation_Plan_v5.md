@@ -434,6 +434,12 @@ Interview 도중 질문을 건너뛸 수 있는 액션을 추가하고, 내부 �
     - 자연스러운 복문 질문(공감 문장 + 질문)이 허용된다.
     - 적은 답변과 Skip 조합에서도 Core Loop가 불필요한 503 없이 동작한다.
     - 기존 소유권, sequence, answer 보존, 멱등성, 동시성 계약을 깨뜨리지 않는다.
+  - **검증 및 안정화 (2026-09-18):**
+    - 후속 질문 lexical grounding 완화: 질문 문장과 quote 사이의 n-gram 겹침 검사(`_question_uses_grounding`)를 제거하여 자연스러운 한국어 조사/어미 변화 및 의역을 허용하되, `quote in source` exact substring invariant는 엄격히 유지했다.
+    - Semantic blacklist 제거: `_QUESTION_PROHIBITED_PATTERNS`, `_ANALYSIS_PROHIBITED_PATTERNS`, `check_prohibited_instruction_patterns` 등 단순 키워드 블랙리스트를 제거하고 사용자 입력을 프롬프트 데이터 영역에 격리(도서 맥락의 '데이터베이스', '웹 검색' 등 정상 어휘 허용)했다.
+    - READY_LIMITED 열린 회상 질문 허용: '인물', '사건', '결말' 등의 단어 포함 시 거부하던 `_BOOK_FACT_CUES` 기계적 차단을 제거하고, 확인되지 않은 사실을 전제하지 않는 열린 회상 프롬프트 정책을 유지했다.
+    - 미사용 Day 11 임시 화면 템플릿(`reflection_draft_ready.html`) 및 관련 dead CSS를 정리했다.
+    - 4종 핵심 회귀 테스트(`tests/reflections/test_mechanical_proxy_relaxation.py`) 및 전체 품질 게이트(548 passed)로 수렴 검증했다.
 
 ### Day 12 — Reflection 결과/수정·완료와 Home 재진입 및 검증 준비
 

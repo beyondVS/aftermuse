@@ -100,7 +100,10 @@ def _next_question_instructions(context: NextQuestionContext) -> str:
     knowledge_policy = (
         "검증된 Knowledge Claim만 책의 사실로 사용하세요."
         if context.question_context.policy is QuestionPolicy.KNOWLEDGE_GROUNDED
-        else "책의 사건, 인물, 주장 등 확인되지 않은 사실을 전제하지 마세요."
+        else (
+            "책의 사건, 인물, 주장 등 확인되지 않은 구체적 사실을 전제하지 말고, "
+            "사용자의 기억, 인상, 감정 또는 열린 회상을 묻습니다."
+        )
     )
     required_question = (
         "현재 요청은 Coverage가 미완료이므로 kind는 반드시 question입니다. "
@@ -124,10 +127,10 @@ def _next_question_instructions(context: NextQuestionContext) -> str:
         "이미 충분한 축을 반복하지 마세요. "
         "low_information이면 같은 주제를 압박하지 마세요. "
         "question일 때 question은 한 문장, focus_axis는 네 Core 축 중 하나, "
-        "grounding_quote는 확정 답변, 이전 답변 또는 검증된 Claim의 짧은 연속 인용이며 "
-        "질문 문구에 grounding_quote 전체를 그대로 포함하는 것이 가장 안전합니다. "
-        "전체 인용 대신 핵심 단어를 사용한다면 인용을 공백으로 나눈 단어 중 "
-        "3글자 이상인 단어 하나를 조사·어미까지 변경하지 않고 그대로 포함하세요. "
+        "질문은 확정된 사용자 답변, 이전 답변 또는 허용된 Knowledge Claim과 "
+        "의미적으로 연결되어야 합니다. "
+        "grounding_quote는 질문의 근거가 된 실제 연속 인용을 반환하되, "
+        "질문 문장 자체가 해당 인용 표현을 그대로 반복할 필요는 없습니다. "
         "low_information 또는 사용자 건너뛰기(user_skipped)에서 "
         "미충족 축으로 전환할 때만 인용을 생략할 수 있습니다. "
         "질문일 때 skip_reason은 null입니다. "
