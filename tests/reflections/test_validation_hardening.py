@@ -31,8 +31,13 @@ from reflections.drafts import (
 )
 from reflections.models import Interview, InterviewTurn, Reflection
 from reflections.services import (
+    InterviewDestination,
     ensure_first_question,
     process_next_turn,
+    save_first_answer,
+    save_turn_answer,
+    skip_interview_turn,
+    start_interview,
 )
 from reflections.views import _pipeline_failure_details
 
@@ -219,6 +224,126 @@ def test_next_question_allows_period_and_exclamation(completed_reading) -> None:
 # ---------------------------------------------------------------------------
 # 3. 소량 답변 + Skip 조합에서의 Reflection 초안 생성 회귀 검증
 # ---------------------------------------------------------------------------
+
+
+def test_full_lifecycle_three_answers_then_skips_generates_reflection_without_503(
+    client, completed_reading
+) -> None:
+    """원래 장애 시나리오 통합 회귀: 3개 답변 후 나머지를 실제 skip 경로로
+    건너뛰어 REFLECTION_READY에 도달하고, 503 없이 Reflection 초안이 생성된다.
+    """
+    user = completed_reading.user
+    reading = completed_reading
+
+    # 1. Interview 시작 및 1번 질문 생성
+    start_result = start_interview(user=user, reading=reading)
+    interview = start_result.interview
+    turn1 = ensure_first_question(
+        user=user,
+        interview=interview,
+        provider=FakeQuestionProvider(),
+    )
+    assert turn1.sequence == 1
+
+    # 2. 1번 질문 답변 및 2번 질문 생성
+    ans1 = "주인공의 고독에 깊이 공감했어요."
+    save_first_answer(user=user, interview=interview, answer=ans1)
+    res2 = process_next_turn(
+        user=user,
+        interview=interview,
+        turn=turn1,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert not res2.skipped
+    turn2 = res2.turn
+    assert turn2.sequence == 2
+
+    # 3. 2번 질문 답변 및 3번 질문 생성
+    ans2 = "중반부 갈등 장면에서는 답답함이 컸습니다."
+    save_turn_answer(user=user, interview=interview, sequence=2, answer=ans2)
+    res3 = process_next_turn(
+        user=user,
+        interview=interview,
+        turn=turn2,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert not res3.skipped
+    turn3 = res3.turn
+    assert turn3.sequence == 3
+
+    # 4. 3번 질문 답변 및 4번 질문 생성
+    ans3 = "결말의 선택은 아쉬움과 여운을 동시에 남겼어요."
+    save_turn_answer(user=user, interview=interview, sequence=3, answer=ans3)
+    res4 = process_next_turn(
+        user=user,
+        interview=interview,
+        turn=turn3,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert not res4.skipped
+    turn4 = res4.turn
+    assert turn4.sequence == 4
+
+    # 5. 4번부터 8번 질문까지 실제 skip_interview_turn() 경로로 Skip
+    for seq in range(4, 8):
+        skip_res = skip_interview_turn(
+            user=user,
+            interview=interview,
+            sequence=seq,
+            next_provider=FakeNextQuestionProvider(
+                result=ProposedNextQuestion(
+                    "question", f"{seq + 1}번째 질문?", "MEMORY", None, None
+                )
+            ),
+        )
+        assert skip_res.destination == InterviewDestination.INTERVIEW
+        assert skip_res.next_turn is not None
+        assert skip_res.next_turn.sequence == seq + 1
+
+    # 8번째 skip -> 3개 답변이 있으므로 REFLECTION_READY로 종결
+    skip_res8 = skip_interview_turn(
+        user=user,
+        interview=interview,
+        sequence=8,
+        next_provider=FakeNextQuestionProvider(),
+    )
+    assert skip_res8.destination == InterviewDestination.REFLECTION_READY
+    assert skip_res8.next_turn is None
+
+    # 6. Interview 상태 및 턴별 데이터 무결성 검증
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.REFLECTION_READY
+    assert interview.turns.count() == 8
+
+    for seq in range(1, 4):
+        t = interview.turns.get(sequence=seq)
+        assert t.answer is not None and len(t.answer) > 0
+        assert t.user_skipped_at is None
+    for seq in range(4, 9):
+        t = interview.turns.get(sequence=seq)
+        assert t.answer is None
+        assert t.user_skipped_at is not None
+
+    # 7. 실제 HTTP endpoint로 Reflection 생성 요청 (302 redirect 검증)
+    client.force_login(user)
+    url = reverse("reflections:reflection_generate", args=[interview.pk])
+    response = client.post(url)
+    assert response.status_code == 302, (
+        f"Expected 302 redirect but got {response.status_code}"
+    )
+
+    # 8. 단일 Reflection DRAFT가 정상 생성되고 기존 답변이 보존되었는지 검증
+    reflection = Reflection.objects.filter(interview=interview).first()
+    assert reflection is not None
+    assert reflection.status == Reflection.Status.DRAFT
+    assert len(reflection.draft_markdown) > 0
+
+    assert interview.turns.get(sequence=1).answer == ans1
+    assert interview.turns.get(sequence=2).answer == ans2
+    assert interview.turns.get(sequence=3).answer == ans3
 
 
 @pytest.mark.parametrize("answered_count", [1, 2, 3])
