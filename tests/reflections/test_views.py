@@ -2335,6 +2335,52 @@ def test_reflection_edit_post_valid_revision_redirects_and_saves(
     assert reflection.status == Reflection.Status.DRAFT
 
 
+def test_reflection_edit_post_with_links_general_words_and_raw_html_saves_and_escapes(
+    client, reading
+) -> None:
+    """데이터베이스/링크/HTML 포함 저장 시 500 없이 성공하고 안전 렌더링된다."""
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 원본 초안",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    client.force_login(reading.user)
+    user_edited_text = (
+        "## 데이터베이스 및 시스템 상태 정리\n\n"
+        "웹 검색과 데이터베이스 아키텍처를 다룬 장이 인상적이었다. "
+        "[관련 참고 자료](https://example.com/ref)를 참고하여 정리함.\n\n"
+        "<script>alert('xss')</script>"
+    )
+    edit_url = reverse("reflections:reflection_edit", args=[reflection.pk])
+    res = client.post(edit_url, {"markdown": user_edited_text})
+
+    # 이전 버그에서는 validate_revised_markdown이 ReflectionValidationError 발생 (500)
+    assert res.status_code == 302
+    assert res.url == reverse("reflections:reflection_detail", args=[reflection.pk])
+
+    reflection.refresh_from_db()
+    assert reflection.revised_markdown == user_edited_text
+
+    # 상세 화면에서 렌더링 시 raw HTML 실행 방지 검증
+    detail_res = client.get(res.url)
+    assert detail_res.status_code == 200
+    detail_content = detail_res.content.decode()
+    assert "<script>" not in detail_content
+    assert "&lt;script&gt;alert('xss')&lt;/script&gt;" in detail_content
+    assert "데이터베이스 및 시스템 상태 정리" in detail_content
+    assert "https://example.com/ref" in detail_content
+
+
 def test_reflection_edit_post_validation_error_returns_400(client, reading) -> None:
     from reflections.models import Reflection
 

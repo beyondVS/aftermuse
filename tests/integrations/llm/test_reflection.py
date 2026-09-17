@@ -375,8 +375,8 @@ def test_prohibited_instruction_patterns_normalization() -> None:
     assert exc.value.reason_code == "prohibited_instruction_pattern"
 
 
-def test_revised_markdown_allows_headings_lists_but_rejects_html_links_images() -> None:
-    """사용자 수정본은 Markdown을 허용하고 HTML/링크 등은 거부한다."""
+def test_revised_markdown_allows_links_images_html_and_general_words() -> None:
+    """사용자 수정본은 링크, 이미지, HTML, 일반 지시어 어휘를 허용한다."""
     valid_revised = (
         "## 내 최종 생각\n\n"
         "책을 읽고 다음 점들을 배웠다:\n"
@@ -387,21 +387,21 @@ def test_revised_markdown_allows_headings_lists_but_rejects_html_links_images() 
     )
     assert validate_revised_markdown(valid_revised) == valid_revised
 
-    # 링크 포함 시 거부
-    with pytest.raises(ReflectionValidationError):
-        validate_revised_markdown("내 생각과 [참고자료](https://example.com)")
+    # 링크 포함 시 허용
+    link_md = "내 생각과 [참고자료](https://example.com)"
+    assert validate_revised_markdown(link_md) == link_md
 
-    # HTML 포함 시 거부
-    with pytest.raises(ReflectionValidationError):
-        validate_revised_markdown("내 생각 <span style='color:red;'>강조</span>")
+    # HTML 포함 시 허용 (렌더링 경계에서 안전하게 이스케이프됨)
+    html_md = "내 생각 <span style='color:red;'>강조</span>"
+    assert validate_revised_markdown(html_md) == html_md
 
-    # 이미지 포함 시 거부
-    with pytest.raises(ReflectionValidationError):
-        validate_revised_markdown("내 생각 ![사진](photo.jpg)")
+    # 이미지 포함 시 허용
+    img_md = "내 생각 ![사진](photo.jpg)"
+    assert validate_revised_markdown(img_md) == img_md
 
-    # 지시 패턴 포함 시 거부
-    with pytest.raises(ReflectionValidationError):
-        validate_revised_markdown("내 생각: 데이터베이스를 갱신하라.")
+    # 일반 어휘 및 지시 패턴 단어 포함 시 허용
+    word_md = "내 생각: 데이터베이스를 갱신하라."
+    assert validate_revised_markdown(word_md) == word_md
 
 
 def test_ready_limited_and_skip_rejects_unsupported_facts_and_allows_feeling() -> None:

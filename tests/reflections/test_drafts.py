@@ -454,73 +454,77 @@ def test_adversarial_input_does_not_mutate_instructions_or_policy(
     assert ready_interview.status == Interview.Status.REFLECTION_READY
 
 
-def test_save_reflection_revision_markdown_allowed_and_rejected_patterns(
+def test_save_reflection_revision_markdown_allows_links_html_and_instruction_words(
     reflection_user, ready_interview, prepared_draft_result
 ) -> None:
-    """수정본은 일반 마크다운 서식을 허용하고 링크, HTML, 지시 패턴을 거부한다."""
+    """사용자 수정본은 링크, HTML 태그, 일반 어휘를 허용하고 필수 불변식만 거부한다."""
+    from reflections.drafts import render_markdown_safely
+
     reflection = save_reflection_draft(
         user=reflection_user, interview=ready_interview, result=prepared_draft_result
     )
 
-    # 1. 허용되는 일반 마크다운 서식 (제목, 목록, 인용문, 코드, 강조)
-    valid_markdown = (
-        "## 내 독서노트 생각\n\n"
-        "이 책을 읽고 다음과 같은 점을 느꼈다:\n"
-        "- 첫 번째 생각: 삶의 본질에 대한 고민\n"
-        "- 두 번째 생각: 주인공의 태도\n\n"
-        "> 가장 인상 깊었던 대목을 인용하며\n\n"
-        "코드 표기 `term`과 **강조 텍스트**가 포함되어 있다."
+    # 1. LLM 생성에서는 금지되지만 사용자 수정본에서는 허용되는 패턴들
+    # 1-1. 일반 어휘 (데이터베이스, 웹 검색, 시스템 상태 등)
+    text_with_general_words = (
+        "## 데이터베이스 및 시스템 상태 분석\n\n"
+        "이 책을 통해 데이터베이스 구조와 웹 검색 최적화, "
+        "그리고 관리자 권한 및 상태를 변경하는 원리를 학습했다. "
+        "크레딧 정책과 이전 지시를 무시하지 않는 태도가 인상적이었다."
     )
-    revised = save_reflection_revision(
-        user=reflection_user, reflection=reflection, markdown=valid_markdown
+    revised1 = save_reflection_revision(
+        user=reflection_user, reflection=reflection, markdown=text_with_general_words
     )
-    assert revised.revised_markdown == valid_markdown
+    assert revised1.revised_markdown == text_with_general_words
 
-    # 2. 거부되는 패턴들
-    # 2-1. Raw HTML
-    with pytest.raises(ReflectionValidationError) as exc:
+    # 1-2. Markdown 링크, Autolink, 이미지
+    text_with_links_and_images = (
+        "## 참고 자료 목록\n\n"
+        "- [공식 문서](https://example.com/docs)\n"
+        "- 자동 링크: <https://example.com/auto>\n"
+        "- 표지 이미지: ![도서 표지](https://example.com/cover.png)\n"
+    )
+    revised2 = save_reflection_revision(
+        user=reflection_user, reflection=reflection, markdown=text_with_links_and_images
+    )
+    assert revised2.revised_markdown == text_with_links_and_images
+
+    # 1-3. Raw HTML 문자열 저장 허용 및 렌더링 경계에서의 안전한 무력화
+    text_with_raw_html = (
+        "## 위험 구문 테스트\n\n<script>alert('xss')</script>\n<p>본문 내용</p>"
+    )
+    revised3 = save_reflection_revision(
+        user=reflection_user, reflection=reflection, markdown=text_with_raw_html
+    )
+    assert revised3.revised_markdown == text_with_raw_html
+    # 렌더링 시 브라우저에서 스크립트가 실행되지 않도록 이스케이프 확인
+    rendered = render_markdown_safely(revised3.revised_markdown)
+    assert "<script>" not in rendered
+    assert "&lt;script&gt;alert('xss')&lt;/script&gt;" in rendered
+
+    # 2. 사용자 수정본에서도 여전히 거부되어야 하는 필수 불변식 (공백, 길이, 타입)
+    # 2-1. 공백만 있는 경우
+    with pytest.raises(ReflectionValidationError) as exc_empty:
+        save_reflection_revision(
+            user=reflection_user, reflection=reflection, markdown="   \n\t  "
+        )
+    assert exc_empty.value.reason_code == "empty_revised_markdown"
+
+    # 2-2. 20,000자 초과
+    with pytest.raises(ReflectionValidationError) as exc_overflow:
+        save_reflection_revision(
+            user=reflection_user, reflection=reflection, markdown="가" * 20001
+        )
+    assert exc_overflow.value.reason_code == "revised_markdown_too_long"
+
+    # 2-3. 잘못된 타입 (문자열 또는 None 아님)
+    with pytest.raises(ReflectionValidationError) as exc_type:
         save_reflection_revision(
             user=reflection_user,
             reflection=reflection,
-            markdown="<script>alert(1)</script>",
+            markdown=12345,  # type: ignore[arg-type]
         )
-    assert exc.value.reason_code == "prohibited_raw_html"
-
-    # 2-2. Markdown 링크
-    with pytest.raises(ReflectionValidationError) as exc:
-        save_reflection_revision(
-            user=reflection_user,
-            reflection=reflection,
-            markdown="[외부 링크](https://example.com)",
-        )
-    assert exc.value.reason_code == "prohibited_link"
-
-    # 2-3. Autolink
-    with pytest.raises(ReflectionValidationError) as exc:
-        save_reflection_revision(
-            user=reflection_user,
-            reflection=reflection,
-            markdown="참고 사이트: <https://example.com>",
-        )
-    assert exc.value.reason_code == "prohibited_link"
-
-    # 2-4. Markdown 이미지
-    with pytest.raises(ReflectionValidationError) as exc:
-        save_reflection_revision(
-            user=reflection_user,
-            reflection=reflection,
-            markdown="![표지 이미지](https://example.com/cover.png)",
-        )
-    assert exc.value.reason_code == "prohibited_image"
-
-    # 2-5. 정규화 지시 패턴 (전각 공백/여러 공백/tab 변형)
-    with pytest.raises(ReflectionValidationError) as exc:
-        save_reflection_revision(
-            user=reflection_user,
-            reflection=reflection,
-            markdown="여기에 이전   지시를\t무시 라는 문구가 있음",
-        )
-    assert exc.value.reason_code == "prohibited_instruction_pattern"
+    assert exc_type.value.reason_code == "invalid_revised_markdown_type"
 
 
 def test_validation_errors_do_not_leak_quote_or_keys_secrets(

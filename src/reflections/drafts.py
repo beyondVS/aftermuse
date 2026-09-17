@@ -270,7 +270,7 @@ def validate_paragraph_text(text: Any) -> str:
 
 
 def validate_revised_markdown(markdown: str | None) -> str | None:
-    """사용자 수정본 Markdown의 길이, 비공백 및 금지 형식을 검증한다."""
+    """사용자 수정본 Markdown의 길이와 비공백 및 유효한 타입을 검증한다."""
     if markdown is None:
         return None
     if not isinstance(markdown, str) or isinstance(markdown, bool):
@@ -289,9 +289,6 @@ def validate_revised_markdown(markdown: str | None) -> str | None:
             f"{_MAX_REVISED_MARKDOWN_LENGTH} characters",
             reason_code="revised_markdown_too_long",
         )
-    check_no_links_or_images(markdown)
-    check_no_raw_html(markdown)
-    check_prohibited_instruction_patterns(markdown)
     return markdown
 
 
