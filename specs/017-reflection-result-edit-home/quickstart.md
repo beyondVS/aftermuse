@@ -11,15 +11,11 @@ Day 12 구현이 결과 읽기, 수정 저장, 명시적 완료, Home 재진입�
 ```powershell
 uv run python src/manage.py makemigrations --check --dry-run reflections
 uv run python src/manage.py sqlmigrate reflections 0010
-uv run python src/manage.py sqlmigrate reflections 0011
 ```
 
 확인 항목:
 
-- 0010에 `SET LOCAL lock_timeout = '2s'`가 있다.
-- 기존 DRAFT-only CHECK 제거와 새 status/완료시각 CHECK의 `NOT VALID` 추가가 같은
-  bounded migration에 있다.
-- 0011은 `atomic = False`이며 새 CHECK를 `VALIDATE CONSTRAINT`한다.
+- 기존 DRAFT-only CHECK 제거와 새 status/완료시각 CHECK 추가가 `0010` migration에 있다.
 - column rewrite, backfill, table/index 생성이 없다.
 - 기존 DRAFT와 Interview/Reading/Book 관계가 forward migration 뒤 보존된다.
 
@@ -31,14 +27,12 @@ uv run pytest tests/reflections/test_models.py tests/reflections/test_migrations
 
 | 시나리오 | 기대 결과 |
 | --- | --- |
-| DRAFT 수정 저장 | revised만 변경, 최초 draft/sections 불변, token 갱신 |
-| 수정 없이 저장 | 동일 현재 본문으로 성공 수렴, 별도 version 없음 |
-| 공백·초과·HTML·링크·이미지 | validation 거부, 기존 값 보존 |
-| 오래된 편집 token | conflict, 최신 수정본 덮어쓰기 0건 |
-| 완료 | Reflection와 Interview 함께 COMPLETED, 완료시각 설정 |
+| DRAFT 수정 저장 | revised만 변경, 최초 draft/sections 불변 |
+| 수정 없이 저장 | 동일 현재 본문으로 성공 수렴 |
+| 공백·길이 초과 | validation 거부, 기존 값 보존 |
+| 완료 | Reflection과 Interview 함께 COMPLETED, 완료시각 설정 |
 | 완료 취소 | 쓰기 0건 |
-| 반복 완료 | 기존 완료 결과로 수렴, 완료시각 변경 없음 |
-| 수정/완료 경합 | 하나의 일관된 최종 본문과 상태 |
+| 반복 완료 | 기존 완료 결과로 수렴, 상태/완료시각 불변 |
 | 완료 후 수정 | 거부, 완료 본문 불변 |
 | DB 실패 | transaction rollback, 두 status 불일치 0건 |
 
@@ -51,11 +45,11 @@ uv run pytest tests/reflections/test_views.py -q
 확인 항목:
 
 - 소유자는 책 제목, 선택적 저자, 최초 작성일, 전체 현재 본문과 상태를 본다.
-- headings, 20개 이상 문단, 목록, 인용이 순서대로 시맨틱 HTML에 표시된다.
-- legacy raw HTML, script, event attribute, link, image는 실행 가능한 markup이 되지 않는다.
+- headings, 문단, 목록, 인용, 강조 등 기본 마크다운이 시맨틱 HTML에 표시된다.
+- 사용자 작성 raw HTML은 실행 가능한 markup이 되지 않는다.
 - 수정 GET/POST, 저장 완료 message, PRG redirect, 완료 확인 GET/POST가 계약대로 동작한다.
-- validation 400, stale 409, persistence 503, 타인/없는 기록 404와 데이터 불변을 확인한다.
-- 완료본에는 수정·재완료 control이 없고 Home 링크만 유지된다.
+- validation 실패 시 form error 유지, COMPLETED 상태에서 수정 시도 시 차단, 타인/없는 기록 404를 확인한다.
+- 완료본에는 수정·완료 control이 없고 Home 링크 및 읽기 전용 상태만 유지된다.
 - 버튼·링크·label·error/status text·focus target을 키보드 및 색상 외 표현으로 확인한다.
 
 ## 4. Home 재진입

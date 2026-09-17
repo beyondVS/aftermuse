@@ -471,8 +471,9 @@ Coverage 충분 여부는 Interview status와 분리한다.
 ### Reflection
 
 - Draft
-- Finalizing
 - Completed
+
+*(참고: `Finalizing`은 실제 비동기 후처리나 다단계 완료 준비가 필요해질 때 Full MVP에서 도입하는 후속 확장 상태로 두며, Core MVP에서는 불필요한 복잡성을 피해 `Draft → Completed`로 단순화한다.)*
 
 ### 중요한 Commit Boundary
 
@@ -486,9 +487,8 @@ Coverage 충분 여부는 Interview status와 분리한다.
 
 #### Reflection 완료
 
-- Reflection 완료
-- Credit 소비
-- Evaluation / Reader Insight / Knowledge Candidate 등 파생 데이터 Commit
+- **Core MVP**: `Reflection → Completed`와 `Interview → Completed` 두 상태를 하나의 짧은 DB transaction 안에서 원자적으로 변경하는 핵심 불변식에 집중한다.
+- **Full MVP 확장**: Credit 소비, Evaluation / Reader Insight / Knowledge Candidate 등 실제 추가되는 완료 연계 기능의 일관성 요구에 맞추어 completion 처리 범위를 확장한다 (`Finalizing` 또는 별도 후처리 구조는 실제 필요가 확인될 때 결정).
 
 이 경계를 유지한다.
 

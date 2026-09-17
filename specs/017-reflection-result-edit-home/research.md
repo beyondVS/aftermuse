@@ -1,73 +1,62 @@
 # 조사: Reflection 결과·수정과 Home 재진입
 
-## 1. Reflection 완료 상태와 배포 안전한 CHECK 교체
+## 1. Reflection 완료 상태와 표준 CHECK 교체
 
 **Decision**: 새 컬럼 없이 기존 `status`에 `COMPLETED`를 추가하고 `completed_at`과의
-일관성을 CHECK로 강제한다. 현재 두 CHECK는 schema-first의 2단계 migration으로 교체한다.
-첫 migration은 `SET LOCAL lock_timeout = '2s'` 뒤 constraint를 짧게 교체해 새 CHECK를
-`NOT VALID`로 추가하고, 다음 non-atomic migration이 `VALIDATE CONSTRAINT`한다.
+일관성을 CHECK로 강제한다. Core MVP에서는 과도한 2단계 배포 하드닝을 피하고 표준 단일
+Django migration(`0010_reflection_completed_status.py`)으로 처리한다.
 
 **Rationale**: 기존 모델이 이미 미래 완료를 위해 nullable `completed_at`과 20자 status를
-보유하므로 새 컬럼이나 backfill이 필요 없다. DRAFT 기존 행은 새 제약을 이미 만족한다.
-프로젝트의 0008/0009 migration이 같은 PostgreSQL 패턴과 SQL 검증 테스트를 사용하므로
-일관된 위험 통제가 가능하다.
+보유하므로 새 컬럼이나 backfill이 필요 없다. 기존 DRAFT 행은 새 제약을 만족하며,
+Core MVP의 단일 애플리케이션 환경에서는 표준적인 Django migration으로 충분하다.
 
-**Alternatives considered**: Django `RemoveConstraint`/`AddConstraint`만 사용하는 단일
-migration은 새 CHECK 추가 시 기존 행 전체 검증을 짧은 exclusive lock과 결합한다. status만
-애플리케이션에서 검사하면 DB 직접 쓰기에서 완료 시각 불일치를 허용한다. 새 `final_markdown`
-컬럼은 현재 본문이 이미 draft/revised 우선 규칙으로 결정되므로 중복 상태를 만든다.
+**Alternatives considered**: `Finalizing` 상태까지 강제하는 방식은 실제 비동기/다단계
+완료 처리가 없는 Core MVP에 불필요한 복잡성을 더하므로 제외한다. 2단계 `NOT VALID` +
+`VALIDATE CONSTRAINT` 배포 분리는 대규모 실운영 트래픽 하드닝이므로 Core MVP에서는 선행하지 않는다.
 
-## 2. 저장·완료 동시성과 오래된 편집본
+## 2. 저장·완료 트랜잭션과 소유권 격리
 
-**Decision**: 기존 `updated_at`을 낙관적 version token으로 사용하고, 수정과 완료 Service가
-owner scope의 행을 `select_for_update()`한 뒤 status와 token을 재검사한다. 완료는 Reflection과
-Interview를 같은 transaction에서 바꾸며 반복 완료는 기존 결과로 수렴한다.
+**Decision**: 낙관적 동시성 토큰(`expected_updated_at`)이나 복잡한 행 잠금(`select_for_update`)을
+도입하지 않고, 소유자 검증(owner scope), DRAFT 상태 검증 및 Service 단위의 짧은 DB 트랜잭션으로
+완결한다. 완료 시 Reflection과 Interview를 같은 트랜잭션 안에서 일관되게 COMPLETED로 전환한다.
 
-**Rationale**: 새 version column 없이 명세의 조용한 덮어쓰기 금지를 충족한다. 행 잠금은
-같은 Reflection의 수정·완료 경합을 직렬화하고, token 비교는 사용자가 오래된 화면에서
-작성한 내용을 최신 수정본 위에 저장하는 것을 감지한다.
+**Rationale**: Core MVP의 실제 사용자 핵심 흐름 검증에서는 기본적인 소유자/상태 검사와
+트랜잭션 원자성으로 충분하다. 여러 브라우저 탭에서의 극단적인 동시 수정 충돌을 이번 단계에서
+미리 과잉 설계하지 않는다. 이미 완료된 Reflection에 대한 수정 요청은 단호하게 거부하며,
+완료 요청이 중복 전송된 경우 추가 쓰기 없이 완료 상태를 유지하는 단순 가드로 충분하다.
 
-**Alternatives considered**: 마지막 쓰기 우선은 데이터 손실을 숨긴다. 매 수정본 version을
-별도 table에 저장하는 방식은 이번 범위에서 제외한 버전 이력 UI와 저장 정책을 선행한다.
-DB advisory lock이나 캐시는 단일 행 transaction보다 복잡하다.
+**Alternatives considered**: revision token과 409 Conflict 프로토콜은 Core MVP에 불필요한
+상태 관리와 클라이언트 복구 프로토콜 비용을 발생시킨다.
 
 ## 3. Markdown 렌더링과 사용자 입력 안전성
 
-**Decision**: `Markdown~=3.10.3`을 추가하고 기본 parser만 사용한다. 기존
-`validate_revised_markdown()`으로 raw HTML, 링크, 이미지 및 금지 입력을 먼저 차단하고,
-본문을 HTML escape한 뒤 Markdown을 HTML fragment로 변환한다. 결과만 제한된 renderer
-경계에서 safe string으로 전달한다.
+**Decision**: Python-Markdown 등 최소 parser를 사용해 headings, 문단, 목록, 인용, 강조 등
+독서노트의 기본 Markdown 구조를 지원하되, 사용자 작성 raw HTML이 브라우저에서 실행되지
+않도록 안전하게 처리한다. 사용자 수정 Form 검증에서는 비공백과 최대 길이(20,000자)를
+적용하며, Prompt injection 키워드 블랙리스트는 적용하지 않는다.
 
-**Rationale**: Python-Markdown 3.10.3은 Python 3.14를 공식 분류하며 BSD-3-Clause의
-production/stable package다. 공식 문서는 라이브러리 자체가 HTML을 sanitize하지 않는다고
-명시하므로 parser만 신뢰하지 않고 기존 입력 검증과 pre-escape를 겹친다. 기본 문법으로
-명세가 요구하는 headings, 문단, 목록, 인용을 보존하면서 raw HTML과 외부 action을 만들지
-않는다.
+**Rationale**: 사용자가 직접 작성하는 독서 에세이에 '관리자 권한', '시스템 상태' 등 일반적인
+단어를 금지하는 것은 LLM I/O 경계의 방어를 사용자 입력에 잘못 투영한 과잉 검증이다.
+사용자 입력의 진짜 보안 불변식은 "작성한 raw HTML이 실행되지 않는다"이므로, 렌더링 시
+안전하게 처리하는 것으로 보안을 보장한다.
 
-**Alternatives considered**: Django `linebreaks`는 목록·소제목·인용 구조를 잃는다. 직접
-Markdown parser를 구현하면 검증 표면과 유지보수 책임이 커진다. Python-Markdown 출력만
-`mark_safe`하면 공식 보안 경고를 무시하므로 채택하지 않는다. 범용 HTML sanitizer까지
-추가하면 현재 금지된 링크·이미지·raw HTML보다 넓은 입력 계약을 불필요하게 연다.
-
-**Sources**:
-
-- [Python-Markdown 3.10.3 on PyPI](https://pypi.org/project/Markdown/)
-- [Python-Markdown library security warning](https://python-markdown.github.io/reference/markdown/)
+**Alternatives considered**: 링크/이미지 문법을 차단하기 위해 복잡한 거대 정규식 검증기를
+새로 작성하는 것은 또 다른 취약점과 과잉 설계를 유발하므로, Core MVP에서는 기본적인
+마크다운 표현 렌더링에 집중한다.
 
 ## 4. 서버 렌더링 Interaction 계약
 
 **Decision**: 결과는 GET, 수정은 GET/POST, 완료는 별도 GET 확인/POST로 제공한다. POST
-성공은 Django messages와 PRG redirect를 사용하며 validation 400, stale edit 409, 타인 또는
-없는 기록 404로 처리한다. HTMX 전용 분기를 추가하지 않고 일반 form이 HTMX 없이도 완전하게
-동작하게 한다.
+성공은 결과 화면으로 redirect하는 PRG 패턴을 사용한다. Form validation 실패 및 COMPLETED 상태에서의
+수정 시도는 400으로 처리하고, 타인 또는 존재하지 않는 기록은 404로 통일한다. 일반 DB 실패는
+트랜잭션 롤백과 프레임워크 기본 오류 처리에 위임한다.
 
-**Rationale**: 완료 confirmation GET의 side effect를 막고 새로고침 재전송을 피한다. 기존
-function view와 Form 관례를 유지하며 Day 12에 필요 없는 partial 분기를 줄인다. 소유권 거부를
-404로 통일하면 기록 존재 여부를 노출하지 않는다.
+**Rationale**: 완료 confirmation GET의 side effect를 막고 새로고침 재전송을 피한다.
+기존 Django function view와 Form 관례를 유지하며 불필요한 409 stale conflict나 503
+persistence 프로토콜을 제거해 HTTP 의미 구조를 단순하고 명확하게 유지한다.
 
-**Alternatives considered**: 결과 화면의 inline Alpine state로 저장하면 서버 권한·validation
-계약이 분산된다. JSON API나 SPA는 헌법의 서버 렌더링 우선과 맞지 않는다. GET 완료 action은
-CSRF와 예측 가능한 HTTP 의미를 위반한다.
+**Alternatives considered**: 일반 persistence 실패에 대해 별도 503 HTTP 프로토콜을
+규정하는 것은 외부 서비스(LLM) 장애와 일반 DB 에러를 혼동한 과잉 설계이므로 배제한다.
 
 ## 5. Home 최신 기록 조회
 

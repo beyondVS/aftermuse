@@ -27,13 +27,12 @@ Book 1 ── N BookKnowledge
 | `status` | `DRAFT` 또는 `COMPLETED` |
 | `completed_at` | DRAFT에서는 null, COMPLETED에서는 timezone-aware 완료 시각 |
 | `created_at` | 최초 작성일 표시의 기준 |
-| `updated_at` | 생성·수정·완료 활동 정렬 및 낙관적 충돌 token |
+| `updated_at` | 생성·수정·완료 활동 정렬 기준 |
 
 ### 파생값
 
 - `current_markdown`: `revised_markdown`이 null이 아니면 수정본, 아니면 `draft_markdown`.
 - `display_status`: DRAFT는 `작성 중`, COMPLETED는 `완료`.
-- `revision_token`: 편집 또는 완료 화면을 렌더링한 시점의 `updated_at` 정규화 문자열.
 
 ### DB 불변식
 
@@ -74,15 +73,13 @@ COMPLETED
 | 값 | 규칙 |
 | --- | --- |
 | `reflection_id` | URL의 양의 정수, owner scope로 재조회 |
-| `markdown` | 원문 보존, 비공백 1–20,000자, raw HTML·링크·이미지·금지 지시 없음 |
-| `expected_updated_at` | 화면 렌더 시점 token; 잠근 행의 현재 값과 같아야 함 |
+| `markdown` | 비공백 1–20,000자 |
 
 ### ReflectionCompletionCommand
 
 | 값 | 규칙 |
 | --- | --- |
 | `reflection_id` | URL의 양의 정수, owner scope로 재조회 |
-| `expected_updated_at` | 확인 화면 렌더 시점 token; DRAFT 완료 시 현재 값과 같아야 함 |
 
 ## 최근 독서노트 항목
 
@@ -123,12 +120,6 @@ command는 Book을 ISBN13으로 재사용하고 기존 서지정보를 덮어쓰
 
 ## Migration 전환
 
-1. `0010_reflection_completion_constraints`: 2초 `lock_timeout`, 기존 DRAFT-only CHECK 2개
-   제거, 새 status 및 status/completed_at CHECK를 `NOT VALID`로 추가, ORM state 동기화.
-2. `0011_validate_reflection_completion_constraints`: `atomic = False`, 새 CHECK 2개 validate.
-3. 새 application 배포: COMPLETED 쓰기 시작.
+1. `0010_reflection_completed_status`: 기존 DRAFT-only CHECK 2개 제거, 새 status(`DRAFT`, `COMPLETED`) 및 status/completed_at 불변식 CHECK 추가, ORM state 동기화.
 
-기존 Reflection은 모두 `DRAFT`, `completed_at=NULL`이므로 data migration과 backfill이 없다.
-reverse는 COMPLETED 행이 존재하면 구 제약으로 복귀할 수 없으므로 구현 시 운영 reverse
-정책을 명시하고, migration test에서는 완료 행이 없는 schema round-trip과 forward data
-보존을 구분한다.
+기존 Reflection은 모두 `DRAFT`, `completed_at=NULL`이므로 별도의 data migration이나 backfill이 필요 없다.
