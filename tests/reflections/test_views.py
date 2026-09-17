@@ -1410,9 +1410,9 @@ def test_reflection_generate_success_redirects_and_creates_draft(
     assert res_htmx.headers.get("HX-Redirect") == expected_url
 
 
-def test_reflection_detail_minimal_result_screen_scope(client, reading) -> None:
-    """최소 결과 화면은 책 제목과 생성 완료 사실만 표시하고
-    본문/수정/완료는 표시하지 않는다."""
+def test_reflection_detail_screen_scope(client, reading) -> None:
+    """Day 12 결과 화면은 책 제목, 본문 에세이 및 수정/완료 액션을 제공하고,
+    수정용 textarea는 상세 화면에 노출하지 않는다."""
     interview = Interview.objects.create(
         reading=reading,
         book=reading.book,
@@ -1423,9 +1423,7 @@ def test_reflection_detail_minimal_result_screen_scope(client, reading) -> None:
 
     reflection = Reflection.objects.create(
         interview=interview,
-        draft_markdown=(
-            "## 비공개 초안 본문\n\n이 본문은 최소 결과 화면에 노출되지 않는다."
-        ),
+        draft_markdown=("## 독서노트 본문\n\n이 본문은 결과 화면에 정상 노출된다."),
         draft_sections=[{"title": "초안", "paragraphs": []}],
         status=Reflection.Status.DRAFT,
     )
@@ -1436,15 +1434,13 @@ def test_reflection_detail_minimal_result_screen_scope(client, reading) -> None:
     assert res.status_code == 200
     content = res.content.decode()
 
-    # 표시되어야 할 항목: 도서명, 초안 생성 완료
+    # 표시되어야 할 항목: 도서명, 본문, 작성 중 상태
     assert reading.book.title in content
-    assert "초안 생성 완료" in content or "독서노트 초안" in content
+    assert "독서노트 본문" in content
+    assert "작성 중" in content
 
-    # 노출되지 않아야 할 항목 (Day 12 범위):
-    # 본문 전체 내용, 수정 form/textarea, 완료 버튼
-    assert "비공개 초안 본문" not in content
+    # 수정 textarea는 상세가 아닌 edit 화면에 위치해야 함
     assert "<textarea" not in content
-    assert "완료하기" not in content
 
 
 def test_skip_turn_auth_and_ownership(client, reading, other_reflection_user) -> None:
@@ -1735,7 +1731,8 @@ def test_cross_story_full_lifecycle_and_security_boundaries(
     detail_url = reverse("reflections:reflection_detail", args=[reflection.pk])
     owner_view_res = client.get(detail_url)
     assert owner_view_res.status_code == 200
-    assert "독서노트 초안 생성 완료" in owner_view_res.content.decode()
+    assert "작성 중" in owner_view_res.content.decode()
+    assert reading.book.title in owner_view_res.content.decode()
 
     client.force_login(other_reflection_user)
     assert client.get(detail_url).status_code == 404
@@ -2027,3 +2024,490 @@ def test_interview_detail_renders_retry_ui_on_skipped_turn_without_decision(
     content = detail.content.decode()
     assert "질문 건너뛰기 후 다음 단계를 준비하지 못했습니다" in content
     assert "다음 질문 다시 준비하기" in content
+
+
+def test_reflection_detail_owner_view_success_and_metadata(client, reading) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown=(
+            "# 초안 제목\n\n초안으로 작성된 본문 에세이입니다.\n\n- 첫 번째 생각"
+        ),
+        draft_sections=[{"title": "초안 제목", "paragraphs": []}],
+        status=Reflection.Status.DRAFT,
+    )
+
+    client.force_login(reading.user)
+    response = client.get(
+        reverse("reflections:reflection_detail", args=[reflection.pk])
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    # 1. 책 메타데이터 및 작성일
+    assert reading.book.title in content
+    if reading.book.authors:
+        assert reading.book.authors in content
+    assert "작성일" in content or reflection.created_at.strftime("%Y") in content
+
+    # 2. Markdown 시맨틱 구조 렌더링
+    assert "<h1>초안 제목</h1>" in content
+    assert "<p>초안으로 작성된 본문 에세이입니다.</p>" in content
+    assert "<li>첫 번째 생각</li>" in content
+
+    # 3. DRAFT 상태 텍스트 및 행동 버튼
+    assert "작성 중" in content
+    assert reverse("reflections:reflection_edit", args=[reflection.pk]) in content
+    assert (
+        reverse("reflections:reflection_complete_confirm", args=[reflection.pk])
+        in content
+    )
+    assert reverse("home") in content
+
+    # 4. AI 작성자/Chat transcript 비노출
+    assert "AI 작성" not in content
+    assert "Transcript" not in content
+    assert "프롬프트" not in content
+
+
+def test_reflection_detail_prefers_revised_markdown_when_available(
+    client, reading
+) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 원래 AI 초안\n\n원래 초안 내용입니다.",
+        revised_markdown="# 사용자가 수정한 제목\n\n직접 수정한 본문 내용입니다.",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    client.force_login(reading.user)
+    response = client.get(
+        reverse("reflections:reflection_detail", args=[reflection.pk])
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    # 수정본 내용 렌더링 확인
+    assert "<h1>사용자가 수정한 제목</h1>" in content
+    assert "<p>직접 수정한 본문 내용입니다.</p>" in content
+
+    # 원본 초안은 렌더링되지 않음
+    assert "원래 AI 초안" not in content
+    assert "원래 초안 내용입니다." not in content
+
+
+def test_reflection_detail_neutralizes_user_raw_html(client, reading) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown=(
+            "# 보안 테스트\n\n"
+            "<script>alert('xss')</script>\n\n"
+            '<img src="x" onerror="alert(1)">\n'
+        ),
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    client.force_login(reading.user)
+    response = client.get(
+        reverse("reflections:reflection_detail", args=[reflection.pk])
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    # 실행 가능한 raw HTML 태그는 없어야 하고 entity escape 되어야 함
+    assert "<script>" not in content
+    assert "&lt;script&gt;" in content
+    assert '<img src="x" onerror="alert(1)">' not in content
+    assert "&lt;img" in content
+
+
+def test_reflection_detail_completed_status_shows_label_and_hides_actions(
+    client, reading
+) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.COMPLETED,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 완료된 독서노트\n\n완료된 본문입니다.",
+        draft_sections=[],
+        status=Reflection.Status.COMPLETED,
+        completed_at=timezone.now(),
+    )
+
+    client.force_login(reading.user)
+    response = client.get(
+        reverse("reflections:reflection_detail", args=[reflection.pk])
+    )
+
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    # 1. 완료 상태 텍스트
+    assert "완료" in content
+    assert "작성 중" not in content
+
+    # 2. 수정 및 완료 버튼 비노출
+    assert reverse("reflections:reflection_edit", args=[reflection.pk]) not in content
+    assert (
+        reverse("reflections:reflection_complete_confirm", args=[reflection.pk])
+        not in content
+    )
+
+    # 3. Home 링크 존재
+    assert reverse("home") in content
+
+
+def test_reflection_detail_other_user_or_not_found_returns_404(
+    client, reading, django_user_model
+) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 소유자 초안",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    # 타인 로그인 시 404
+    other_user = django_user_model.objects.create_user(username="other-ref-viewer")
+    client.force_login(other_user)
+    response = client.get(
+        reverse("reflections:reflection_detail", args=[reflection.pk])
+    )
+    assert response.status_code == 404
+
+    # 존재하지 않는 ID 시 404
+    response_404 = client.get(reverse("reflections:reflection_detail", args=[999999]))
+    assert response_404.status_code == 404
+
+
+def test_reflection_detail_query_count_is_bounded(
+    client, reading, django_assert_num_queries
+) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 독서노트",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    client.force_login(reading.user)
+    # session (1) + auth user (1) + single select_related (1) = 3 queries
+    with django_assert_num_queries(3):
+        response = client.get(
+            reverse("reflections:reflection_detail", args=[reflection.pk])
+        )
+        assert response.status_code == 200
+
+
+def test_reflection_edit_get_draft_success(client, reading) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 초안 내용입니다.",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    client.force_login(reading.user)
+    res = client.get(reverse("reflections:reflection_edit", args=[reflection.pk]))
+    assert res.status_code == 200
+    content = res.content.decode()
+
+    # textarea에 초안 내용 포함 확인
+    assert "<textarea" in content
+    assert "# 초안 내용입니다." in content
+    # 취소 링크 및 저장 버튼 확인
+    assert reverse("reflections:reflection_detail", args=[reflection.pk]) in content
+    assert "수정 저장" in content
+
+
+def test_reflection_edit_get_completed_redirects_to_detail(client, reading) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.COMPLETED,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 완료된 내용입니다.",
+        draft_sections=[],
+        status=Reflection.Status.COMPLETED,
+        completed_at=timezone.now(),
+    )
+
+    client.force_login(reading.user)
+    res = client.get(reverse("reflections:reflection_edit", args=[reflection.pk]))
+    assert res.status_code == 302
+    assert res.url == reverse("reflections:reflection_detail", args=[reflection.pk])
+
+
+def test_reflection_edit_post_valid_revision_redirects_and_saves(
+    client, reading
+) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 원본 초안",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    client.force_login(reading.user)
+    new_text = "## 사용자가 직접 수정한 독서노트 내용입니다."
+    res = client.post(
+        reverse("reflections:reflection_edit", args=[reflection.pk]),
+        {"markdown": new_text},
+    )
+
+    assert res.status_code == 302
+    assert res.url == reverse("reflections:reflection_detail", args=[reflection.pk])
+
+    reflection.refresh_from_db()
+    assert reflection.revised_markdown == new_text
+    assert reflection.draft_markdown == "# 원본 초안"
+    assert reflection.status == Reflection.Status.DRAFT
+
+
+def test_reflection_edit_post_validation_error_returns_400(client, reading) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 원본 초안",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    client.force_login(reading.user)
+
+    # 1. 공백만 있는 본문 제출 시 400
+    res_blank = client.post(
+        reverse("reflections:reflection_edit", args=[reflection.pk]),
+        {"markdown": "   \n\t  "},
+    )
+    assert res_blank.status_code == 400
+    assert "본문은 공백만으로 구성될 수 없습니다." in res_blank.content.decode()
+
+    # 2. 20,000자 초과 본문 제출 시 400
+    res_overflow = client.post(
+        reverse("reflections:reflection_edit", args=[reflection.pk]),
+        {"markdown": "가" * 20001},
+    )
+    assert res_overflow.status_code == 400
+    assert "20,000자를 초과할 수 없습니다." in res_overflow.content.decode()
+
+    # DB는 여전히 수정되지 않음 확인
+    reflection.refresh_from_db()
+    assert reflection.revised_markdown is None
+
+
+def test_reflection_edit_post_completed_rejected(client, reading) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.COMPLETED,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 완료된 초안",
+        draft_sections=[],
+        status=Reflection.Status.COMPLETED,
+        completed_at=timezone.now(),
+    )
+
+    client.force_login(reading.user)
+    res = client.post(
+        reverse("reflections:reflection_edit", args=[reflection.pk]),
+        {"markdown": "완료 후 수정 시도"},
+    )
+    # 완료본 수정 시도는 거부 (302 상세 이동 또는 400)
+    assert res.status_code in (302, 400)
+    reflection.refresh_from_db()
+    assert reflection.revised_markdown is None
+
+
+def test_reflection_complete_confirm_get_and_post(client, reading) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 완료할 초안 내용",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    client.force_login(reading.user)
+
+    # 1. GET 확인 화면
+    res_get = client.get(
+        reverse("reflections:reflection_complete_confirm", args=[reflection.pk])
+    )
+    assert res_get.status_code == 200
+    content_get = res_get.content.decode()
+    assert "최종 완료" in content_get or "완료 확인" in content_get
+    assert reverse("reflections:reflection_detail", args=[reflection.pk]) in content_get
+
+    # 2. POST 완료 실행
+    res_post = client.post(
+        reverse("reflections:reflection_complete_confirm", args=[reflection.pk])
+    )
+    assert res_post.status_code == 302
+    assert res_post.url == reverse(
+        "reflections:reflection_detail", args=[reflection.pk]
+    )
+
+    # Reflection과 Interview 모두 원자적으로 COMPLETED 전이 확인
+    reflection.refresh_from_db()
+    assert reflection.status == Reflection.Status.COMPLETED
+    assert reflection.completed_at is not None
+
+    interview.refresh_from_db()
+    assert interview.status == Interview.Status.COMPLETED
+
+    # 3. 중복 POST 멱등 확인
+    res_repeat = client.post(
+        reverse("reflections:reflection_complete_confirm", args=[reflection.pk])
+    )
+    assert res_repeat.status_code == 302
+    assert res_repeat.url == reverse(
+        "reflections:reflection_detail", args=[reflection.pk]
+    )
+
+
+def test_reflection_complete_confirm_get_completed_redirects(client, reading) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.COMPLETED,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 완료된 내용",
+        draft_sections=[],
+        status=Reflection.Status.COMPLETED,
+        completed_at=timezone.now(),
+    )
+
+    client.force_login(reading.user)
+    res = client.get(
+        reverse("reflections:reflection_complete_confirm", args=[reflection.pk])
+    )
+    assert res.status_code == 302
+    assert res.url == reverse("reflections:reflection_detail", args=[reflection.pk])
+
+
+def test_reflection_edit_and_complete_other_user_returns_404(
+    client, reading, django_user_model
+) -> None:
+    from reflections.models import Reflection
+
+    interview = Interview.objects.create(
+        reading=reading,
+        book=reading.book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 초안 내용",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    other_user = django_user_model.objects.create_user(username="other-editor")
+    client.force_login(other_user)
+
+    edit_url = reverse("reflections:reflection_edit", args=[reflection.pk])
+    assert client.get(edit_url).status_code == 404
+    assert client.post(edit_url, {"markdown": "해킹"}).status_code == 404
+
+    complete_url = reverse(
+        "reflections:reflection_complete_confirm", args=[reflection.pk]
+    )
+    assert client.get(complete_url).status_code == 404
+    assert client.post(complete_url).status_code == 404

@@ -92,6 +92,35 @@
   {% else %}
     <!-- Authenticated Bento Hub Grid -->
     <section class="home-hub-grid" aria-label="독서 진행 및 사색 허브">
+      <!-- Recent Reflection (US3) -->
+      {% if recent_reflection %}
+        <article class="hub-card recent-reflection-card">
+          <div>
+            <div class="hub-card-header">
+              <div class="hub-card-tag-row">
+                <span class="hub-card-tag accent-tag">Recent Reflection</span>
+                <span class="status-pill status-{{ recent_reflection.status|lower }}" aria-label="독서노트 상태: {{ recent_reflection.display_status }}">
+                  {{ recent_reflection.display_status }}
+                </span>
+              </div>
+              <h2 class="hub-card-title">최근 독서노트</h2>
+            </div>
+            <div class="reading-book-info">
+              <h4>{{ recent_reflection.interview.reading.book.title }}</h4>
+              {% if recent_reflection.interview.reading.book.authors %}
+                <p class="reading-book-meta">{{ recent_reflection.interview.reading.book.authors }}</p>
+              {% endif %}
+            </div>
+          </div>
+          <div class="hub-card-actions">
+            <a href="{% url 'reflections:reflection_detail' recent_reflection.id %}" class="btn btn-glow w-full" aria-label="《{{ recent_reflection.interview.reading.book.title }}》 독서노트 보기">
+              <span>독서노트 보기</span>
+              <span class="btn-arrow" aria-hidden="true">→</span>
+            </a>
+          </div>
+        </article>
+      {% endif %}
+
       <!-- In-Progress Interviews (US2) -->
       {% for interview in in_progress_interviews %}
         <article class="hub-card interview-in-progress-card">

@@ -5,7 +5,7 @@ from django.urls import reverse
 
 from books.models import Book
 from readings.models import Reading
-from reflections.models import Interview, InterviewTurn
+from reflections.models import Interview, InterviewTurn, Reflection
 
 
 @pytest.mark.django_db
@@ -538,11 +538,11 @@ def test_home_page_queries_do_not_scale_with_card_count(
     )
 
     # Measure baseline query count
-    # (session + user + reading/book + turns + decisions = 5)
-    with django_assert_num_queries(5):
+    # (session + user + reading/book + turns + decisions + reflection = 6)
+    with django_assert_num_queries(6):
         client.get(reverse("home"))
 
-    # 2. Add multiple readings and interviews
+    # 2. Add multiple readings, interviews, and reflections
     for i in range(2, 7):
         book = Book.objects.create(isbn13=f"978893291726{i}", title=f"성능 도서 {i}")
         status = Reading.Status.READING if i % 2 == 0 else Reading.Status.COMPLETED
@@ -562,8 +562,206 @@ def test_home_page_queries_do_not_scale_with_card_count(
             InterviewTurn.objects.create(
                 interview=inv, sequence=1, question=f"질문 {i}입니다?"
             )
+            Reflection.objects.create(
+                interview=inv,
+                draft_markdown=f"# 초안 {i}",
+                draft_sections=[],
+                status=Reflection.Status.DRAFT,
+            )
 
-    # Even with many more readings and interviews,
-    # the query count must remain exactly 5 (no N+1)!
-    with django_assert_num_queries(5):
+    # Even with many more readings, interviews, and reflections,
+    # the query count must remain exactly 6 (no N+1)!
+    with django_assert_num_queries(6):
         client.get(reverse("home"))
+
+
+@pytest.mark.django_db
+def test_home_shows_recent_reflection_draft_card(client, django_user_model) -> None:
+    user = django_user_model.objects.create_user(username="draft-note-reader")
+    client.force_login(user)
+
+    book = Book.objects.create(
+        isbn13="9788932917270",
+        title="초안 독서노트 도서",
+        authors="초안 저자",
+    )
+    reading = Reading.objects.create(
+        user=user, book=book, status=Reading.Status.COMPLETED, completed_on=date.today()
+    )
+    interview = Interview.objects.create(
+        reading=reading,
+        book=book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 초안 본문",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    response = client.get(reverse("home"))
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    assert "최근 독서노트" in content
+    assert "초안 독서노트 도서" in content
+    assert "작성 중" in content
+    assert reverse("reflections:reflection_detail", args=[reflection.pk]) in content
+    assert "독서노트 보기" in content
+
+
+@pytest.mark.django_db
+def test_home_shows_recent_reflection_completed_card(client, django_user_model) -> None:
+    from django.utils import timezone
+
+    user = django_user_model.objects.create_user(username="completed-note-reader")
+    client.force_login(user)
+
+    book = Book.objects.create(
+        isbn13="9788932917271",
+        title="완료된 독서노트 도서",
+        authors="완료 저자",
+    )
+    reading = Reading.objects.create(
+        user=user, book=book, status=Reading.Status.COMPLETED, completed_on=date.today()
+    )
+    interview = Interview.objects.create(
+        reading=reading,
+        book=book,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.COMPLETED,
+    )
+    reflection = Reflection.objects.create(
+        interview=interview,
+        draft_markdown="# 완료된 본문",
+        draft_sections=[],
+        status=Reflection.Status.COMPLETED,
+        completed_at=timezone.now(),
+    )
+
+    response = client.get(reverse("home"))
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    assert "최근 독서노트" in content
+    assert "완료된 독서노트 도서" in content
+    assert "완료" in content
+    assert reverse("reflections:reflection_detail", args=[reflection.pk]) in content
+    assert "독서노트 보기" in content
+
+
+@pytest.mark.django_db
+def test_home_recent_reflection_picks_most_recently_updated(
+    client, django_user_model
+) -> None:
+    import datetime
+
+    from django.utils import timezone
+
+    user = django_user_model.objects.create_user(username="multi-note-reader")
+    client.force_login(user)
+
+    # 이전 Reflection
+    book_old = Book.objects.create(isbn13="9788932917272", title="오래된 독서노트 도서")
+    reading_old = Reading.objects.create(
+        user=user,
+        book=book_old,
+        status=Reading.Status.COMPLETED,
+        completed_on=date.today(),
+    )
+    interview_old = Interview.objects.create(
+        reading=reading_old,
+        book=book_old,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.COMPLETED,
+    )
+    reflection_old = Reflection.objects.create(
+        interview=interview_old,
+        draft_markdown="# 오래된 본문",
+        draft_sections=[],
+        status=Reflection.Status.COMPLETED,
+        completed_at=timezone.now() - datetime.timedelta(days=2),
+    )
+    # 강제로 updated_at을 과거로 설정
+    Reflection.objects.filter(pk=reflection_old.pk).update(
+        updated_at=timezone.now() - datetime.timedelta(days=2)
+    )
+
+    # 최근 Reflection
+    book_new = Book.objects.create(
+        isbn13="9788932917273", title="가장 최근 독서노트 도서"
+    )
+    reading_new = Reading.objects.create(
+        user=user,
+        book=book_new,
+        status=Reading.Status.COMPLETED,
+        completed_on=date.today(),
+    )
+    interview_new = Interview.objects.create(
+        reading=reading_new,
+        book=book_new,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection_new = Reflection.objects.create(
+        interview=interview_new,
+        draft_markdown="# 최근 본문",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    response = client.get(reverse("home"))
+    assert response.status_code == 200
+    content = response.content.decode()
+
+    assert "최근 독서노트" in content
+    assert "가장 최근 독서노트 도서" in content
+    assert reverse("reflections:reflection_detail", args=[reflection_new.pk]) in content
+    assert (
+        reverse("reflections:reflection_detail", args=[reflection_old.pk])
+        not in content
+    )
+
+
+@pytest.mark.django_db
+def test_home_recent_reflection_enforces_user_isolation(
+    client, django_user_model
+) -> None:
+    user_a = django_user_model.objects.create_user(username="user-a-note")
+    user_b = django_user_model.objects.create_user(username="user-b-note")
+
+    book_a = Book.objects.create(
+        isbn13="9788932917274", title="사용자 A의 독서노트 도서"
+    )
+    reading_a = Reading.objects.create(
+        user=user_a,
+        book=book_a,
+        status=Reading.Status.COMPLETED,
+        completed_on=date.today(),
+    )
+    interview_a = Interview.objects.create(
+        reading=reading_a,
+        book=book_a,
+        knowledge_readiness=Interview.KnowledgeReadiness.READY,
+        status=Interview.Status.REFLECTION_READY,
+    )
+    reflection_a = Reflection.objects.create(
+        interview=interview_a,
+        draft_markdown="# A 초안",
+        draft_sections=[],
+        status=Reflection.Status.DRAFT,
+    )
+
+    # User B 로그인 시 A의 독서노트 카드 노출되지 않음
+    client.force_login(user_b)
+    response_b = client.get(reverse("home"))
+    content_b = response_b.content.decode()
+
+    assert "사용자 A의 독서노트 도서" not in content_b
+    assert (
+        reverse("reflections:reflection_detail", args=[reflection_a.pk])
+        not in content_b
+    )
+    assert "최근 독서노트" not in content_b

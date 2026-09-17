@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ book.title }} · 독서노트 완료 확인 · AfterMuse{% endblock %}
+
+{% block content %}
+<section class="reflection-confirm-page" aria-labelledby="reflection-confirm-title">
+  <header class="reflection-header">
+    <span class="status-pill status-draft">완료 확인</span>
+    <h1 id="reflection-confirm-title" class="reflection-book-title">{{ book.title }}</h1>
+    {% if book.authors %}
+      <p class="reflection-book-authors">{{ book.authors }}</p>
+    {% endif %}
+  </header>
+
+  <div class="confirm-card">
+    <h2 class="confirm-heading">독서노트를 최종 완료하시겠습니까?</h2>
+    <p class="confirm-description">
+      완료된 독서노트는 최종 기록으로 안전하게 보존되며, 더 이상 내용을 수정할 수 없습니다.
+    </p>
+
+    <form method="post" action="{% url 'reflections:reflection_complete_confirm' reflection.id %}" class="confirm-form">
+      {% csrf_token %}
+      <footer class="reflection-actions-footer">
+        <div class="action-group">
+          <button type="submit" class="btn btn-primary">최종 완료</button>
+          <a href="{% url 'reflections:reflection_detail' reflection.id %}" class="btn btn-ghost">취소</a>
+        </div>
+      </footer>
+    </form>
+  </div>
+</section>
+{% endblock %}

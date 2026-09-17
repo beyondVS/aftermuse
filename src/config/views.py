@@ -2,7 +2,7 @@ from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
 from readings.models import Reading
-from reflections.models import Interview, InterviewProgressDecision
+from reflections.models import Interview, InterviewProgressDecision, Reflection
 
 
 def _get_interview_stage_label(interview: Interview) -> str:
@@ -54,10 +54,18 @@ def get_home_reading_groups(user) -> dict[str, object]:
         key=lambda item: (item.updated_at, item.id), reverse=True
     )
 
+    recent_reflection = (
+        Reflection.objects.filter(interview__reading__user=user)
+        .select_related("interview__reading__book")
+        .order_by("-updated_at", "-id")
+        .first()
+    )
+
     return {
         "currently_reading": currently_reading,
         "ready_for_reflection": ready_for_reflection,
         "in_progress_interviews": in_progress_interviews,
+        "recent_reflection": recent_reflection,
         "has_any_readings": has_any_readings,
     }
 

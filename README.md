@@ -17,7 +17,7 @@ Knowledge Research·공개/공유 기능은 후속 범위입니다.
 
 ## 현재 구현 상태
 
-2026-09-16 기준, Day 11의 질문 건너뛰기(Skip), 친화적 안내, Reflection 생성 Transition까지 구현했습니다.
+2026-09-18 기준, Day 12의 Reflection 결과 에세이 화면·수정·완료, Home 최근 독서노트 재진입, 대표 도서 검증 세트 준비까지 구현했습니다.
 
 | 영역 | 사용할 수 있는 기능 |
 | --- | --- |
@@ -26,8 +26,9 @@ Knowledge Research·공개/공유 기능은 후속 범위입니다.
 | Reading | 명시적 시작·재독, 상태·완독일 변경, 소유자 전용 상세 |
 | Interview | 완독 후 시작, 첫 질문·답변 분석·후속 질문, 질문 건너뛰기(Skip), Coverage·Soft Stop·상한, all-skip 종결 |
 | Knowledge 안내 | 내부 enum(`READY`/`READY_LIMITED`)·기술 용어 숨김, 기억·감상 중심 친화적 안내, 책 사실 전제 방지 |
-| Home | 실제 Reading 상태별 카드·빈 상태, 진행 중 Interview 재진입과 확정 질문·답변 조회 |
-| Reflection 기반 | 단일 초안 생성·선조회 수렴, 멱등성 보장, HTMX Loading/Error/Retry, 최소 임시 결과 화면 |
+| Home | 실제 Reading 상태별 카드·빈 상태, 진행 중 Interview 재진입, 최근 독서노트('작성 중'/'완료') 재진입 카드(단일 쿼리) |
+| Reflection | 결과 에세이 화면(안전한 Markdown 렌더링), DRAFT 수정(1~20,000자 Form/PRG), 원자적 최종 완료, 완료본 읽기 전용 보호 |
+| 검증 도서 준비 | 3권 대표 도서(1984, Thinking Fast and Slow, The Left Hand of Darkness) 멱등 준비 CLI(`prepare_validation_books`) |
 
 Interview는 사용자가 답하기 어려운 질문을 명시적으로 건너뛸 수 있는 `[건너뛰기]` 액션을 제공합니다.
 건너뛴 턴은 `user_skipped_at`으로 기록되어 답변과 상호 배타적으로 보존되며, Coverage를 무리하게 올리지 않고
@@ -40,13 +41,21 @@ Interview는 사용자가 답하기 어려운 질문을 명시적으로 건너�
 Reflection 생성은 `REFLECTION_READY` 상태에서 동기식 `POST /reflections/interviews/{id}/reflection/generate/`로
 호출되며, 이미 생성된 Reflection이 존재하면 Provider 호출 없이 기존 결과를 재사용합니다.
 생성 과정에서는 `aria-busy`와 disabled 상태의 Loading UI를 즉시 제공하고, 실패 시 기존 Interview 답변을
-온전히 보존한 채 재시도(Retry)할 수 있습니다. 생성이 완료되면 최소 임시 결과 화면(`GET /reflections/{reflection_id}/`)으로
-자동 이동합니다.
+온전히 보존한 채 재시도(Retry)할 수 있습니다.
 
-**남은 범위:** Reflection 정식 결과 에세이 화면, 사용자 수정 UX, 최종 완료 확인 및 Home 독서노트 연계(Day 12).
+생성된 Reflection은 읽기 중심의 에세이 결과 화면(`GET /reflections/{id}/`)에서 책 정보, 작성일, 본문, 상태 배지(`작성 중` / `완료`)와
+함께 표시됩니다. 본문은 제목, 문단, 인용구, 목록, 강조를 지원하는 안전한 시맨틱 HTML로 렌더링되며 사용자 raw HTML 및 위험한 URL 스킴은 무력화됩니다.
+작성 중인 초안은 `[수정하기]`(`GET/POST /reflections/{id}/edit/`)를 통해 20,000자 이내로 직접 다듬을 수 있고, 최초 AI 초안(`draft_markdown`)을 보존한 채
+사용자 수정본(`revised_markdown`)에 저장됩니다. `[완료하기]`(`GET/POST /reflections/{id}/complete/`) 확인을 거치면 Reflection과 Interview가
+단일 트랜잭션 안에서 원자적으로 `COMPLETED`로 전환되며, 완료된 독서노트는 수정 진입이 차단되는 읽기 전용 상태로 보호됩니다.
+
+Home 화면은 사용자의 마지막 활동(`updated_at DESC, id DESC`) 기준 단 하나의 `최근 독서노트` 카드를 표시하여 작업 중인 초안이나
+완료된 에세이로 즉시 재진입할 수 있도록 지원하며, 카드가 늘어나도 추가 쿼리 없이 단일 조회(N+1 방지)로 동작합니다.
+
+**남은 범위:** 전체 Core Loop E2E 검증 및 핵심 품질 1차 조정(Day 13), 복구·관측성 강화(Day 14).
 실제 Reflection Provider 연결·의미 품질 평가는 별도 opt-in 인수로 남아 있습니다.
 자세한 완료 상태는 [구현 계획](docs/AfterMuse_MVP_Implementation_Plan_v5.md), 검증 근거는
-[Day 11 검증 기록](specs/016-interview-reflection-transition/quickstart.md)을 참조합니다.
+[Day 12 검증 기록](specs/017-reflection-result-edit-home/quickstart.md)을 참조합니다.
 
 ## 기술 스택
 

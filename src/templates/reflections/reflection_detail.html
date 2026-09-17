@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ book.title }} · 독서노트 · AfterMuse{% endblock %}
+
+{% block content %}
+<article class="reflection-detail-page" aria-labelledby="reflection-book-title">
+  <header class="reflection-header">
+    <div class="reflection-meta-row">
+      <span class="status-pill status-{{ reflection.status|lower }}" aria-label="독서노트 상태: {{ display_status }}">
+        {{ display_status }}
+      </span>
+      <time class="reflection-date" datetime="{{ reflection.created_at|date:'c' }}">
+        작성일: {{ reflection.created_at|date:"Y년 n월 j일" }}
+      </time>
+    </div>
+    <h1 id="reflection-book-title" class="reflection-book-title">{{ book.title }}</h1>
+    {% if book.authors %}
+      <p class="reflection-book-authors">{{ book.authors }}</p>
+    {% endif %}
+  </header>
+
+  <section class="reflection-body" aria-label="독서노트 본문">
+    <div class="reflection-prose">
+      {{ rendered_content }}
+    </div>
+  </section>
+
+  <footer class="reflection-actions-footer">
+    {% if is_draft %}
+      <div class="action-group">
+        <a href="{% url 'reflections:reflection_edit' reflection.id %}" class="btn btn-primary">수정</a>
+        <a href="{% url 'reflections:reflection_complete_confirm' reflection.id %}" class="btn btn-secondary">완료</a>
+        <a href="{% url 'home' %}" class="btn btn-ghost">Home으로</a>
+      </div>
+    {% elif is_completed %}
+      <div class="completed-notice-group">
+        <p class="reflection-completed-notice" role="status">
+          이 독서노트는 최종 완료되어 읽기 전용으로 보존됩니다.
+        </p>
+        <div class="action-group">
+          <a href="{% url 'home' %}" class="btn btn-ghost">Home으로</a>
+        </div>
+      </div>
+    {% endif %}
+  </footer>
+</article>
+{% endblock %}

@@ -868,3 +868,139 @@ def test_generate_or_get_reflection_draft_creates_single_reflection_on_success(
     assert res2.created is False
     assert res2.reflection.pk == res1.reflection.pk
     assert Reflection.objects.filter(interview=ready_interview).count() == 1
+
+
+def test_render_markdown_safely_preserves_structure_and_neutralizes_raw_html() -> None:
+    from reflections.drafts import render_markdown_safely
+
+    md_input = (
+        "# 큰 제목\n\n"
+        "## 중간 제목\n\n"
+        "이것은 **굵은 글씨**와 *기울임*이 포함된 문단입니다.\n\n"
+        "> 이것은 인용문입니다.\n\n"
+        "- 첫 번째 항목\n"
+        "- 두 번째 항목\n\n"
+        "<script>alert('xss')</script>\n"
+        '<img src="x" onerror="alert(1)">\n'
+        '<iframe src="https://evil.com"></iframe>\n'
+    )
+    rendered = render_markdown_safely(md_input)
+
+    # 1. Markdown 구조 보존 확인
+    assert "<h1>큰 제목</h1>" in rendered
+    assert "<h2>중간 제목</h2>" in rendered
+    assert "<strong>굵은 글씨</strong>" in rendered
+    assert "<em>기울임</em>" in rendered
+    assert "<blockquote>" in rendered
+    assert "<ul>" in rendered
+    assert "<li>첫 번째 항목</li>" in rendered
+    assert "<li>두 번째 항목</li>" in rendered
+
+    # 2. 사용자 작성 raw HTML 비실행 보안 불변식 확인
+    assert "<script>" not in rendered
+    assert "&lt;script&gt;" in rendered
+    assert "<img" not in rendered
+    assert "&lt;img" in rendered
+    assert "<iframe" not in rendered
+    assert "&lt;iframe" in rendered
+
+
+def test_get_current_markdown_prefers_revised_markdown(
+    reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    from reflections.drafts import get_current_markdown
+
+    reflection = Reflection.objects.create(
+        interview=ready_interview,
+        draft_markdown="최초 AI 초안 본문입니다.",
+        draft_sections=list(prepared_draft_result.sections),
+        revised_markdown=None,
+        status=Reflection.Status.DRAFT,
+    )
+
+    # revised_markdown이 없을 때는 draft_markdown 반환
+    assert get_current_markdown(reflection) == "최초 AI 초안 본문입니다."
+    assert reflection.current_markdown == "최초 AI 초안 본문입니다."
+
+    # revised_markdown이 있을 때는 revised_markdown 반환
+    reflection.revised_markdown = "사용자 직접 수정 본문입니다."
+    assert get_current_markdown(reflection) == "사용자 직접 수정 본문입니다."
+    assert reflection.current_markdown == "사용자 직접 수정 본문입니다."
+
+
+def test_complete_reflection_atomically_transitions_reflection_and_interview(
+    reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    from reflections.drafts import complete_reflection
+
+    reflection = Reflection.objects.create(
+        interview=ready_interview,
+        draft_markdown="최초 AI 초안 본문입니다.",
+        draft_sections=list(prepared_draft_result.sections),
+        status=Reflection.Status.DRAFT,
+    )
+    assert ready_interview.status == Interview.Status.REFLECTION_READY
+
+    completed_ref = complete_reflection(user=reflection_user, reflection=reflection)
+
+    assert completed_ref.status == Reflection.Status.COMPLETED
+    assert completed_ref.completed_at is not None
+
+    ready_interview.refresh_from_db()
+    assert ready_interview.status == Interview.Status.COMPLETED
+
+
+def test_complete_reflection_is_idempotent(
+    reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    from reflections.drafts import complete_reflection
+
+    reflection = Reflection.objects.create(
+        interview=ready_interview,
+        draft_markdown="최초 AI 초안 본문입니다.",
+        draft_sections=list(prepared_draft_result.sections),
+        status=Reflection.Status.DRAFT,
+    )
+    first_res = complete_reflection(user=reflection_user, reflection=reflection)
+    first_completed_at = first_res.completed_at
+
+    # 중복 호출 시 동일 결과 수렴 및 completed_at 불변
+    second_res = complete_reflection(user=reflection_user, reflection=reflection)
+    assert second_res.status == Reflection.Status.COMPLETED
+    assert second_res.completed_at == first_completed_at
+
+
+def test_complete_reflection_enforces_owner_scope(
+    other_reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    from reflections.drafts import complete_reflection
+
+    reflection = Reflection.objects.create(
+        interview=ready_interview,
+        draft_markdown="초안 본문입니다.",
+        draft_sections=list(prepared_draft_result.sections),
+        status=Reflection.Status.DRAFT,
+    )
+    with pytest.raises(ReflectionPolicyError):
+        complete_reflection(user=other_reflection_user, reflection=reflection)
+
+
+def test_save_reflection_revision_rejects_completed_reflection(
+    reflection_user, ready_interview, prepared_draft_result
+) -> None:
+    from reflections.drafts import complete_reflection
+
+    reflection = Reflection.objects.create(
+        interview=ready_interview,
+        draft_markdown="초안 본문입니다.",
+        draft_sections=list(prepared_draft_result.sections),
+        status=Reflection.Status.DRAFT,
+    )
+    complete_reflection(user=reflection_user, reflection=reflection)
+
+    with pytest.raises(ReflectionPolicyError):
+        save_reflection_revision(
+            user=reflection_user,
+            reflection=reflection,
+            markdown="완료 후 수정 시도",
+        )

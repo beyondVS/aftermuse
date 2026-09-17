@@ -308,6 +308,7 @@ class Reflection(models.Model):
 
     class Status(models.TextChoices):
         DRAFT = "DRAFT", "초안"
+        COMPLETED = "COMPLETED", "완료"
 
     id = models.BigAutoField(primary_key=True)
     interview = models.OneToOneField(
@@ -326,12 +327,15 @@ class Reflection(models.Model):
     class Meta:
         constraints = [
             models.CheckConstraint(
-                condition=Q(status="DRAFT"),
-                name="reflections_reflection_status_draft",
+                condition=Q(status__in=("DRAFT", "COMPLETED")),
+                name="reflections_reflection_status_valid",
             ),
             models.CheckConstraint(
-                condition=Q(completed_at__isnull=True),
-                name="reflections_reflection_completed_at_null",
+                condition=(
+                    (Q(status="DRAFT") & Q(completed_at__isnull=True))
+                    | (Q(status="COMPLETED") & Q(completed_at__isnull=False))
+                ),
+                name="reflections_reflection_status_completed_at_consistent",
             ),
             models.CheckConstraint(
                 condition=RawSQL(
@@ -365,6 +369,20 @@ class Reflection(models.Model):
     def save(self, *args, **kwargs) -> None:
         self.clean()
         super().save(*args, **kwargs)
+
+    @property
+    def current_markdown(self) -> str:
+        """최신 사용자 수정본이 있으면 이를, 없으면 최초 AI 초안을 반환한다."""
+        return (
+            self.revised_markdown
+            if self.revised_markdown is not None
+            else self.draft_markdown
+        )
+
+    @property
+    def display_status(self) -> str:
+        """UI에 표시할 상태 텍스트를 반환한다 (DRAFT: '작성 중', COMPLETED: '완료')."""
+        return "작성 중" if self.status == self.Status.DRAFT else "완료"
 
     def _validate_markdown_fields(self) -> None:
         """초안 및 수정본 Markdown의 타입과 길이 제약을 검증한다."""
@@ -425,14 +443,31 @@ class Reflection(models.Model):
             raise ValidationError(
                 {"draft_sections": "최초 초안 섹션은 변경할 수 없습니다."}
             )
+        if original.status == self.Status.COMPLETED:
+            if self.status == self.Status.DRAFT:
+                raise ValidationError(
+                    {"status": "완료된 Reflection은 초안으로 되돌릴 수 없습니다."}
+                )
+            if self.revised_markdown != original.revised_markdown:
+                raise ValidationError(
+                    {
+                        "revised_markdown": (
+                            "완료된 Reflection의 본문은 수정할 수 없습니다."
+                        )
+                    }
+                )
 
     def clean(self) -> None:
         super().clean()
-        if self.status != self.Status.DRAFT:
-            raise ValidationError({"status": "Day 10에서는 DRAFT 상태만 허용됩니다."})
-        if self.completed_at is not None:
+        if self.status not in (self.Status.DRAFT, self.Status.COMPLETED):
+            raise ValidationError({"status": "허용되지 않은 Reflection 상태입니다."})
+        if self.status == self.Status.DRAFT and self.completed_at is not None:
             raise ValidationError(
-                {"completed_at": "Day 10에서는 완료 시각을 지정할 수 없습니다."}
+                {"completed_at": "초안 상태에서는 완료 시각을 지정할 수 없습니다."}
+            )
+        if self.status == self.Status.COMPLETED and self.completed_at is None:
+            raise ValidationError(
+                {"completed_at": "완료 상태에서는 완료 시각이 필수입니다."}
             )
         self._validate_markdown_fields()
         self._validate_sections()

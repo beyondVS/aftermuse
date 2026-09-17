@@ -1,6 +1,7 @@
 import logging
 import traceback
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import DatabaseError
 from django.http import Http404, HttpRequest, HttpResponse
@@ -12,8 +13,14 @@ from integrations.llm.contracts import AnswerAnalysisError, QuestionGenerationEr
 from integrations.llm.factory import get_question_provider
 from knowledge.services import get_book_knowledge_readiness
 from readings.models import Reading
-from reflections.drafts import generate_or_get_reflection_draft
-from reflections.forms import FirstAnswerForm
+from reflections.drafts import (
+    complete_reflection,
+    generate_or_get_reflection_draft,
+    get_current_markdown,
+    render_markdown_safely,
+    save_reflection_revision,
+)
+from reflections.forms import FirstAnswerForm, ReflectionRevisionForm
 from reflections.models import (
     Interview,
     InterviewProgressDecision,
@@ -798,9 +805,106 @@ def reflection_detail(request: HttpRequest, reflection_id: int) -> HttpResponse:
     if reflection is None:
         raise Http404("Reflection not found or access denied")
 
+    current_md = get_current_markdown(reflection)
+    rendered_content = render_markdown_safely(current_md)
+
     return render(
         request,
-        "reflections/reflection_draft_ready.html",
+        "reflections/reflection_detail.html",
+        {
+            "reflection": reflection,
+            "book": reflection.interview.reading.book,
+            "reading": reflection.interview.reading,
+            "rendered_content": rendered_content,
+            "is_draft": reflection.status == Reflection.Status.DRAFT,
+            "is_completed": reflection.status == Reflection.Status.COMPLETED,
+            "display_status": reflection.display_status,
+        },
+    )
+
+
+@login_required
+def reflection_edit(request: HttpRequest, reflection_id: int) -> HttpResponse:
+    """DRAFT 상태의 Reflection 본문을 사용자가 수정하고 저장한다."""
+    reflection = (
+        Reflection.objects.filter(
+            pk=reflection_id, interview__reading__user=request.user
+        )
+        .select_related("interview__reading__book")
+        .first()
+    )
+    if reflection is None:
+        raise Http404("Reflection not found or access denied")
+
+    # 완료된 Reflection은 수정 불가 -> 결과 화면으로 redirect
+    if reflection.status == Reflection.Status.COMPLETED:
+        return redirect("reflections:reflection_detail", reflection_id=reflection.pk)
+
+    if request.method == "POST":
+        form = ReflectionRevisionForm(request.POST)
+        if form.is_valid():
+            save_reflection_revision(
+                user=request.user,
+                reflection=reflection,
+                markdown=form.cleaned_data["markdown"],
+            )
+            messages.success(request, "독서노트 수정본이 저장되었습니다.")
+            return redirect(
+                "reflections:reflection_detail", reflection_id=reflection.pk
+            )
+        return render(
+            request,
+            "reflections/reflection_edit.html",
+            {
+                "reflection": reflection,
+                "book": reflection.interview.reading.book,
+                "form": form,
+            },
+            status=400,
+        )
+
+    # GET 요청
+    initial_md = get_current_markdown(reflection)
+    form = ReflectionRevisionForm(initial={"markdown": initial_md})
+    return render(
+        request,
+        "reflections/reflection_edit.html",
+        {
+            "reflection": reflection,
+            "book": reflection.interview.reading.book,
+            "form": form,
+        },
+    )
+
+
+@login_required
+def reflection_complete_confirm(
+    request: HttpRequest, reflection_id: int
+) -> HttpResponse:
+    """Reflection 및 Interview를 최종 완료하기 전 확인하고 실행한다."""
+    reflection = (
+        Reflection.objects.filter(
+            pk=reflection_id, interview__reading__user=request.user
+        )
+        .select_related("interview__reading__book")
+        .first()
+    )
+    if reflection is None:
+        raise Http404("Reflection not found or access denied")
+
+    # 이미 완료된 경우 결과 화면으로 이동
+    if reflection.status == Reflection.Status.COMPLETED:
+        return redirect("reflections:reflection_detail", reflection_id=reflection.pk)
+
+    if request.method == "POST":
+        complete_reflection(user=request.user, reflection=reflection)
+        messages.success(request, "독서노트가 최종 완료되었습니다.")
+        return redirect("reflections:reflection_detail", reflection_id=reflection.pk)
+
+    # GET 요청: 완료 확인 화면
+    return render(
+        request,
+        "reflections/reflection_complete_confirm.html",
         {
             "reflection": reflection,
             "book": reflection.interview.reading.book,

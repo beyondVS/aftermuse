@@ -1,0 +1,23 @@
+[
+  {
+    "isbn13": "9780452284234",
+    "title": "1984",
+    "authors": "George Orwell",
+    "genre": "fiction",
+    "expected_readiness": "READY"
+  },
+  {
+    "isbn13": "9780374275631",
+    "title": "Thinking, Fast and Slow",
+    "authors": "Daniel Kahneman",
+    "genre": "nonfiction",
+    "expected_readiness": "READY"
+  },
+  {
+    "isbn13": "9780143111597",
+    "title": "The Left Hand of Darkness",
+    "authors": "Ursula K. Le Guin",
+    "genre": "fiction",
+    "expected_readiness": "READY_LIMITED"
+  }
+]

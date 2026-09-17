@@ -23,7 +23,7 @@
 
 **Purpose**: 계획에서 확정한 안전한 Markdown 렌더링 의존성을 pyproject.toml에 추가하고 환경을 동기화한다.
 
-- [ ] T001 `Markdown~=3.10.3` 런타임 의존성을 추가하고 lockfile을 동기화한 뒤 import 가능한지 확인한다: `pyproject.toml`, `uv.lock`
+- [X] T001 `Markdown~=3.10.3` 런타임 의존성을 추가하고 lockfile을 동기화한 뒤 import 가능한지 확인한다: `pyproject.toml`, `uv.lock`
 
 ---
 
@@ -33,10 +33,10 @@
 
 **⚠️ CRITICAL**: 이 단계가 완료되기 전에는 사용자 스토리 구현을 시작하지 않는다.
 
-- [ ] T002 [P] `Reflection.Status.COMPLETED` 추가, `completed_at` 일관성 `(DRAFT, completed_at IS NULL)` / `(COMPLETED, completed_at IS NOT NULL)`, 기존 DRAFT 보존 및 단일 migration 왕복을 검증하는 실패 테스트를 추가한다: `tests/reflections/test_models.py`, `tests/reflections/test_migrations.py`
-- [ ] T003 `Reflection.Status.COMPLETED` 추가 및 `(DRAFT, completed_at IS NULL)` 또는 `(COMPLETED, completed_at IS NOT NULL)` 상태 불변식을 모델에 구현한다: `src/reflections/models.py`
-- [ ] T004 기존 draft-only CHECK 제약을 새 완료 제약으로 교체하는 단일 표준 migration을 구현한다: `src/reflections/migrations/0010_reflection_completed_status.py`
-- [ ] T005 Foundational 모델 및 migration 테스트를 실행해 상태 제약과 마이그레이션이 통과하는지 확인한다: `tests/reflections/test_models.py`, `tests/reflections/test_migrations.py`
+- [X] T002 [P] `Reflection.Status.COMPLETED` 추가, `completed_at` 일관성 `(DRAFT, completed_at IS NULL)` / `(COMPLETED, completed_at IS NOT NULL)`, 기존 DRAFT 보존 및 단일 migration 왕복을 검증하는 실패 테스트를 추가한다: `tests/reflections/test_models.py`, `tests/reflections/test_migrations.py`
+- [X] T003 `Reflection.Status.COMPLETED` 추가 및 `(DRAFT, completed_at IS NULL)` 또는 `(COMPLETED, completed_at IS NOT NULL)` 상태 불변식을 모델에 구현한다: `src/reflections/models.py`
+- [X] T004 기존 draft-only CHECK 제약을 새 완료 제약으로 교체하는 단일 표준 migration을 구현한다: `src/reflections/migrations/0010_reflection_completed_status.py`
+- [X] T005 Foundational 모델 및 migration 테스트를 실행해 상태 제약과 마이그레이션이 통과하는지 확인한다: `tests/reflections/test_models.py`, `tests/reflections/test_migrations.py`
 
 **Checkpoint**: Reflection 완료 상태를 지원하는 DB 스키마와 모델 제약이 준비되어 사용자 스토리 구현을 시작할 수 있다.
 
@@ -50,15 +50,15 @@
 
 ### Tests for User Story 1
 
-- [ ] T006 [P] [US1] 소유자 조회, bounded `select_related` 조회, 책 메타데이터, 현재 본문 선택(`revised_markdown` 우선), 기본 Markdown 구조(headings, 문단, 목록, 인용, 강조) 보존, 사용자 입력 raw HTML 비실행 보안 불변식, DRAFT 행동(`[수정] [완료] [Home으로]`), AI 작성자/Chat transcript 비노출 및 타인/없는 기록 404를 검증하는 실패 테스트를 추가한다: `tests/reflections/test_views.py`, `tests/reflections/test_drafts.py`
+- [X] T006 [P] [US1] 소유자 조회, bounded `select_related` 조회, 책 메타데이터, 현재 본문 선택(`revised_markdown` 우선), 기본 Markdown 구조(headings, 문단, 목록, 인용, 강조) 보존, 사용자 입력 raw HTML 비실행 보안 불변식, DRAFT 행동(`[수정] [완료] [Home으로]`), AI 작성자/Chat transcript 비노출 및 타인/없는 기록 404를 검증하는 실패 테스트를 추가한다: `tests/reflections/test_views.py`, `tests/reflections/test_drafts.py`
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] `revised_markdown` 우선 현재 본문 선택(`current_markdown`)과 사용자 입력 raw HTML이 브라우저에서 실행되지 않도록 안전하게 Markdown 변환하는 렌더링 함수를 구현한다: `src/reflections/drafts.py`
-- [ ] T008 [US1] 소유자 범위 Reflection 결과 조회 및 안전 렌더 context를 전달하는 뷰와 URL을 구현한다: `src/reflections/views.py`, `src/reflections/urls.py`
-- [ ] T009 [US1] 책 제목, 선택적 저자, 작성일, 전체 본문, 상태 텍스트(`작성 중`) 및 `[수정] [완료] [Home으로]` 행동을 갖춘 읽기 중심 결과 화면 템플릿을 구현한다: `src/templates/reflections/reflection_detail.html`
-- [ ] T010 [US1] 긴 글의 문단·제목·목록 순서를 유지하고 Desktop/Mobile 폭에서 읽히도록 본문과 버튼 group wrapping, 키보드 focus 표시 등 반응형 스타일을 추가한다: `src/static/css/app.css`
-- [ ] T011 [US1] 사용자 스토리 1의 테스트를 실행해 결과 화면 읽기 경험과 보안 불변식 독립 인수를 검증한다: `tests/reflections/test_drafts.py`, `tests/reflections/test_views.py`
+- [X] T007 [US1] `revised_markdown` 우선 현재 본문 선택(`current_markdown`)과 사용자 입력 raw HTML이 브라우저에서 실행되지 않도록 안전하게 Markdown 변환하는 렌더링 함수를 구현한다: `src/reflections/drafts.py`
+- [X] T008 [US1] 소유자 범위 Reflection 결과 조회 및 안전 렌더 context를 전달하는 뷰와 URL을 구현한다: `src/reflections/views.py`, `src/reflections/urls.py`
+- [X] T009 [US1] 책 제목, 선택적 저자, 작성일, 전체 본문, 상태 텍스트(`작성 중`) 및 `[수정] [완료] [Home으로]` 행동을 갖춘 읽기 중심 결과 화면 템플릿을 구현한다: `src/templates/reflections/reflection_detail.html`
+- [X] T010 [US1] 긴 글의 문단·제목·목록 순서를 유지하고 Desktop/Mobile 폭에서 읽히도록 본문과 버튼 group wrapping, 키보드 focus 표시 등 반응형 스타일을 추가한다: `src/static/css/app.css`
+- [X] T011 [US1] 사용자 스토리 1의 테스트를 실행해 결과 화면 읽기 경험과 보안 불변식 독립 인수를 검증한다: `tests/reflections/test_drafts.py`, `tests/reflections/test_views.py`
 
 **Checkpoint**: 수정 저장과 Home 카드가 없어도 소유자의 독서노트 읽기 경험(MVP)을 독립적으로 제공한다.
 
@@ -72,16 +72,16 @@
 
 ### Tests for User Story 2
 
-- [ ] T012 [P] [US2] DRAFT 본문 수정 저장(최초 `draft_markdown` 보존 및 `revised_markdown` 갱신), Form 유효성(비공백, 최대 20,000자), 단일 트랜잭션 내 원자적 완료 전환(`Reflection` + `Interview` COMPLETED), 완료 시각 보존, 완료 후 읽기 전용화(`[수정] [완료]` 버튼 비노출), 완료본 수정 거부(차단), 중복 완료 멱등 수렴을 검증하는 실패 테스트를 추가한다: `tests/reflections/test_models.py`, `tests/reflections/test_drafts.py`, `tests/reflections/test_views.py`
+- [X] T012 [P] [US2] DRAFT 본문 수정 저장(최초 `draft_markdown` 보존 및 `revised_markdown` 갱신), Form 유효성(비공백, 최대 20,000자), 단일 트랜잭션 내 원자적 완료 전환(`Reflection` + `Interview` COMPLETED), 완료 시각 보존, 완료 후 읽기 전용화(`[수정] [완료]` 버튼 비노출), 완료본 수정 거부(차단), 중복 완료 멱등 수렴을 검증하는 실패 테스트를 추가한다: `tests/reflections/test_models.py`, `tests/reflections/test_drafts.py`, `tests/reflections/test_views.py`
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] 현재 본문 시작값과 비공백 1–20,000자 유효성 검사를 수행하는 수정 Form을 구현한다: `src/reflections/forms.py`
-- [ ] T014 [US2] DRAFT 본문 수정본을 `revised_markdown`에 저장하는 `save_reflection_revision()`과 단일 트랜잭션에서 Reflection과 Interview를 원자적으로 완료하는 `complete_reflection()` 서비스를 구현한다: `src/reflections/drafts.py`
-- [ ] T015 [US2] 수정 화면 GET/POST(성공 시 결과 화면 PRG redirect, 완료본 수정 차단) 및 완료 확인 GET/POST 뷰와 URL을 구현한다: `src/reflections/views.py`, `src/reflections/urls.py`
-- [ ] T016 [US2] 최신 본문 편집 textarea와 `[취소] [수정 저장]` 버튼을 갖춘 수정 화면 및 취소 링크와 명시적 완료 POST 버튼을 갖춘 완료 확인 화면을 구현한다: `src/templates/reflections/reflection_edit.html`, `src/templates/reflections/reflection_complete_confirm.html`
-- [ ] T017 [US2] 완료본 결과 화면에서 `[수정] [완료]` 버튼을 숨기고 완료 안내 텍스트를 표시하도록 결과 화면 템플릿을 업데이트한다: `src/templates/reflections/reflection_detail.html`
-- [ ] T018 [US2] 사용자 스토리 2의 Form, Service, View 테스트를 실행해 수정 저장과 원자적 완료 계약을 독립 검증한다: `tests/reflections/test_models.py`, `tests/reflections/test_drafts.py`, `tests/reflections/test_views.py`
+- [X] T013 [US2] 현재 본문 시작값과 비공백 1–20,000자 유효성 검사를 수행하는 수정 Form을 구현한다: `src/reflections/forms.py`
+- [X] T014 [US2] DRAFT 본문 수정본을 `revised_markdown`에 저장하는 `save_reflection_revision()`과 단일 트랜잭션에서 Reflection과 Interview를 원자적으로 완료하는 `complete_reflection()` 서비스를 구현한다: `src/reflections/drafts.py`
+- [X] T015 [US2] 수정 화면 GET/POST(성공 시 결과 화면 PRG redirect, 완료본 수정 차단) 및 완료 확인 GET/POST 뷰와 URL을 구현한다: `src/reflections/views.py`, `src/reflections/urls.py`
+- [X] T016 [US2] 최신 본문 편집 textarea와 `[취소] [수정 저장]` 버튼을 갖춘 수정 화면 및 취소 링크와 명시적 완료 POST 버튼을 갖춘 완료 확인 화면을 구현한다: `src/templates/reflections/reflection_edit.html`, `src/templates/reflections/reflection_complete_confirm.html`
+- [X] T017 [US2] 완료본 결과 화면에서 `[수정] [완료]` 버튼을 숨기고 완료 안내 텍스트를 표시하도록 결과 화면 템플릿을 업데이트한다: `src/templates/reflections/reflection_detail.html`
+- [X] T018 [US2] 사용자 스토리 2의 Form, Service, View 테스트를 실행해 수정 저장과 원자적 완료 계약을 독립 검증한다: `tests/reflections/test_models.py`, `tests/reflections/test_drafts.py`, `tests/reflections/test_views.py`
 
 **Checkpoint**: AI 초안이 안전하게 보존되면서 사용자 수정본이 반영되고, 명시적 완료 시 원자적으로 상태가 확정된다.
 
@@ -95,14 +95,14 @@
 
 ### Tests for User Story 3
 
-- [ ] T019 [P] [US3] Home의 최근 Reflection 조회(`updated_at DESC, id DESC`, limit 1), 소유자 격리, DRAFT(`작성 중`) / COMPLETED(`완료`) 텍스트, 결과 화면 이동 링크, 빈 상태 보존 및 고정 query count를 검증하는 실패 테스트를 추가한다: `tests/test_home_page.py`
+- [X] T019 [P] [US3] Home의 최근 Reflection 조회(`updated_at DESC, id DESC`, limit 1), 소유자 격리, DRAFT(`작성 중`) / COMPLETED(`완료`) 텍스트, 결과 화면 이동 링크, 빈 상태 보존 및 고정 query count를 검증하는 실패 테스트를 추가한다: `tests/test_home_page.py`
 
 ### Implementation for User Story 3
 
-- [ ] T020 [US3] `get_home_reading_groups()`에 현재 사용자의 최근 Reflection을 `select_related("interview__reading__book")`, `-updated_at`, `-id`, limit 1로 조회하는 단일 bounded query와 `recent_reflection` context를 추가한다: `src/config/views.py`
-- [ ] T021 [US3] Reflection이 있을 때만 책 정보, 상태 텍스트(`작성 중` / `완료`), 결과 화면 링크를 표시하는 최근 독서노트 카드를 Home 템플릿에 추가하고 기존 Reading/Interview/빈 상태를 보존한다: `src/templates/pages/home.html`
-- [ ] T022 [US3] 최근 독서노트 카드의 반응형 스타일 및 focus-visible 스타일을 추가한다: `src/static/css/app.css`
-- [ ] T023 [US3] 사용자 스토리 3의 Home 테스트를 실행해 최근 활동 선택, 상태 텍스트, 사용자 격리 및 쿼리 수 계약을 독립 검증한다: `tests/test_home_page.py`
+- [X] T020 [US3] `get_home_reading_groups()`에 현재 사용자의 최근 Reflection을 `select_related("interview__reading__book")`, `-updated_at`, `-id`, limit 1로 조회하는 단일 bounded query와 `recent_reflection` context를 추가한다: `src/config/views.py`
+- [X] T021 [US3] Reflection이 있을 때만 책 정보, 상태 텍스트(`작성 중` / `완료`), 결과 화면 링크를 표시하는 최근 독서노트 카드를 Home 템플릿에 추가하고 기존 Reading/Interview/빈 상태를 보존한다: `src/templates/pages/home.html`
+- [X] T022 [US3] 최근 독서노트 카드의 반응형 스타일 및 focus-visible 스타일을 추가한다: `src/static/css/app.css`
+- [X] T023 [US3] 사용자 스토리 3의 Home 테스트를 실행해 최근 활동 선택, 상태 텍스트, 사용자 격리 및 쿼리 수 계약을 독립 검증한다: `tests/test_home_page.py`
 
 **Checkpoint**: 전체 Library 없이도 사용자는 Home의 최근 독서노트 카드를 통해 자신의 작업 중 또는 완료된 독서노트로 언제든 재진입할 수 있다.
 
@@ -116,14 +116,14 @@
 
 ### Tests for User Story 4
 
-- [ ] T024 [P] [US4] 3권 descriptor 형식 검증, ISBN13 멱등 생성 및 기존 메타데이터 보존, READY 2권 승인 Claim 총 8개 적용, LIMITED Claim 0개, 두 번 실행 수렴, 사용자 데이터 무변경, 불일치/실패 시 rollback을 검증하는 실패 테스트를 추가한다: `tests/knowledge/test_validation_books.py`
+- [X] T024 [P] [US4] 3권 descriptor 형식 검증, ISBN13 멱등 생성 및 기존 메타데이터 보존, READY 2권 승인 Claim 총 8개 적용, LIMITED Claim 0개, 두 번 실행 수렴, 사용자 데이터 무변경, 불일치/실패 시 rollback을 검증하는 실패 테스트를 추가한다: `tests/knowledge/test_validation_books.py`
 
 ### Implementation for User Story 4
 
-- [ ] T025 [US4] 《1984》(fiction READY), 《Thinking, Fast and Slow》(nonfiction READY), 《The Left Hand of Darkness》(fiction READY_LIMITED) 3권의 정확한 메타데이터와 기대 상태를 담은 descriptor JSON을 추가한다: `src/knowledge/seed_data/validation_books.json`
-- [ ] T026 [US4] descriptor 검증 후 ISBN13 `get_or_create`, 기존 메타데이터 보존, 승인 Seed 적용 및 LIMITED 무지식을 보장하는 원자적 데이터 준비 서비스를 구현한다: `src/knowledge/services.py`
-- [ ] T027 [US4] application 시작이나 migration에서 자동 실행되지 않는 명시적 `prepare_validation_books` management command를 구현한다: `src/knowledge/management/commands/prepare_validation_books.py`
-- [ ] T028 [US4] 사용자 스토리 4와 기존 Seed 회귀 테스트를 실행해 멱등성, 원자성 및 승인 Claim 계약을 검증한다: `tests/knowledge/test_validation_books.py`, `tests/knowledge/test_seed_command.py`
+- [X] T025 [US4] 《1984》(fiction READY), 《Thinking, Fast and Slow》(nonfiction READY), 《The Left Hand of Darkness》(fiction READY_LIMITED) 3권의 정확한 메타데이터와 기대 상태를 담은 descriptor JSON을 추가한다: `src/knowledge/seed_data/validation_books.json`
+- [X] T026 [US4] descriptor 검증 후 ISBN13 `get_or_create`, 기존 메타데이터 보존, 승인 Seed 적용 및 LIMITED 무지식을 보장하는 원자적 데이터 준비 서비스를 구현한다: `src/knowledge/services.py`
+- [X] T027 [US4] application 시작이나 migration에서 자동 실행되지 않는 명시적 `prepare_validation_books` management command를 구현한다: `src/knowledge/management/commands/prepare_validation_books.py`
+- [X] T028 [US4] 사용자 스토리 4와 기존 Seed 회귀 테스트를 실행해 멱등성, 원자성 및 승인 Claim 계약을 검증한다: `tests/knowledge/test_validation_books.py`, `tests/knowledge/test_seed_command.py`
 
 **Checkpoint**: Day 13 검증용 3권이 운영/사용자 데이터에 영향 없는 명시적 command로 반복 준비된다.
 
@@ -133,10 +133,10 @@
 
 **Purpose**: 마이그레이션 점검, 관련 범위 전체 회귀, 표준 품질 게이트 및 문서 동기화를 마무리한다.
 
-- [ ] T029 [P] migration `0010`에 대해 `makemigrations --check --dry-run` 및 `sqlmigrate`를 실행해 스키마 drift가 없는지 점검한다: `src/reflections/migrations/0010_reflection_completed_status.py`
-- [ ] T030 [P] `reflections`, `knowledge`, Home 페이지 관련 단위/통합 테스트 전체를 실행해 컴포넌트 간 회귀가 없는지 검증한다: `tests/reflections/`, `tests/knowledge/`, `tests/test_home_page.py`
-- [ ] T031 표준 전체 품질 게이트를 실행해 코딩 표준과 타입 일관성을 점검한다: `scripts/verify.py`
-- [ ] T032 [P] 구현 결과와 실제 동작, 명시적 검증 command, Day 12 완료 상태 및 사용자 관점 변경 사항을 관련 문서에 동기화한다: `README.md`, `docs/README.md`, `docs/AfterMuse_MVP_Implementation_Plan_v5.md`, `CHANGELOG.md`, `specs/017-reflection-result-edit-home/quickstart.md`
+- [X] T029 [P] migration `0010`에 대해 `makemigrations --check --dry-run` 및 `sqlmigrate`를 실행해 스키마 drift가 없는지 점검한다: `src/reflections/migrations/0010_reflection_completed_status.py`
+- [X] T030 [P] `reflections`, `knowledge`, Home 페이지 관련 단위/통합 테스트 전체를 실행해 컴포넌트 간 회귀가 없는지 검증한다: `tests/reflections/`, `tests/knowledge/`, `tests/test_home_page.py`
+- [X] T031 표준 전체 품질 게이트를 실행해 코딩 표준과 타입 일관성을 점검한다: `scripts/verify.py`
+- [X] T032 [P] 구현 결과와 실제 동작, 명시적 검증 command, Day 12 완료 상태 및 사용자 관점 변경 사항을 관련 문서에 동기화한다: `README.md`, `docs/README.md`, `docs/AfterMuse_MVP_Implementation_Plan_v5.md`, `CHANGELOG.md`, `specs/017-reflection-result-edit-home/quickstart.md`
 
 ---
 

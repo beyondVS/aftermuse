@@ -530,3 +530,109 @@ def test_interview_turn_user_skip_sql_is_additive_and_lock_bounded() -> None:
     call_command("sqlmigrate", "reflections", "0009", stdout=output_0009)
     sql_0009 = output_0009.getvalue().upper()
     assert "VALIDATE CONSTRAINT" in sql_0009
+
+
+@pytest.mark.django_db(transaction=True)
+def test_reflection_completed_status_migration_round_trip() -> None:
+    connection = transaction.get_connection()
+    previous = [("reflections", "0009_validate_interview_turn_user_skip")]
+    target = [("reflections", "0010_reflection_completed_status")]
+
+    try:
+        # 1. 0009 상태에서 기존 DRAFT 데이터 생성
+        MigrationExecutor(connection).migrate(previous)
+        apps = MigrationExecutor(connection).loader.project_state(previous).apps
+        User = apps.get_model("accounts", "User")
+        Book = apps.get_model("books", "Book")
+        Reading = apps.get_model("readings", "Reading")
+        Interview = apps.get_model("reflections", "Interview")
+        Reflection = apps.get_model("reflections", "Reflection")
+
+        user = User.objects.create(username="reflection-mig-owner")
+        book = Book.objects.create(
+            isbn13="9780000000210", title="Reflection Migration 도서"
+        )
+        reading = Reading.objects.create(
+            user=user, book=book, status="completed", completed_on="2026-09-17"
+        )
+        interview = Interview.objects.create(
+            reading=reading,
+            book=book,
+            knowledge_readiness="READY",
+            status="REFLECTION_READY",
+        )
+        reflection = Reflection.objects.create(
+            interview=interview,
+            draft_markdown="마이그레이션 전 초안 본문입니다.",
+            draft_sections=[{"title": "섹션", "paragraphs": []}],
+            status="DRAFT",
+            completed_at=None,
+        )
+
+        # 2. 0010 forward 마이그레이션
+        MigrationExecutor(connection).migrate(target)
+        upgraded_apps = MigrationExecutor(connection).loader.project_state(target).apps
+        UpgradedReflection = upgraded_apps.get_model("reflections", "Reflection")
+
+        # 3. 기존 DRAFT 데이터 보존 확인
+        migrated_ref = UpgradedReflection.objects.get(pk=reflection.pk)
+        assert migrated_ref.status == "DRAFT"
+        assert migrated_ref.completed_at is None
+        assert migrated_ref.draft_markdown == "마이그레이션 전 초안 본문입니다."
+
+        # 4. COMPLETED 및 completed_at 설정 허용 확인
+        now = timezone.now()
+        migrated_ref.status = "COMPLETED"
+        migrated_ref.completed_at = now
+        migrated_ref.save()
+
+        ref_reloaded = UpgradedReflection.objects.get(pk=reflection.pk)
+        assert ref_reloaded.status == "COMPLETED"
+        assert ref_reloaded.completed_at is not None
+
+        # 5. 불일치 상태 DB 제약 위반 확인 (COMPLETED인데 completed_at IS NULL)
+        with pytest.raises(IntegrityError), transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE reflections_reflection "
+                    "SET completed_at = NULL WHERE id = %s",
+                    [reflection.pk],
+                )
+
+        # 6. 불일치 상태 DB 제약 위반 확인 (DRAFT인데 completed_at IS NOT NULL)
+        with pytest.raises(IntegrityError), transaction.atomic():
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "UPDATE reflections_reflection SET status = 'DRAFT' WHERE id = %s",
+                    [reflection.pk],
+                )
+
+        # 7. 0009로 reverse 마이그레이션
+        # 롤백 전 DRAFT 상태로 복구하여 0009 제약 만족
+        migrated_ref.status = "DRAFT"
+        migrated_ref.completed_at = None
+        migrated_ref.save()
+
+        MigrationExecutor(connection).migrate(previous)
+        rolled_back_apps = (
+            MigrationExecutor(connection).loader.project_state(previous).apps
+        )
+        RolledBackReflection = rolled_back_apps.get_model("reflections", "Reflection")
+
+        rolled_back_ref = RolledBackReflection.objects.get(pk=reflection.pk)
+        assert rolled_back_ref.status == "DRAFT"
+        assert rolled_back_ref.completed_at is None
+
+    finally:
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())
+
+
+@pytest.mark.django_db(transaction=True)
+def test_reflection_completed_status_sql_is_lock_bounded() -> None:
+    output_0010 = StringIO()
+    call_command("sqlmigrate", "reflections", "0010", stdout=output_0010)
+    sql_0010 = output_0010.getvalue().upper()
+    assert "SET LOCAL LOCK_TIMEOUT = '2S'" in sql_0010
+    assert "DROP CONSTRAINT" in sql_0010
+    assert "ADD CONSTRAINT" in sql_0010
