@@ -631,7 +631,7 @@ def test_first_answer_is_saved_once_and_same_value_is_idempotent(
     [
         FakeQuestionProvider(error=QuestionGenerationUnavailable()),
         FakeQuestionProvider(
-            result=GeneratedQuestion(question="질문입니다. 또 묻나요?")
+            result=GeneratedQuestion(question="줄바꿈이\n포함된 질문인가요?")
         ),
         FakeQuestionProvider(result=GeneratedQuestion(question="물음표가 없습니다.")),
     ],
@@ -649,6 +649,26 @@ def test_failed_or_invalid_first_question_never_creates_turn(
         )
 
     assert InterviewTurn.objects.filter(interview=interview).count() == 0
+
+
+def test_natural_compound_question_with_period_or_exclamation_is_allowed(
+    completed_reading,
+) -> None:
+    """공감 문장이나 마침표/느낌표가 포함된 자연스러운 복문 질문도 허용된다."""
+    interview = start_interview(
+        user=completed_reading.user, reading=completed_reading
+    ).interview
+    turn = ensure_first_question(
+        user=completed_reading.user,
+        interview=interview,
+        provider=FakeQuestionProvider(
+            result=GeneratedQuestion(
+                question="오래 기억에 남으셨군요! 왜 그렇게 느끼셨나요?"
+            )
+        ),
+    )
+    assert turn.sequence == 1
+    assert "오래 기억에 남으셨군요!" in turn.question
 
 
 @pytest.mark.parametrize(
@@ -1717,6 +1737,31 @@ def test_all_covered_with_open_answer_keeps_a_question(completed_reading) -> Non
     assert result.turn.sequence == 2
     turn.refresh_from_db()
     assert turn.next_question_skipped_at is None
+
+
+def test_natural_compound_next_question_with_period_is_allowed(
+    completed_reading,
+) -> None:
+    """후속 질문에서도 공감 문장이나 마침표가 포함된 자연스러운 복문 질문이 허용된다."""
+    interview, turn = _answered_interview(completed_reading)
+    result = process_next_turn(
+        user=completed_reading.user,
+        interview=interview,
+        turn=turn,
+        analysis_provider=FakeAnswerAnalysisProvider(),
+        next_provider=FakeNextQuestionProvider(
+            result=ProposedNextQuestion(
+                kind="question",
+                question="결말이 허무하셨군요. 그 선택에서 무엇이 남았나요?",
+                focus_axis="MEMORY",
+                grounding_quote=turn.answer,
+                skip_reason=None,
+            )
+        ),
+    )
+    assert not result.skipped
+    assert result.turn.sequence == 2
+    assert "결말이 허무하셨군요." in result.turn.question
 
 
 def test_negated_closing_phrase_does_not_allow_skip(completed_reading) -> None:

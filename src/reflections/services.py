@@ -401,7 +401,7 @@ def _validate_interview_state(interview: Interview) -> None:
 
 
 def _validate_first_question(question: object) -> str:
-    """저장 전 질문의 줄 수, 길이, 문장 종결 조건을 강제한다."""
+    """저장 전 질문의 줄 수, 길이, 문장 종결 조건을 검증한다."""
     if not isinstance(question, str):
         raise QuestionGenerationRejected()
     normalized = question.strip()
@@ -410,8 +410,6 @@ def _validate_first_question(question: object) -> str:
         or len(normalized) > 300
         or "\n" in normalized
         or not normalized.endswith(("?", "？"))
-        or normalized.count("?") + normalized.count("？") != 1
-        or any(marker in normalized[:-1] for marker in ".!。！？")
         or any(pattern in normalized for pattern in _QUESTION_PROHIBITED_PATTERNS)
     ):
         raise QuestionGenerationRejected()

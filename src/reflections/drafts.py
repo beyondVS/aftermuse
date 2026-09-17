@@ -112,7 +112,6 @@ _MIN_PARAGRAPHS_PER_SECTION = 1
 _MAX_PARAGRAPH_TEXT_LENGTH = 2000
 _MIN_PARAGRAPH_TEXT_LENGTH = 1
 _MAX_EVIDENCE_PER_PARAGRAPH = 10
-_MIN_EVIDENCE_PER_PARAGRAPH = 1
 _MAX_QUOTE_LENGTH = 500
 _MIN_QUOTE_LENGTH = 1
 _MAX_DRAFT_MARKDOWN_LENGTH = 22000
@@ -293,23 +292,6 @@ def validate_revised_markdown(markdown: str | None) -> str | None:
     return markdown
 
 
-def check_grounding_connection(paragraph_text: str, quote: str) -> None:
-    """문단과 인용구의 표현 연결(어휘 또는 짧은 답변 원문 포함)을 검증한다."""
-    tokens = [tok for tok in quote.split() if len(tok) >= 2]
-    if tokens:
-        if not any(tok in paragraph_text for tok in tokens):
-            raise ReflectionValidationError(
-                "Paragraph text does not contain any lexical token from quote",
-                reason_code="missing_grounding_token",
-            )
-    else:
-        if quote not in paragraph_text:
-            raise ReflectionValidationError(
-                "Short quote is not preserved in paragraph text",
-                reason_code="short_quote_not_preserved",
-            )
-
-
 def render_canonical_markdown(sections: Sequence[dict[str, Any]]) -> str:
     """검증된 sections에서 공백 줄로 연결된 canonical Markdown을 조립한다."""
     blocks: list[str] = []
@@ -324,7 +306,6 @@ def _validate_evidence_item(
     raw_ev: Any,
     e_idx: int,
     turns_by_seq: dict[int, ReflectionSourceTurn],
-    p_text: str,
     seen_evidence_keys: set[tuple[int, str]],
 ) -> dict[str, Any]:
     if not isinstance(raw_ev, dict):
@@ -383,7 +364,6 @@ def _validate_evidence_item(
             reason_code="quote_not_in_answer",
         )
 
-    check_grounding_connection(p_text, quote)
     return {"sequence": seq, "quote": quote}
 
 
@@ -414,19 +394,15 @@ def _validate_single_paragraph(
             f"Evidence in paragraph {p_idx} must be a list",
             reason_code="invalid_evidence_type",
         )
-    if (
-        len(raw_evidences) < _MIN_EVIDENCE_PER_PARAGRAPH
-        or len(raw_evidences) > _MAX_EVIDENCE_PER_PARAGRAPH
-    ):
+    if len(raw_evidences) > _MAX_EVIDENCE_PER_PARAGRAPH:
         raise ReflectionValidationError(
-            f"Evidence count must be "
-            f"{_MIN_EVIDENCE_PER_PARAGRAPH}–{_MAX_EVIDENCE_PER_PARAGRAPH}",
+            f"Evidence count must not exceed {_MAX_EVIDENCE_PER_PARAGRAPH}",
             reason_code="invalid_evidence_count",
         )
 
     seen_evidence_keys: set[tuple[int, str]] = set()
     validated_evidences = [
-        _validate_evidence_item(raw_ev, e_idx, turns_by_seq, p_text, seen_evidence_keys)
+        _validate_evidence_item(raw_ev, e_idx, turns_by_seq, seen_evidence_keys)
         for e_idx, raw_ev in enumerate(raw_evidences)
     ]
 

@@ -76,6 +76,14 @@ def _pipeline_failure_details(error: Exception) -> dict[str, str]:
             reason = (
                 "생성된 질문이 질문 형식·근거·생략 정책 검증을 통과하지 못했습니다."
             )
+        elif error_type in (
+            "ReflectionGenerationRejected",
+            "ReflectionValidationError",
+        ):
+            reason = (
+                "독서노트 초안을 구성하는 중 일시적인 문제가 발생했습니다. "
+                "다시 시도해 주세요."
+            )
         elif error_type == "NextTurnStaleError":
             reason = (
                 "처리 중 Interview 상태가 변경되었습니다. 화면을 새로고침해 주세요."
