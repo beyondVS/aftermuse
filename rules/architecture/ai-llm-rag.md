@@ -4,10 +4,12 @@
 
 ---
 
-## 🤖 1. 스키마 기반 구조화 출력 (Structured Outputs)
+## 🤖 1. 스키마 기반 구조화 출력 및 검증 경계 (Structured Outputs & Validation)
 
-- LLM 응답 파싱 시 암묵적 문자열 파싱을 금지하고, 타입 스키마(Pydantic, Zod, TypeBox 등)를 통해 입출력 데이터 구조를 엄격히 검증하십시오.
-- 검증 실패 시 빠른 실패(Fast Fail) 또는 검오류 피드백 재시도(Self-Correction) 정책을 수립하십시오.
+- **결정적 계약의 엄격 검증 (Strict Validation)**:
+  LLM 응답 파싱 시 암묵적 문자열 파싱을 금지하고, 타입 스키마(Pydantic, Zod, TypeBox 등)를 통해 입출력 데이터 구조를 엄격히 검증하십시오. 스키마, 타입, 필수 필드, 인증·인가·소유권, 출처(provenance) 등 실제로 요구되는 데이터 관계, 명확한 도메인·상태 불변조건 및 외부 API의 확정적 계약(deterministic contract)은 엄격히 검증하고, 실패 시 빠른 실패(Fast Fail) 또는 오류 피드백 재시도(Self-Correction) 정책을 수립하십시오.
+- **의미 품질과 기계적 대용물(Mechanical Proxy) 구분**:
+  자연스러운 문장, 충실한 요약 및 의역, 맥락 적합성(semantic relevance), 표현 품질 등 주관적·의미적 품질(semantic quality)은 취약한 휴리스틱만으로 시스템 오류(hard reject)로 처리하지 마십시오. 단어 일치(lexical overlap), 문장부호 수, 블랙리스트, 임의 토큰/길이 수 등의 기계적 대용물을 실제 의미적 정확성과 동일시하지 않으며, 정상적인 표현 다양성을 결함으로 취급하지 마십시오. 의미적 검증은 가능한 한 대표 평가셋(representative evaluation)과 제품 수준의 실제 불변조건에 연결하십시오.
 
 ---
 

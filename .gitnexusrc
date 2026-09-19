@@ -1,4 +1,5 @@
 {
   "skipContextFiles": true,
-  "skipSkills": true
+  "skipSkills": true,
+  "pdg": true
 }

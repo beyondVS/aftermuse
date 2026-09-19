@@ -8,10 +8,11 @@ Django 및 Django REST Framework (DRF) / Django Ninja 기반 프로젝트에 적
 
 - **도메인 단위 앱 분리 (Modular Apps)**: 
   도메인 경계, 소유권 또는 독립 배포·권한 정책이 명확할 때 앱을 분리합니다. 기존 프로젝트의 앱 구조가 이를 이미 표현한다면 불필요한 재구성을 하지 마십시오.
-- **Service & Selector 패턴 (Fat Model 방지)**:
-  - CUD 책임, 재사용되는 조회 정책, transaction 경계 또는 domain policy가 View/Model에 섞여 책임이 불명확해질 때 Service·Selector/Query 등 프로젝트 아키텍처에 맞는 레이어 분리를 고려합니다.
-  - **Model**: 데이터 구조, 데이터 검증 및 기본 속성 메서드만 유지하십시오.
-  - **View / API**: 요청 수신, 입력 검증 호출, 서비스 레이어 호출 및 응답 반환 역할만 수행하십시오.
+- **Service & Selector 패턴 (조건부 계층 분리)**:
+  - Service·Selector/Query 등 추가 레이어는 여러 View/API에서 재사용되는 도메인 연산, 명확한 트랜잭션 경계, 복잡한 CUD 오케스트레이션, 여러 모델이나 외부 시스템 조합, 또는 책임 혼재로 가독성·유지보수성이 저하될 때나 프로젝트가 이미 해당 아키텍처를 일관되게 채택한 경우에 도입합니다.
+  - 단순한 CRUD나 작은 로직에서는 Django의 프레임워크 네이티브 구조(ORM, QuerySet, View/Serializer)와 기존 프로젝트 관례만으로 충분하다면 새로운 Service/Selector 계층을 강제하지 마십시오.
+  - **Model**: 데이터 구조와 유효성 검증뿐만 아니라, 해당 모델 자체에 자연스럽게 속하는 도메인 동작(Domain Behavior)을 둘 수 있습니다.
+  - **View / API**: 요청 수신, 입력 검증, 응답 반환을 담당하며 단순한 경우 모델/쿼리셋 API를 직접 조합할 수 있습니다. 위 조건에 따라 별도 계층이 필요한 경우 Service/Selector로 위임하십시오.
 
 ---
 
@@ -36,8 +37,9 @@ Django 및 Django REST Framework (DRF) / Django Ninja 기반 프로젝트에 적
   - 기존 클라이언트 계약·content type을 보존합니다.
     새 API에 오류 계약이 필요하면 일관된 오류 형식을 선택해 문서화하고, framework-native 처리 또는 custom handler 중 프로젝트에 맞는 방식을 사용합니다.
 - **Pagination 적용 규약**:
-  - 목록 조회 API는 서버 과부하 방지를 위해 페이징 처리를 적용하십시오.
-    프로젝트마다 페이징 방식이 다를 수 있으므로, 프로젝트의 기존 페이징 방식을 확인하거나 어떤 형태(PageNumber, LimitOffset, Cursor 등)를 적용할지 확인 후 구현하십시오.
+  - 목록 조회 API는 결과 집합이 비한정적이거나 지속 증가할 수 있는 경우, 실제 데이터 규모·응답 크기가 문제를 일으킬 수 있는 경우, 또는 기존 API 계약 및 프로젝트 관례가 요구할 때 페이징을 적용합니다.
+  - 제품 계약상 최대 개수가 작고 명확하게 제한된(bounded) 목록이거나 페이징이 사용자 흐름 및 계약에 실질적 가치를 주지 않는 경우에는 페이징을 필수 요구사항으로 강제하지 마십시오.
+  - 페이징 적용 시 기존 프로젝트의 관례와 API 계약(PageNumber, LimitOffset, Cursor 등)을 우선하여 자율적으로 따르고, 관례로 결정 가능한 방식을 불필요하게 사용자에게 다시 질문하지 마십시오.
 
 ---
 

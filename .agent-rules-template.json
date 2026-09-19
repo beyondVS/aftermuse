@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "installed_version": "2.13.1",
+  "installed_version": "2.16.2",
   "hash_policy": {
     "text": "text-v1",
     "binary": "binary-v1"
   },
   "managed_block": {
-    "sha256": "ef5ffe2b13b0f1027f3b4d32b21456b3c1d98e622bd7ef630e67b4ab92922465"
+    "sha256": "c9d482131f2a8545e04f5aeba611ebd2dcbe92efbeb228dd9aa79ef7198f422b"
   },
   "managed_files": {
     ".agents/agents/auditor.md": {
       "type": "text",
-      "sha256": "96e459228231f5129acace99b7636b3fd9240722d0f961feabd7a48c07472703"
+      "sha256": "707a632bd206a6e917e68a21fc299b697327d6dd1137c8519fe476786f4cc959"
     },
     ".agents/skills/gitignore-generator/SKILL.md": {
       "type": "text",
@@ -43,11 +43,11 @@
     },
     "rules/architecture/ai-llm-rag.md": {
       "type": "text",
-      "sha256": "a8c4ec836245437886accb7f35507c4293a5ecb24fa6327d5a964910d4d56e55"
+      "sha256": "ec1efe87087b89661bfe2e8276d03c8a10e16cdcf5dae6747ab5d4d6507af12c"
     },
     "rules/architecture/backend-api.md": {
       "type": "text",
-      "sha256": "01a28c93c00ed7d8d0d0db14ff616b2d7aa68585be4c20793df250031643bec7"
+      "sha256": "0a66ec3c734229b808b47e0ff01b972d9bf9bd26dc27dc28d532ae6e8e3ac799"
     },
     "rules/architecture/database-orm.md": {
       "type": "text",
@@ -67,15 +67,15 @@
     },
     "rules/architecture/web-frontend.md": {
       "type": "text",
-      "sha256": "66be01100161be563ceb033dcf60c3b8e4c534efcaa10770492ed8e9f2e083a4"
+      "sha256": "d0d065be9d2af7f48a02d68e92e6c31acdd4dd88cb009a652ffd39476c617d13"
     },
     "rules/frameworks/django.md": {
       "type": "text",
-      "sha256": "bdafe0816e5f4541ed37fc5bc93b545af3d8038956b38a64a3d9d38e03f91005"
+      "sha256": "bf04889b330bd07cfeb3743d6d4d422e7a1edde2f300970ad1a949f2e10c5384"
     },
     "rules/frameworks/fastapi.md": {
       "type": "text",
-      "sha256": "0e36db19248b7fa148363da06dad4eb6d9c6640f6f66284262fc86e289be54bc"
+      "sha256": "e26d7e4f5c0b10c9bf0363f18459362c122a188b56a3c3b692aa449323bbb0a7"
     },
     "rules/frameworks/litestar.md": {
       "type": "text",
